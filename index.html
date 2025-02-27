@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Organizador de Projetos</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.min.css">
+  <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+  <div id="login">
+    <input type="text" id="nome-usuario" placeholder="Nome de usuário">
+    <input type="password" id="senha" placeholder="Senha">
+    <button id="entrar">Entrar</button>
+  </div>
+
+  <header>
+    <h1>Organizador de Projetos</h1>
+  </header>
+  <main>
+    <section id="agenda">
+      <h2>Agenda</h2>
+      <div id="agenda-calendario"></div>
+      <button id="importar-eventos">Importar eventos do Google Calendar</button>
+      <button id="exportar-eventos">Exportar eventos para o Google Calendar</button>
+    </section>
+
+    <section id="horarios">
+      <h2>Horários</h2>
+      <button id="importar-horarios">Importar</button>
+      <input type="date" id="lembrete-data-horarios">
+      <input type="time" id="lembrete-hora-horarios">
+      <input type="text" id="pesquisa-horarios" placeholder="Pesquisar horários...">
+      <table>
+        <thead>
+          <tr>
+            <th>Dia da semana</th>
+            <th>Hora de início</th>
+            <th>Hora de fim</th>
+            <th>Atividade</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Domingo</td>
+            <td>09:00</td>
+            <td>11:00</td>
+            <td>Culto</td>
+          </tr>
+          <tr>
+            <td>Terça-feira</td>
+            <td>19:30</td>
+            <td>21:00</td>
+            <td>Reunião de coordenadores</td>
+          </tr>
+          <tr>
+            <td>Quinta-feira</td>
+            <td>18:00</td>
+            <td>19:00</td>
+            <td>Ensaio da banda</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="escala-cultos">
+      <h2>Escala de Cultos</h2>
+      <button id="gerar-link-escala">Gerar link público</button>
+      <button id="importar-escala">Importar</button>
+      <input type="date" id="filtro-data-escala">
+      <input type="text" id="pesquisa-escala" placeholder="Pesquisar escala...">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Horário</th>
+            <th>Participante</th>
+            <th>Função</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>27/10/2023</td>
+            <td>19:00</td>
+            <td>João Silva</td>
+            <td>Músico</td>
+          </tr>
+          <tr>
+            <td>27/10/2023</td>
+            <td>19:00</td>
+            <td>Maria Oliveira</td>
+            <td>Pregadora</td>
+          </tr>
+          <tr>
+            <td>29/10/2023</td>
+            <td>09:00</td>
+            <td>Carlos Souza</td>
+            <td>Músico</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="responsaveis">
+      <h2>Responsáveis pelas Atividades</h2>
+      <button id="importar-responsaveis">Importar</button>
+      <select id="filtro-responsavel">
+        <option value="">Todos</option>
+      </select>
+      <input type="text" id="pesquisa-responsaveis" placeholder="Pesquisar responsáveis...">
+      <ul>
+        <li><strong>Reunião de coordenadores:</strong> João Silva (joao.silva@email.com)</li>
+        <li><strong>Ensaio da banda:</strong> Maria Oliveira (maria.oliveira@email.com)</li>
+        <li><strong>Culto de domingo:</strong> Carlos Souza (carlos.souza@email.com)</li>
+      </ul>
+    </section>
+
+    <section id="setlist">
+      <h2>Setlist de Músicas</h2>
+      <ul>
+        <li>
+          <strong>Culto de 27/10/2023:</strong>
+          <ul>
+            <li>Música 1 - Artista 1 (<a href="#">Link/Arquivo</a>)</li>
+            <li>Música 2 - Artista 2 (<a href="#">Link/Arquivo</a>)</li>
+            <li>Música 3 - Artista 3 (<a href="#">Link/Arquivo</a>)</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Culto de 29/10/2023:</strong>
+          <ul>
+            <li>Música 4 - Artista 4 (<a href="#">Link/Arquivo</a>)</li>
+            <li>Música 5 - Artista 5 (<a href="#">Link/Arquivo</a>)</li>
+            <li>Música 6 - Artista 6 (<a href="#">Link/Arquivo</a>)</li>
+          </ul>
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
