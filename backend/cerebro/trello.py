@@ -96,6 +96,15 @@ class TrelloClient:
     def get_list(self, list_id: str) -> dict[str, Any]:
         return self._request("GET", f"/lists/{list_id}", {"fields": "id,name,idBoard"})
 
+    def list_cards(self, list_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Cartões da coluna, do mais recente para o mais antigo."""
+        cards = self._request(
+            "GET",
+            f"/lists/{list_id}/cards",
+            {"fields": "id,name,desc,due,dueComplete,shortUrl,dateLastActivity", "limit": limit},
+        ) or []
+        return sorted(cards, key=lambda c: c.get("dateLastActivity") or "", reverse=True)
+
     # ------------------------------------------------------------------ ação
     def create_card(
         self,

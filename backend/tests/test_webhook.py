@@ -99,6 +99,52 @@ def test_health_endpoint():
     assert resposta.json()["status"] == "ok"
 
 
-def test_raiz_identifica_o_servico():
-    corpo = TestClient(app).get("/").json()
+def test_raiz_serve_o_painel():
+    resposta = TestClient(app).get("/")
+    assert resposta.status_code == 200
+    assert "Cérebro de Operações" in resposta.text
+
+
+def test_api_info_identifica_o_servico():
+    corpo = TestClient(app).get("/api/info").json()
     assert corpo["service"] == "cerebro-de-operacoes"
+
+
+def test_status_sem_configuracao_nao_quebra():
+    """O painel precisa carregar mesmo com o .env pela metade."""
+    corpo = TestClient(app).get("/api/status").json()
+    assert corpo["ready"] is False
+    assert corpo["lists"] == {"ideias": None, "tarefas": None}
+
+
+def test_webhook_sem_configuracao_responde_409():
+    """Sem listas escolhidas, a resposta orienta em vez de estourar."""
+    resposta = TestClient(app).post("/webhook", json=PAYLOAD)
+    assert resposta.status_code == 409
+    assert resposta.json()["stage"] == "config"
+
+
+def test_historico_registra_sucesso_e_falha(client):
+    http, _ = client(
+        Classification(action_type=ActionType.TAREFA, title="Gravar vídeos", description="Y")
+    )
+    http.delete("/api/history")
+    http.post("/webhook", json=PAYLOAD)
+
+    itens = http.get("/api/history").json()
+    assert len(itens) == 1
+    assert itens[0]["status"] == "created"
+    assert itens[0]["title"] == "Gravar vídeos"
+
+    assert http.delete("/api/history").status_code == 200
+    assert http.get("/api/history").json() == []
+
+
+def test_historico_registra_falha_do_gemini(client):
+    http, _ = client(GeminiAnalysisError("cota excedida"))
+    http.delete("/api/history")
+    http.post("/webhook", json=PAYLOAD)
+
+    itens = http.get("/api/history").json()
+    assert itens[0]["status"] == "error"
+    assert itens[0]["stage"] == "gemini"

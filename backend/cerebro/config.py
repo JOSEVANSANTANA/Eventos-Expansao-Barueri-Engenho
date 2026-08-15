@@ -49,16 +49,25 @@ def _read(name: str, *, required: bool = True, default: str = "") -> str:
     return value
 
 
-def load_settings(*, env_path: Path | None = None, override: bool = False) -> Settings:
-    """Lê o .env do disco e devolve as configurações já validadas."""
+def load_settings(
+    *,
+    env_path: Path | None = None,
+    override: bool = True,
+    require_lists: bool = False,
+) -> Settings:
+    """Lê o .env do disco e devolve as configurações já validadas.
+
+    Por padrão os IDs das listas são opcionais: o app precisa subir mesmo sem eles
+    para que o painel consiga guiar a configuração no navegador.
+    """
     load_dotenv(dotenv_path=env_path or ENV_PATH, override=override)
     return Settings(
         gemini_api_key=_read("GEMINI_API_KEY"),
         gemini_model=_read("GEMINI_MODEL", required=False, default="gemini-1.5-flash"),
         trello_api_key=_read("TRELLO_API_KEY"),
         trello_token=_read("TRELLO_TOKEN"),
-        trello_list_id_ideias=_read("TRELLO_LIST_ID_IDEIAS"),
-        trello_list_id_tarefas=_read("TRELLO_LIST_ID_TAREFAS"),
+        trello_list_id_ideias=_read("TRELLO_LIST_ID_IDEIAS", required=require_lists),
+        trello_list_id_tarefas=_read("TRELLO_LIST_ID_TAREFAS", required=require_lists),
         timezone=_read("TIMEZONE", required=False, default="America/Sao_Paulo"),
         request_timeout=float(_read("REQUEST_TIMEOUT", required=False, default="15")),
         host=_read("HOST", required=False, default="127.0.0.1"),
@@ -70,6 +79,38 @@ def load_settings(*, env_path: Path | None = None, override: bool = False) -> Se
 def get_settings() -> Settings:
     """Versão cacheada — o .env é lido uma única vez por processo."""
     return load_settings()
+
+
+def reload_settings() -> Settings:
+    """Relê o .env do disco (usado depois que o painel grava novos IDs de lista)."""
+    get_settings.cache_clear()
+    return get_settings()
+
+
+def write_env_values(values: dict[str, str], *, env_path: Path | None = None) -> Path:
+    """Atualiza chaves do .env preservando comentários, ordem e demais valores.
+
+    Chaves ainda inexistentes são acrescentadas ao final do arquivo.
+    """
+    path = env_path or ENV_PATH
+    linhas = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    pendentes = dict(values)
+
+    for indice, linha in enumerate(linhas):
+        despido = linha.strip()
+        if not despido or despido.startswith("#") or "=" not in despido:
+            continue
+        chave = despido.split("=", 1)[0].strip()
+        if chave in pendentes:
+            linhas[indice] = f"{chave}={pendentes.pop(chave)}"
+
+    if pendentes:
+        if linhas and linhas[-1].strip():
+            linhas.append("")
+        linhas.extend(f"{chave}={valor}" for chave, valor in pendentes.items())
+
+    path.write_text("\n".join(linhas).rstrip("\n") + "\n", encoding="utf-8")
+    return path
 
 
 def load_trello_credentials(*, env_path: Path | None = None) -> tuple[str, str]:

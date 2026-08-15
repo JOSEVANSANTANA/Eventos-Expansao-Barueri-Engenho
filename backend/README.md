@@ -15,7 +15,41 @@ POST /webhook  →  Gemini (JSON estruturado)  →  Trello (cartão em IDEIAS ou
 
 ---
 
-## 1. Instalação (macOS)
+# Modo app (recomendado no Mac)
+
+Um duplo clique liga tudo: ambiente, servidor e painel no Google Chrome.
+
+```bash
+cd backend
+bash instalar_app.sh
+```
+
+Isso cria **“Cérebro de Operações.app”** em `~/Applications`, com ícone próprio. A partir
+daí, é só clicar no app (ou arrastá-lo para o Dock). Ele:
+
+1. cria o ambiente virtual e instala as dependências na primeira execução;
+2. cria o `.env` a partir do exemplo e abre no editor, se ainda não existir;
+3. escolhe uma porta livre e sobe o servidor;
+4. abre o painel no Chrome.
+
+> Na primeira abertura o macOS pode barrar um app não assinado: clique com o botão direito
+> no app → **Abrir** → **Abrir**. Só é preciso fazer isso uma vez.
+
+Sem instalar o app, o duplo clique em `backend/Cerebro.command` no Finder faz o mesmo.
+
+## O painel
+
+| Área | O que faz |
+| --- | --- |
+| **Barra superior** | Estado do sistema, botão *Atualizar* e *Encerrar* (desliga o servidor). |
+| **Configuração** | Aparece enquanto faltarem as listas: escolhe board e colunas e grava no `.env`. |
+| **Processar mensagem** | Cola a mensagem, roda o Gemini e mostra o cartão criado (⌘+Enter envia). |
+| **Board ao vivo** | Últimos cartões das colunas de Ideias e Tarefas, com prazo vencido em vermelho. |
+| **Histórico da sessão** | O que foi processado desde que o app abriu, incluindo falhas. |
+
+---
+
+## 1. Instalação manual (sem o app)
 
 ```bash
 cd backend
@@ -120,27 +154,40 @@ curl -X POST http://127.0.0.1:8000/webhook \
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
+| `GET` | `/` | Painel web. |
 | `POST` | `/webhook` | Recebe `{"text", "sender?", "group?"}` e devolve o resultado do processamento. |
 | `GET` | `/health` | Estado do serviço, modelo em uso e se as listas estão configuradas. |
+| `GET` | `/api/status` | Estado detalhado para o painel (nomes das listas, usuário do Trello). |
+| `GET` | `/api/boards` | Boards e colunas disponíveis. |
+| `POST` | `/api/config/lists` | Grava `TRELLO_LIST_ID_IDEIAS` / `_TAREFAS` no `.env`. |
+| `GET` | `/api/cards` | Últimos cartões das duas colunas. |
+| `GET`/`DELETE` | `/api/history` | Histórico em memória da sessão. |
+| `POST` | `/api/shutdown` | Encerra o servidor local (botão do painel). |
 | `GET` | `/docs` | Swagger UI gerado pelo FastAPI. |
 
-Códigos de erro: `422` payload inválido · `400` configuração inconsistente ·
-`502` falha no Gemini ou no Trello (o corpo traz `stage` e `detail`).
+Códigos de erro: `422` payload inválido · `409` configuração pendente ·
+`400` configuração inconsistente · `502` falha no Gemini ou no Trello
+(o corpo traz `stage` e `detail`).
 
 ## Estrutura
 
 ```
 backend/
-├── main.py               # FastAPI: rotas, lifespan, tratamento de erros
+├── Cerebro.command       # duplo clique: prepara tudo, sobe e abre o Chrome
+├── instalar_app.sh       # cria o .app em ~/Applications, com ícone
+├── main.py               # FastAPI: painel, API, lifespan, tratamento de erros
 ├── get_trello_lists.py   # utilitário de mapeamento de boards/listas
 ├── cerebro/
-│   ├── config.py         # .env → Settings validado
+│   ├── config.py         # .env → Settings validado (e gravação do .env)
 │   ├── models.py         # contratos, normalização de rótulos e datas
 │   ├── gemini.py         # prompt do Gerente de Projetos + parsing do JSON
 │   ├── trello.py         # cliente HTTP com retry e erros acionáveis
 │   ├── pipeline.py       # orquestração mensagem → classificação → cartão
+│   ├── history.py        # histórico em memória da sessão
 │   └── console.py        # logging colorido do terminal
-└── tests/                # 61 testes, sem chamadas de rede
+├── web/                  # painel (HTML/CSS/JS puro, sem CDN)
+├── tools/criar_icone.py  # gera o ícone do app sem dependências
+└── tests/                # 73 testes, sem chamadas de rede
 ```
 
 ## Testes
@@ -150,8 +197,8 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-A suíte cobre normalização de datas e rótulos, parsing de JSON malformado do modelo,
-retentativa, roteamento das listas e os códigos de erro do webhook. Gemini e Trello são
+A suíte (73 testes) cobre normalização de datas e rótulos, parsing de JSON malformado do modelo,
+retentativa, roteamento das listas, gravação do `.env`, histórico e os códigos de erro do webhook. Gemini e Trello são
 substituídos por dublês — nenhum teste cria cartão de verdade nem gasta cota de API.
 
 ## Decisões de projeto

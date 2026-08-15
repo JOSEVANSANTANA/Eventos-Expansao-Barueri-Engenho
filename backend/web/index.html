@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cérebro de Operações · EXPANSAO OSASCO</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+</head>
+<body>
+  <header class="topo">
+    <div class="marca">
+      <span class="logo">🧠</span>
+      <div>
+        <h1>Cérebro de Operações</h1>
+        <p class="sub">EXPANSAO OSASCO · painel local</p>
+      </div>
+    </div>
+    <div class="topo-acoes">
+      <span id="pill-status" class="pill pill-neutro">verificando…</span>
+      <button id="btn-atualizar" class="btn btn-fantasma" title="Recarregar dados">Atualizar</button>
+      <button id="btn-encerrar" class="btn btn-perigo" title="Desligar o servidor local">Encerrar</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Alerta de configuração -->
+    <section id="alerta" class="cartao alerta oculto">
+      <h2 id="alerta-titulo">Configuração pendente</h2>
+      <p id="alerta-texto"></p>
+    </section>
+
+    <!-- Assistente de configuração -->
+    <section id="setup" class="cartao oculto">
+      <div class="cartao-cabecalho">
+        <h2>1 · Escolha as colunas do Trello</h2>
+        <button id="btn-carregar-boards" class="btn btn-fantasma">Carregar boards</button>
+      </div>
+      <p class="ajuda">
+        O Cérebro precisa saber em qual coluna colocar <strong>ideias</strong> e em qual colocar
+        <strong>tarefas</strong>. A escolha é gravada no seu arquivo <code id="env-path">.env</code>.
+      </p>
+      <div class="grade-setup">
+        <label>
+          <span>Board</span>
+          <select id="sel-board"><option value="">— carregue os boards —</option></select>
+        </label>
+        <label>
+          <span>Coluna de IDEIAS</span>
+          <select id="sel-ideias" disabled><option value="">—</option></select>
+        </label>
+        <label>
+          <span>Coluna de TAREFAS</span>
+          <select id="sel-tarefas" disabled><option value="">—</option></select>
+        </label>
+      </div>
+      <div class="linha-acoes">
+        <button id="btn-salvar-listas" class="btn btn-primario" disabled>Salvar configuração</button>
+        <span id="setup-msg" class="msg"></span>
+      </div>
+    </section>
+
+    <!-- Processar mensagem -->
+    <section class="cartao">
+      <div class="cartao-cabecalho">
+        <h2>Processar mensagem</h2>
+        <button id="btn-exemplo" class="btn btn-fantasma">Usar exemplo</button>
+      </div>
+      <textarea id="txt-mensagem" rows="4"
+        placeholder="Cole aqui a mensagem do grupo…"></textarea>
+      <div class="grade-meta">
+        <label><span>Autor (opcional)</span><input id="inp-autor" type="text" placeholder="Ex.: Lívia"></label>
+        <label><span>Grupo (opcional)</span><input id="inp-grupo" type="text" placeholder="EXPANSAO OSASCO"></label>
+      </div>
+      <div class="linha-acoes">
+        <button id="btn-processar" class="btn btn-primario">Processar com o Gemini</button>
+        <span id="processar-msg" class="msg"></span>
+      </div>
+      <div id="resultado" class="resultado oculto"></div>
+    </section>
+
+    <!-- Board -->
+    <section class="cartao">
+      <div class="cartao-cabecalho">
+        <h2>Board ao vivo</h2>
+        <button id="btn-cards" class="btn btn-fantasma">Recarregar cartões</button>
+      </div>
+      <div class="colunas">
+        <div class="coluna">
+          <h3><span class="ponto ponto-ideia"></span> Ideias <span id="cont-ideias" class="contador">0</span></h3>
+          <ul id="lista-ideias" class="cards"><li class="vazio">—</li></ul>
+        </div>
+        <div class="coluna">
+          <h3><span class="ponto ponto-tarefa"></span> Tarefas <span id="cont-tarefas" class="contador">0</span></h3>
+          <ul id="lista-tarefas" class="cards"><li class="vazio">—</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Histórico -->
+    <section class="cartao">
+      <div class="cartao-cabecalho">
+        <h2>Histórico da sessão</h2>
+        <button id="btn-limpar-historico" class="btn btn-fantasma">Limpar</button>
+      </div>
+      <ul id="historico" class="historico"><li class="vazio">Nada processado ainda.</li></ul>
+    </section>
+  </main>
+
+  <footer>
+    <span id="rodape">Cérebro de Operações</span>
+    <a href="/docs" target="_blank" rel="noopener">Documentação da API</a>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
