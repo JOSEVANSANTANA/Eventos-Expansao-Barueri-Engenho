@@ -32,6 +32,21 @@ class Settings:
     request_timeout: float
     host: str
     port: int
+    # --- servidor e fila (com padrão: o .env antigo continua válido) ---
+    db_path: str = str(BASE_DIR / "dados" / "cerebro.db")
+    server_token: str = ""
+    fila_intervalo: float = 20.0
+    # --- WhatsApp ---
+    whatsapp_provider: str = "nenhum"
+    whatsapp_api_key: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_app_secret: str = ""
+    whatsapp_grupos: tuple[str, ...] = ()
+    whatsapp_ignorar_proprias: bool = True
+
+    @property
+    def whatsapp_ativo(self) -> bool:
+        return self.whatsapp_provider not in ("", "nenhum")
 
 
 def _read(name: str, *, required: bool = True, default: str = "") -> str:
@@ -72,7 +87,27 @@ def load_settings(
         request_timeout=float(_read("REQUEST_TIMEOUT", required=False, default="15")),
         host=_read("HOST", required=False, default="127.0.0.1"),
         port=int(_read("PORT", required=False, default="8000")),
+        db_path=_read("DB_PATH", required=False, default=str(BASE_DIR / "dados" / "cerebro.db")),
+        server_token=_read("SERVER_TOKEN", required=False),
+        fila_intervalo=float(_read("FILA_INTERVALO", required=False, default="20")),
+        whatsapp_provider=_read("WHATSAPP_PROVIDER", required=False, default="nenhum").lower(),
+        whatsapp_api_key=_read("WHATSAPP_API_KEY", required=False),
+        whatsapp_verify_token=_read("WHATSAPP_VERIFY_TOKEN", required=False),
+        whatsapp_app_secret=_read("WHATSAPP_APP_SECRET", required=False),
+        whatsapp_grupos=_lista(_read("WHATSAPP_GRUPOS", required=False)),
+        whatsapp_ignorar_proprias=_booleano(
+            _read("WHATSAPP_IGNORAR_PROPRIAS", required=False, default="sim")
+        ),
     )
+
+
+def _lista(valor: str) -> tuple[str, ...]:
+    """Converte "Grupo A, Grupo B" em ("Grupo A", "Grupo B")."""
+    return tuple(parte.strip() for parte in valor.split(",") if parte.strip())
+
+
+def _booleano(valor: str) -> bool:
+    return valor.strip().lower() in {"1", "sim", "true", "yes", "on"}
 
 
 @lru_cache(maxsize=1)

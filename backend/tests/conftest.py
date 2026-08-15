@@ -13,8 +13,10 @@ from cerebro.models import Classification, WebhookMessage  # noqa: E402
 
 
 @pytest.fixture
-def settings() -> Settings:
+def settings(tmp_path) -> Settings:
+    # db_path aponta para o tmp: nenhum teste pode encostar no banco de produção.
     return Settings(
+        db_path=str(tmp_path / "cerebro-teste.db"),
         gemini_api_key="fake-gemini-key",
         gemini_model="gemini-1.5-flash",
         trello_api_key="fake-trello-key",
@@ -48,6 +50,12 @@ class FakeTrello:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
         self.cards: list[dict[str, Any]] = []
+        self.cards_existentes: list[dict[str, Any]] = []
+
+    def list_cards(self, list_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        if self.error:
+            raise self.error
+        return self.cards_existentes[:limit]
 
     def create_card(
         self, list_id: str, name: str, description: str = "", due: str | None = None, **_: Any

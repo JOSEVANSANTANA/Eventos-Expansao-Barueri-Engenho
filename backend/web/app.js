@@ -9,17 +9,30 @@ const EXEMPLO =
 
 let boards = [];
 let pronto = false;
+let ideiasGeradas = [];
+
+/* ------------------------------------------------------------------- token */
+// Acesso pela rede: o token vem na URL uma vez e fica guardado neste aparelho.
+function lerToken() {
+  const naUrl = new URLSearchParams(location.search).get("token");
+  if (naUrl) {
+    localStorage.setItem("cerebro_token", naUrl);
+    history.replaceState({}, "", location.pathname);
+    return naUrl;
+  }
+  return localStorage.getItem("cerebro_token") || "";
+}
+const TOKEN = lerToken();
 
 /* ------------------------------------------------------------------ helpers */
 async function api(rota, opcoes = {}) {
-  const resposta = await fetch(rota, {
-    headers: { "Content-Type": "application/json" },
-    ...opcoes,
-  });
+  const cabecalhos = { "Content-Type": "application/json", ...(opcoes.headers || {}) };
+  if (TOKEN) cabecalhos["X-Cerebro-Token"] = TOKEN;
+
+  const resposta = await fetch(rota, { ...opcoes, headers: cabecalhos });
   const corpo = await resposta.json().catch(() => null);
   if (!resposta.ok) {
-    const detalhe =
-      (corpo && (corpo.detail || corpo.erro)) || `HTTP ${resposta.status}`;
+    const detalhe = (corpo && (corpo.detail || corpo.erro)) || `HTTP ${resposta.status}`;
     throw new Error(typeof detalhe === "string" ? detalhe : JSON.stringify(detalhe));
   }
   return corpo;
@@ -41,12 +54,26 @@ function formatarPrazo(iso) {
   const data = new Date(iso);
   if (Number.isNaN(data.getTime())) return null;
   return data.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   });
 }
+
+function formatarHora(iso) {
+  if (!iso) return "";
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return String(iso).slice(11, 19);
+  return data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* --------------------------------------------------------------------- abas */
+document.querySelectorAll(".aba").forEach((aba) => {
+  aba.onclick = () => {
+    document.querySelectorAll(".aba").forEach((b) => b.classList.remove("ativa"));
+    document.querySelectorAll(".painel").forEach((p) => p.classList.add("oculto"));
+    aba.classList.add("ativa");
+    $(aba.dataset.alvo).classList.remove("oculto");
+  };
+});
 
 /* ------------------------------------------------------------------- status */
 async function carregarStatus() {
@@ -55,6 +82,9 @@ async function carregarStatus() {
     const status = await api("/api/status");
     $("env-path").textContent = status.env_path;
     $("rodape").textContent = `v${status.version} · modelo ${status.model || "?"}`;
+    desenharFila(status.fila);
+    desenharWhatsApp(status.whatsapp);
+    desenharRede(status.rede, status.whatsapp);
 
     if (status.config_error) {
       pronto = false;
@@ -91,10 +121,24 @@ async function carregarStatus() {
     }
   } catch (erro) {
     pronto = false;
-    pill.textContent = "servidor fora do ar";
+    pill.textContent = erro.message.includes("Token") ? "sem autorização" : "servidor fora do ar";
     pill.className = "pill pill-erro";
-    mostrarAlerta("Sem resposta do servidor local", erro.message);
+    mostrarAlerta("Não consegui falar com o servidor", erro.message);
   }
+}
+
+function desenharFila(fila) {
+  const pill = $("pill-fila");
+  if (!fila || (!fila.pendentes && !fila.erros)) {
+    pill.classList.add("oculto");
+    return;
+  }
+  const partes = [];
+  if (fila.pendentes) partes.push(`${fila.pendentes} na fila`);
+  if (fila.erros) partes.push(`${fila.erros} com erro`);
+  pill.textContent = partes.join(" · ");
+  pill.className = "pill " + (fila.erros ? "pill-erro" : "pill-aviso");
+  pill.classList.remove("oculto");
 }
 
 function mostrarAlerta(titulo, texto) {
@@ -152,7 +196,6 @@ function preencherListas() {
     sel.disabled = listas.length === 0;
   });
 
-  // Palpite pelo nome da coluna, igual ao get_trello_lists.py.
   const acha = (regex) => (listas.find((l) => regex.test(l.name)) || {}).id || "";
   selIdeias.value = acha(/ideia|refer|inspira|banco|backlog/i);
   selTarefas.value = acha(/tarefa|fazer|todo|produ|execu/i);
@@ -175,10 +218,7 @@ async function salvarListas() {
   try {
     await api("/api/config/lists", {
       method: "POST",
-      body: JSON.stringify({
-        ideias: $("sel-ideias").value,
-        tarefas: $("sel-tarefas").value,
-      }),
+      body: JSON.stringify({ ideias: $("sel-ideias").value, tarefas: $("sel-tarefas").value }),
     });
     msg($("setup-msg"), "Configuração salva.", "ok");
     await carregarStatus();
@@ -201,25 +241,24 @@ async function processar() {
   $("resultado").classList.add("oculto");
 
   try {
-    const corpo = {
-      text: texto,
-      sender: $("inp-autor").value.trim() || null,
-      group: $("inp-grupo").value.trim() || null,
-    };
     const resultado = await api("/webhook", {
       method: "POST",
-      body: JSON.stringify(corpo),
+      body: JSON.stringify({
+        text: texto,
+        sender: $("inp-autor").value.trim() || null,
+        group: $("inp-grupo").value.trim() || null,
+      }),
     });
     mostrarResultado(resultado);
     msg($("processar-msg"), "");
     $("txt-mensagem").value = "";
-    carregarHistorico();
     if (resultado.status === "created") carregarCards();
   } catch (erro) {
     msg($("processar-msg"), erro.message, "erro");
-    carregarHistorico();
   } finally {
     botao.disabled = false;
+    carregarHistorico();
+    carregarStatus();
   }
 }
 
@@ -229,7 +268,7 @@ function mostrarResultado(resultado) {
     resultado.action_type
   )}</span>`;
 
-  if (resultado.status === "ignored") {
+  if (resultado.status !== "created") {
     caixa.innerHTML = `${etiqueta}<h3>Nada foi criado</h3>
       <p>${escapar(resultado.detail || "Mensagem classificada como bate-papo.")}</p>`;
   } else {
@@ -279,6 +318,18 @@ function desenharCards(idLista, idContador, cards) {
 }
 
 /* ---------------------------------------------------------------- histórico */
+const ETIQUETAS = {
+  criado: (item) => `<span class="etiqueta etiqueta-${item.action_type || "tarefa"}">${escapar(
+    item.action_type || "criado"
+  )}</span>`,
+  ignorado: () => '<span class="etiqueta etiqueta-ignorar">ignorar</span>',
+  pendente: (item) =>
+    `<span class="etiqueta etiqueta-pendente">na fila${
+      item.tentativas ? ` · ${item.tentativas}ª tentativa` : ""
+    }</span>`,
+  erro: (item) => `<span class="etiqueta etiqueta-erro">falha · ${escapar(item.stage || "?")}</span>`,
+};
+
 async function carregarHistorico() {
   try {
     const itens = await api("/api/history");
@@ -289,23 +340,27 @@ async function carregarHistorico() {
     }
     ul.innerHTML = itens
       .map((item) => {
-        const etiqueta =
-          item.status === "error"
-            ? `<span class="etiqueta etiqueta-erro">falha · ${escapar(item.stage)}</span>`
-            : `<span class="etiqueta etiqueta-${item.action_type}">${escapar(item.action_type)}</span>`;
-        const titulo =
-          item.status === "error"
-            ? escapar(item.detail).slice(0, 240)
-            : escapar(item.title || "");
+        const etiqueta = (ETIQUETAS[item.status] || ETIQUETAS.pendente)(item);
+        const origem =
+          item.origem === "whatsapp"
+            ? '<span class="origem">WhatsApp</span>'
+            : '<span class="origem">painel</span>';
         const link = item.card_url
           ? ` · <a href="${escapar(item.card_url)}" target="_blank" rel="noopener">abrir cartão</a>`
           : "";
-        // Mensagem ignorada não tem título: mostra só a hora, a etiqueta e o texto.
-        const linhaTitulo = titulo || link ? `<div class="titulo">${titulo}${link}</div>` : "";
+        const titulo = item.titulo ? `${escapar(item.titulo)}${link}` : "";
+        const erro = item.ultimo_erro
+          ? `<div class="erro-detalhe">${escapar(item.ultimo_erro).slice(0, 200)}</div>`
+          : "";
         return `<li>
-          <div class="cabecalho"><span class="hora">${escapar(item.at)}</span>${etiqueta}</div>
-          ${linhaTitulo}
-          <div class="texto">${escapar(item.text).slice(0, 180)}</div>
+          <div class="cabecalho">
+            <span class="hora">${escapar(formatarHora(item.recebida_em))}</span>
+            ${etiqueta}${origem}
+            ${item.autor ? `<span class="autor">${escapar(item.autor)}</span>` : ""}
+          </div>
+          ${titulo ? `<div class="titulo">${titulo}</div>` : ""}
+          <div class="texto">${escapar(item.texto).slice(0, 180)}</div>
+          ${erro}
         </li>`;
       })
       .join("");
@@ -317,11 +372,206 @@ async function carregarHistorico() {
 async function limparHistorico() {
   await api("/api/history", { method: "DELETE" }).catch(() => {});
   carregarHistorico();
+  carregarStatus();
+}
+
+async function reprocessarFila() {
+  const botao = $("btn-reprocessar");
+  botao.disabled = true;
+  try {
+    const resultado = await api("/api/fila/reprocessar", { method: "POST" });
+    botao.textContent = `${resultado.mensagens} de volta na fila`;
+    setTimeout(() => (botao.textContent = "Reprocessar fila"), 3000);
+  } finally {
+    botao.disabled = false;
+    carregarHistorico();
+    carregarStatus();
+  }
+}
+
+/* ------------------------------------------------------------------ estúdio */
+async function gerarIdeias() {
+  const tema = $("inp-tema").value.trim();
+  if (tema.length < 3) {
+    msg($("estudio-msg"), "Descreva o tema em algumas palavras.", "erro");
+    return;
+  }
+  const botao = $("btn-gerar");
+  botao.disabled = true;
+  msg($("estudio-msg"), "O Gemini está criando…");
+  try {
+    const resposta = await api("/api/estudio/ideias", {
+      method: "POST",
+      body: JSON.stringify({
+        tema,
+        quantidade: Number($("sel-quantidade").value),
+        usar_board: $("chk-board").checked,
+      }),
+    });
+    ideiasGeradas = resposta.ideias || [];
+    desenharIdeias();
+    msg($("estudio-msg"), `${ideiasGeradas.length} ideia(s) — marque o que quer criar.`, "ok");
+  } catch (erro) {
+    msg($("estudio-msg"), erro.message, "erro");
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+function desenharIdeias() {
+  const caixa = $("ideias-geradas");
+  if (!ideiasGeradas.length) {
+    caixa.classList.add("oculto");
+    $("ideias-acoes").classList.add("oculto");
+    return;
+  }
+  caixa.innerHTML = ideiasGeradas
+    .map((ideia, indice) => {
+      const prazo = formatarPrazo(ideia.due_date);
+      const marcas = [ideia.formato, ideia.esforco ? `esforço ${ideia.esforco}` : ""]
+        .filter(Boolean)
+        .map((m) => `<span class="selo">${escapar(m)}</span>`)
+        .join("");
+      return `<label class="ideia">
+        <input type="checkbox" data-indice="${indice}" checked>
+        <div>
+          <strong>${escapar(ideia.title)}</strong>
+          <p>${escapar(ideia.description)}</p>
+          <div class="selos">${marcas}${
+            prazo ? `<span class="selo">prazo ${escapar(prazo)}</span>` : ""
+          }</div>
+        </div>
+      </label>`;
+    })
+    .join("");
+  caixa.classList.remove("oculto");
+  $("ideias-acoes").classList.remove("oculto");
+  msg($("criar-msg"), "");
+}
+
+async function criarCartoes() {
+  const marcadas = [...document.querySelectorAll("#ideias-geradas input:checked")].map(
+    (input) => ideiasGeradas[Number(input.dataset.indice)]
+  );
+  if (!marcadas.length) {
+    msg($("criar-msg"), "Marque ao menos uma ideia.", "erro");
+    return;
+  }
+  const botao = $("btn-criar-cartoes");
+  botao.disabled = true;
+  msg($("criar-msg"), "Criando no Trello…");
+  try {
+    const resposta = await api("/api/estudio/criar-cartoes", {
+      method: "POST",
+      body: JSON.stringify({ destino: $("sel-destino").value, ideias: marcadas }),
+    });
+    msg($("criar-msg"), `${resposta.cartoes.length} cartão(ões) criado(s).`, "ok");
+    ideiasGeradas = [];
+    desenharIdeias();
+    carregarCards();
+  } catch (erro) {
+    msg($("criar-msg"), erro.message, "erro");
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+async function organizar() {
+  const botao = $("btn-organizar");
+  botao.disabled = true;
+  msg($("organizar-msg"), "Lendo o board…");
+  try {
+    const analise = await api("/api/estudio/organizar", { method: "POST" });
+    const bloco = (titulo, itens, render) =>
+      itens && itens.length
+        ? `<h3>${titulo}</h3><ul class="lista-analise">${itens.map(render).join("")}</ul>`
+        : "";
+
+    $("analise").innerHTML = `
+      <p class="resumo">${escapar(analise.resumo)}</p>
+      ${bloco(
+        "Prioridades",
+        analise.prioridades,
+        (p) =>
+          `<li><span class="urgencia urgencia-${escapar(p.urgencia)}">${escapar(
+            p.urgencia
+          )}</span><strong>${escapar(p.titulo)}</strong><span class="motivo">${escapar(
+            p.motivo
+          )}</span></li>`
+      )}
+      ${bloco(
+        "Possíveis duplicatas",
+        analise.duplicatas,
+        (d) =>
+          `<li><strong>${d.titulos.map(escapar).join(" + ")}</strong><span class="motivo">${escapar(
+            d.sugestao
+          )}</span></li>`
+      )}
+      ${bloco("Lacunas", analise.lacunas, (l) => `<li>${escapar(l)}</li>`)}
+      ${bloco("Próximos passos", analise.proximos_passos, (p) => `<li>${escapar(p)}</li>`)}
+    `;
+    $("analise").classList.remove("oculto");
+    msg($("organizar-msg"), "");
+  } catch (erro) {
+    msg($("organizar-msg"), erro.message, "erro");
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+/* ----------------------------------------------------------------- whatsapp */
+function desenharWhatsApp(whatsapp) {
+  if (!whatsapp) return;
+  if (document.activeElement !== $("sel-provedor")) $("sel-provedor").value = whatsapp.provedor;
+  if (!$("inp-grupos").dataset.tocado) $("inp-grupos").value = (whatsapp.grupos || []).join(", ");
+  $("url-webhook").textContent = `${location.origin}/webhook/whatsapp`;
+  alternarCamposWhatsApp();
+}
+
+function alternarCamposWhatsApp() {
+  const provedor = $("sel-provedor").value;
+  $("campo-apikey").classList.toggle("oculto", !["evolution", "generico"].includes(provedor));
+  $("campo-verify").classList.toggle("oculto", provedor !== "meta");
+  $("campo-secret").classList.toggle("oculto", provedor !== "meta");
+}
+
+async function salvarWhatsApp() {
+  const botao = $("btn-salvar-whatsapp");
+  botao.disabled = true;
+  msg($("whatsapp-msg"), "Gravando no .env…");
+  try {
+    const corpo = { provedor: $("sel-provedor").value, grupos: $("inp-grupos").value };
+    // Campos em branco preservam o valor atual — nunca apagam uma chave por engano.
+    if ($("inp-apikey").value) corpo.api_key = $("inp-apikey").value;
+    if ($("inp-verify").value) corpo.verify_token = $("inp-verify").value;
+    if ($("inp-secret").value) corpo.app_secret = $("inp-secret").value;
+
+    await api("/api/config/whatsapp", { method: "POST", body: JSON.stringify(corpo) });
+    ["inp-apikey", "inp-verify", "inp-secret"].forEach((id) => ($(id).value = ""));
+    msg($("whatsapp-msg"), "Conexão salva.", "ok");
+    carregarStatus();
+  } catch (erro) {
+    msg($("whatsapp-msg"), erro.message, "erro");
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+function desenharRede(rede, whatsapp) {
+  if (!rede) return;
+  const naRede = rede.host === "0.0.0.0";
+  $("rede").innerHTML = `
+    <li><span>Escutando em</span><code>${escapar(rede.host)}:${escapar(rede.porta)}</code></li>
+    <li><span>Alcance</span>${naRede ? "rede local" : "somente este Mac"}</li>
+    <li><span>Token exigido</span>${rede.token_exigido ? "sim" : "não"}</li>
+    <li><span>WhatsApp</span>${
+      whatsapp && whatsapp.ativo ? escapar(whatsapp.provedor) : "desligado"
+    }</li>`;
 }
 
 /* ----------------------------------------------------------------- encerrar */
 async function encerrar() {
-  if (!confirm("Encerrar o servidor local do Cérebro?")) return;
+  if (!confirm("Encerrar o servidor do Cérebro?")) return;
   await api("/api/shutdown", { method: "POST" }).catch(() => {});
   document.body.innerHTML =
     '<main><section class="cartao"><h2>Servidor encerrado</h2>' +
@@ -343,6 +593,19 @@ $("btn-salvar-listas").onclick = salvarListas;
 $("btn-processar").onclick = processar;
 $("btn-cards").onclick = carregarCards;
 $("btn-limpar-historico").onclick = limparHistorico;
+$("btn-reprocessar").onclick = reprocessarFila;
+$("btn-gerar").onclick = gerarIdeias;
+$("btn-criar-cartoes").onclick = criarCartoes;
+$("btn-organizar").onclick = organizar;
+$("sel-provedor").onchange = alternarCamposWhatsApp;
+$("btn-salvar-whatsapp").onclick = salvarWhatsApp;
+$("inp-grupos").oninput = () => ($("inp-grupos").dataset.tocado = "1");
+$("btn-copiar-webhook").onclick = () => {
+  navigator.clipboard.writeText($("url-webhook").textContent).then(() => {
+    $("btn-copiar-webhook").textContent = "Copiado!";
+    setTimeout(() => ($("btn-copiar-webhook").textContent = "Copiar"), 2000);
+  });
+};
 $("btn-exemplo").onclick = () => {
   $("txt-mensagem").value = EXEMPLO;
   $("inp-grupo").value = $("inp-grupo").value || "EXPANSAO OSASCO";
@@ -350,7 +613,13 @@ $("btn-exemplo").onclick = () => {
 $("txt-mensagem").addEventListener("keydown", (evento) => {
   if ((evento.metaKey || evento.ctrlKey) && evento.key === "Enter") processar();
 });
+$("inp-tema").addEventListener("keydown", (evento) => {
+  if (evento.key === "Enter") gerarIdeias();
+});
 
 carregarStatus();
 carregarHistorico();
-setInterval(carregarStatus, 30000);
+setInterval(() => {
+  carregarStatus();
+  carregarHistorico();
+}, 20000);

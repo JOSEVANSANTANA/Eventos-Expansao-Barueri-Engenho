@@ -4,11 +4,12 @@ import pytest
 from conftest import FakeAnalyzer, FakeTrello
 from fastapi.testclient import TestClient
 
+from cerebro.db import Store
 from cerebro.gemini import GeminiAnalysisError
 from cerebro.models import ActionType, Classification
 from cerebro.pipeline import Pipeline
 from cerebro.trello import TrelloError
-from main import app, get_pipeline
+from main import app, get_pipeline, get_store
 
 PAYLOAD = {
     "text": (
@@ -20,20 +21,25 @@ PAYLOAD = {
 
 
 @pytest.fixture
-def client(settings):
-    """TestClient com o pipeline substituído — nenhuma chamada externa é feita."""
+def client(settings, tmp_path):
+    """TestClient com pipeline e banco substituídos — nenhuma chamada externa."""
     fakes: dict = {}
 
     def _make(resultado, trello=None):
         trello = trello or FakeTrello()
+        store = Store(tmp_path / "teste.db", timezone=settings.timezone)
         fakes["trello"] = trello
+        fakes["store"] = store
         app.dependency_overrides[get_pipeline] = lambda: Pipeline(
             settings=settings, analyzer=FakeAnalyzer(resultado), trello=trello
         )
+        app.dependency_overrides[get_store] = lambda: store
         return TestClient(app), fakes
 
     yield _make
     app.dependency_overrides.clear()
+    if "store" in fakes:
+        fakes["store"].close()
 
 
 def test_webhook_cria_cartao_de_tarefa(client):
@@ -84,13 +90,26 @@ def test_falha_do_gemini_retorna_502(client):
 def test_falha_do_trello_retorna_502(client):
     http, _ = client(
         Classification(action_type=ActionType.TAREFA, title="X", description="Y"),
-        trello=FakeTrello(error=TrelloError("401 unauthorized")),
+        trello=FakeTrello(error=TrelloError("timeout na rede")),
     )
 
     resposta = http.post("/webhook", json=PAYLOAD)
 
     assert resposta.status_code == 502
     assert resposta.json()["stage"] == "trello"
+
+
+def test_falha_deixa_a_mensagem_na_fila(client):
+    """O ponto do modo offline: falhou, mas a mensagem não se perdeu."""
+    http, fakes = client(
+        Classification(action_type=ActionType.TAREFA, title="X", description="Y"),
+        trello=FakeTrello(error=TrelloError("timeout na rede")),
+    )
+
+    http.post("/webhook", json=PAYLOAD)
+
+    assert fakes["store"].estatisticas()["pendentes"] == 1
+    assert len(fakes["store"].pendentes_vencidas()) == 0  # aguardando o backoff
 
 
 def test_health_endpoint():
@@ -115,6 +134,7 @@ def test_status_sem_configuracao_nao_quebra():
     corpo = TestClient(app).get("/api/status").json()
     assert corpo["ready"] is False
     assert corpo["lists"] == {"ideias": None, "tarefas": None}
+    assert corpo["whatsapp"]["ativo"] is False
 
 
 def test_webhook_sem_configuracao_responde_409():
@@ -124,27 +144,36 @@ def test_webhook_sem_configuracao_responde_409():
     assert resposta.json()["stage"] == "config"
 
 
-def test_historico_registra_sucesso_e_falha(client):
+def test_historico_registra_o_que_foi_criado(client):
     http, _ = client(
         Classification(action_type=ActionType.TAREFA, title="Gravar vídeos", description="Y")
     )
-    http.delete("/api/history")
     http.post("/webhook", json=PAYLOAD)
 
     itens = http.get("/api/history").json()
     assert len(itens) == 1
-    assert itens[0]["status"] == "created"
-    assert itens[0]["title"] == "Gravar vídeos"
-
-    assert http.delete("/api/history").status_code == 200
-    assert http.get("/api/history").json() == []
+    assert itens[0]["status"] == "criado"
+    assert itens[0]["titulo"] == "Gravar vídeos"
+    assert itens[0]["origem"] == "painel"
 
 
 def test_historico_registra_falha_do_gemini(client):
     http, _ = client(GeminiAnalysisError("cota excedida"))
-    http.delete("/api/history")
     http.post("/webhook", json=PAYLOAD)
 
     itens = http.get("/api/history").json()
-    assert itens[0]["status"] == "error"
+    assert itens[0]["status"] == "pendente"  # vai voltar pela fila
     assert itens[0]["stage"] == "gemini"
+
+
+def test_limpar_historico_preserva_a_fila(client):
+    http, fakes = client(
+        Classification(action_type=ActionType.TAREFA, title="Feito", description="Y")
+    )
+    http.post("/webhook", json=PAYLOAD)
+    fakes["store"].registrar("mensagem que ficou pendente", origem="painel")
+
+    resposta = http.delete("/api/history")
+
+    assert resposta.json()["removidos"] == 1
+    assert fakes["store"].estatisticas()["pendentes"] == 1

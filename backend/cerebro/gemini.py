@@ -85,31 +85,7 @@ class GeminiAnalyzer:
         return f"{cabecalho}\n\nMensagem recebida:\n\"\"\"\n{message.text}\n\"\"\""
 
     def _generate(self, prompt: str) -> str:
-        """Chama o modelo com uma retentativa para falhas transitórias."""
-        last_error: Exception | None = None
-        for attempt in range(1, self._max_attempts + 1):
-            try:
-                response = self._model.generate_content(prompt)
-                text = (getattr(response, "text", "") or "").strip()
-                if not text:
-                    raise GeminiAnalysisError(
-                        f"resposta vazia do modelo (feedback: "
-                        f"{getattr(response, 'prompt_feedback', 'n/d')})"
-                    )
-                return text
-            except Exception as exc:  # noqa: BLE001 — SDK levanta hierarquias distintas
-                last_error = exc
-                if any(marker in str(exc).lower() for marker in _FATAL_MARKERS):
-                    break  # credencial/modelo errado: repetir não resolve
-                if attempt < self._max_attempts:
-                    log.warning(
-                        "Gemini falhou (tentativa %s/%s): %s — repetindo…",
-                        attempt,
-                        self._max_attempts,
-                        exc,
-                    )
-                    time.sleep(1.5 * attempt)
-        raise GeminiAnalysisError(f"chamada ao Gemini falhou: {last_error}") from last_error
+        return gerar_texto(self._model, prompt, max_attempts=self._max_attempts)
 
     def analyze(self, message: WebhookMessage) -> Classification:
         raw = self._generate(self._build_prompt(message))
@@ -117,6 +93,43 @@ class GeminiAnalyzer:
         return Classification.from_payload(
             payload, fallback_text=message.text, timezone=self._timezone
         )
+
+
+def gerar_texto(model: Any, prompt: str, *, max_attempts: int = 2) -> str:
+    """Chama o modelo com retentativa para falhas transitórias.
+
+    Compartilhado pelo classificador e pelo estúdio criativo: os dois precisam do
+    mesmo comportamento diante de 5xx, timeout e credencial inválida.
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, max(1, max_attempts) + 1):
+        try:
+            response = model.generate_content(prompt)
+            text = (getattr(response, "text", "") or "").strip()
+            if not text:
+                raise GeminiAnalysisError(
+                    f"resposta vazia do modelo (feedback: "
+                    f"{getattr(response, 'prompt_feedback', 'n/d')})"
+                )
+            return text
+        except Exception as exc:  # noqa: BLE001 — SDK levanta hierarquias distintas
+            last_error = exc
+            if any(marker in str(exc).lower() for marker in _FATAL_MARKERS):
+                break  # credencial/modelo errado: repetir não resolve
+            if attempt < max_attempts:
+                log.warning(
+                    "Gemini falhou (tentativa %s/%s): %s — repetindo…",
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                time.sleep(1.5 * attempt)
+    raise GeminiAnalysisError(f"chamada ao Gemini falhou: {last_error}") from last_error
+
+
+def parse_json(raw: str) -> dict[str, Any]:
+    """Decodificação tolerante da resposta do modelo (uso público)."""
+    return _parse_json(raw)
 
 
 def _parse_json(raw: str) -> dict[str, Any]:

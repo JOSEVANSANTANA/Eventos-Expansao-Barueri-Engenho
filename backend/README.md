@@ -1,152 +1,135 @@
 # Cérebro de Operações — EXPANSAO OSASCO
 
-Backend em Python que recebe mensagens do grupo (via webhook), classifica cada uma com o
-Google Gemini atuando como Gerente de Projetos, e cria o cartão na coluna certa do Trello.
+Backend em Python que lê as mensagens da equipe, classifica cada uma com o Google Gemini
+atuando como Gerente de Projetos, e cria o cartão na coluna certa do Trello. Roda no seu
+Mac, com painel no Chrome.
 
 ```
-POST /webhook  →  Gemini (JSON estruturado)  →  Trello (cartão em IDEIAS ou TAREFAS)
+WhatsApp (ou painel)  →  fila local  →  Gemini  →  Trello
+                            ↑
+                     nada se perde se a internet cair
 ```
 
 | Classificação | Destino |
 | --- | --- |
 | `ideia` — referências, inspirações, material de apoio | lista `TRELLO_LIST_ID_IDEIAS` |
 | `tarefa` — decisões, entregas com responsável ou prazo | lista `TRELLO_LIST_ID_TAREFAS` |
-| `ignorar` — bate-papo | nada é criado (responde `200 {"status":"ignored"}`) |
+| `ignorar` — bate-papo | nada é criado (fica só no histórico) |
 
 ---
 
-# Modo app (recomendado no Mac)
-
-Um duplo clique liga tudo: ambiente, servidor e painel no Google Chrome.
+# 1. Instalar (uma vez)
 
 ```bash
 cd backend
 bash instalar_app.sh
 ```
 
-Isso cria **“Cérebro de Operações.app”** em `~/Applications`, com ícone próprio. A partir
-daí, é só clicar no app (ou arrastá-lo para o Dock). Ele:
+Cria **“Cérebro de Operações.app”** em `~/Applications`, com ícone próprio. A partir daí é
+só clicar no app (ou arrastá-lo para o Dock). Ele prepara o ambiente, sobe o servidor e
+abre o painel no Chrome.
 
-1. cria o ambiente virtual e instala as dependências na primeira execução;
-2. cria o `.env` a partir do exemplo e abre no editor, se ainda não existir;
-3. escolhe uma porta livre e sobe o servidor;
-4. abre o painel no Chrome.
+> Na primeira abertura o macOS pode barrar um app não assinado: botão direito no app →
+> **Abrir** → **Abrir**. Só uma vez.
 
-> Na primeira abertura o macOS pode barrar um app não assinado: clique com o botão direito
-> no app → **Abrir** → **Abrir**. Só é preciso fazer isso uma vez.
+Sem instalar o app, o duplo clique em `backend/Cerebro.command` faz o mesmo.
 
-Sem instalar o app, o duplo clique em `backend/Cerebro.command` no Finder faz o mesmo.
+# 2. Preencher as chaves
 
-## O painel
+Na primeira execução o `.env` é criado e aberto no editor. Preencha:
 
-| Área | O que faz |
-| --- | --- |
-| **Barra superior** | Estado do sistema, botão *Atualizar* e *Encerrar* (desliga o servidor). |
-| **Configuração** | Aparece enquanto faltarem as listas: escolhe board e colunas e grava no `.env`. |
-| **Processar mensagem** | Cola a mensagem, roda o Gemini e mostra o cartão criado (⌘+Enter envia). |
-| **Board ao vivo** | Últimos cartões das colunas de Ideias e Tarefas, com prazo vencido em vermelho. |
-| **Histórico da sessão** | O que foi processado desde que o app abriu, incluindo falhas. |
+```
+GEMINI_API_KEY=...      # https://aistudio.google.com/apikey
+TRELLO_API_KEY=...      # https://trello.com/power-ups/admin
+TRELLO_TOKEN=...
+```
+
+Salve e rode o app de novo.
+
+# 3. Escolher as colunas
+
+No painel, aba **Operação**: clique em **Carregar boards**, escolha o board e as duas
+colunas, e salve. O Cérebro grava os IDs no `.env` sozinho.
+
+Pronto — já dá para colar uma mensagem em **Processar mensagem** e ver o cartão nascer.
 
 ---
 
-## 1. Instalação manual (sem o app)
+## O painel
+
+Três abas:
+
+### Operação
+Processa mensagem colada, mostra o board ao vivo (prazo vencido em vermelho) e o
+histórico com origem (painel ou WhatsApp), status e erros. Botão **Reprocessar fila**
+devolve para a fila o que falhou.
+
+### Estúdio Criativo
+Usa a mesma chave do Gemini para **produzir**, não só classificar:
+
+- **Gerar ideias** — você dá o tema ("divulgação da Vigília de sexta"), ele lê o board
+  para não repetir o que já existe e devolve pauta nova com formato, esforço e prazo
+  sugerido. Você marca o que aprova e manda para o Trello com um clique.
+- **Organizar o board** — lê as duas colunas e devolve prioridades (com o motivo),
+  cartões duplicados que podem ser fundidos, lacunas e próximos passos. Não altera nada
+  no Trello: é leitura e recomendação.
+
+### Conexões
+Configura o WhatsApp e mostra o estado da rede (onde está escutando, se exige token).
+
+---
+
+## Online e offline
+
+**Toda mensagem é gravada em SQLite antes de qualquer chamada externa.** Se o Gemini, o
+Trello ou a sua internet estiverem fora do ar, a mensagem fica pendente e é reprocessada
+sozinha — com espera crescente (1, 2, 4… até 60 minutos), até 8 tentativas. Nada se perde
+entre reinícios do app, porque o banco fica em `backend/dados/cerebro.db`.
+
+Erro que repetir não resolve (chave inválida, lista inexistente) não fica em loop: vira
+`erro` na hora e espera você arrumar — depois é só clicar em **Reprocessar fila**.
+
+O contador na barra superior mostra quantas estão na fila.
+
+### Modo servidor
 
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install fastapi uvicorn requests google-generativeai python-dotenv
+bash "Cerebro Servidor.command"
 ```
 
-Para reproduzir o ambiente exato depois, use `pip install -r requirements.txt`
-(e `requirements-dev.txt` para rodar os testes).
+Publica na rede local (`0.0.0.0`), gera um **token de acesso** e mostra:
 
-## 2. Credenciais
+- o endereço do painel para abrir em outro aparelho: `http://SEU-IP:8000/?token=...`
+- a URL do webhook para o WhatsApp
+- o comando de túnel para receber de fora da rede
+
+Quem acessa do próprio Mac nunca precisa do token; de fora, é obrigatório.
+
+### Rodar sempre (sem janela aberta)
 
 ```bash
-cp .env.example .env
-open -e .env          # preencha GEMINI_API_KEY, TRELLO_API_KEY e TRELLO_TOKEN
+bash instalar_servico.sh          # sobe junto com o login e reinicia se cair
+bash instalar_servico.sh remover  # desfaz
 ```
 
-O `.env` está no `.gitignore` e nunca vai para o repositório.
+Log em `~/Library/Logs/CerebroOperacoes.log`. O Mac precisa estar ligado e logado.
 
-## 3. Descobrir os IDs das listas do Trello
+---
 
-```bash
-python get_trello_lists.py "EXPANSAO"
-```
+## WhatsApp automático
 
-O script lista todos os boards e colunas da conta (somente leitura) e já sugere as linhas
-prontas para colar no `.env`:
+Para as mensagens do grupo chegarem sozinhas: **[backend/whatsapp/README.md](whatsapp/README.md)**.
 
-```
-▸ BOARD EXPANSAO OSASCO
-  id: 6612ab…  ·  https://trello.com/b/…
-  • Banco de Ideias                  66aa11bb22cc33dd44ee55ff   ← TRELLO_LIST_ID_IDEIAS
-  • A Fazer                          66aa11bb22cc33dd44ee5600   ← TRELLO_LIST_ID_TAREFAS
-```
+Resumo das opções:
 
-Sem argumento, ele mostra todos os boards. Copie os dois IDs para o `.env`.
+| Provedor | Lê grupos? | Como |
+| --- | --- | --- |
+| **Evolution API** (recomendado) | Sim | Docker no seu Mac + QR code. `cd whatsapp && docker compose up -d && bash conectar.sh` |
+| **Meta Cloud API** | Não (só conversa direta) | App na Meta + túnel HTTPS |
+| **Genérico** | Depende da sua automação | Atalhos do iOS, n8n, Make, Zapier fazem POST no webhook |
 
-## 4. Subir o servidor
-
-```bash
-uvicorn main:app --reload
-```
-
-ou `python main.py` (usa `HOST`/`PORT` do `.env`). No boot o terminal mostra:
-
-```
-──────────────────────────────────────────────────────────
-  CÉREBRO DE OPERAÇÕES  · EXPANSAO OSASCO
-  modelo   gemini-1.5-flash
-  webhook  http://127.0.0.1:8000/webhook
-  saúde    http://127.0.0.1:8000/health
-──────────────────────────────────────────────────────────
-21:04:11  ›  Lista de IDEIAS  → 66aa11bb22cc33dd44ee55ff
-21:04:11  ›  Lista de TAREFAS → 66aa11bb22cc33dd44ee5600
-21:04:11  ›  Pronto. Aguardando mensagens…
-```
-
-## 5. Teste local
-
-```bash
-curl -X POST http://127.0.0.1:8000/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Pessoal, foi confirmado que haverá ceia na Estadual neste domingo, vamos gravar vídeos ao final do culto para divulgar a Vigília. Lívia já mandou as referências, Letícia vai fazer o roteiro hoje."}'
-```
-
-Resposta esperada:
-
-```json
-{
-  "status": "created",
-  "action_type": "tarefa",
-  "title": "Gravar vídeos da Vigília após o culto",
-  "card_url": "https://trello.com/c/AbC12345",
-  "card_id": "66f0…",
-  "due_date": "2026-08-16T15:00:00.000Z"
-}
-```
-
-E, no terminal do servidor:
-
-```
-21:05:02  ›  Mensagem recebida — Pessoal, foi confirmado que haverá ceia na Estadual…
-21:05:03  ›  Gemini classificou como TAREFA
-21:05:04  ›  Cartão criado: Gravar vídeos da Vigília após o culto · prazo 2026-08-16T15:00:00.000Z
-21:05:04  ›     https://trello.com/c/AbC12345
-```
-
-O payload aceita campos opcionais `sender` e `group`, que entram no contexto do Gemini e
-no rodapé do cartão:
-
-```bash
-curl -X POST http://127.0.0.1:8000/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Lívia mandou umas referências de transição de vídeo.", "sender": "Lívia", "group": "EXPANSAO OSASCO"}'
-```
+O Cérebro descarta sozinho: mensagem sem texto, mensagem sua, grupo fora da lista e
+mensagem repetida (mesmo `id`) — sem cartão duplicado.
 
 ---
 
@@ -155,39 +138,59 @@ curl -X POST http://127.0.0.1:8000/webhook \
 | Método | Rota | Descrição |
 | --- | --- | --- |
 | `GET` | `/` | Painel web. |
-| `POST` | `/webhook` | Recebe `{"text", "sender?", "group?"}` e devolve o resultado do processamento. |
-| `GET` | `/health` | Estado do serviço, modelo em uso e se as listas estão configuradas. |
-| `GET` | `/api/status` | Estado detalhado para o painel (nomes das listas, usuário do Trello). |
-| `GET` | `/api/boards` | Boards e colunas disponíveis. |
-| `POST` | `/api/config/lists` | Grava `TRELLO_LIST_ID_IDEIAS` / `_TAREFAS` no `.env`. |
+| `POST` | `/webhook` | Mensagem avulsa `{"text", "sender?", "group?"}`. |
+| `POST` | `/webhook/whatsapp` | Entrada do provedor de WhatsApp (autenticação própria). |
+| `GET` | `/webhook/whatsapp` | Handshake da Meta (`hub.challenge`). |
+| `GET` | `/health` | Sinal de vida. |
+| `GET` | `/api/status` | Estado completo: listas, fila, WhatsApp, rede. |
+| `GET` | `/api/boards` | Boards e colunas do Trello. |
+| `POST` | `/api/config/lists` · `/api/config/whatsapp` | Gravam no `.env`. |
 | `GET` | `/api/cards` | Últimos cartões das duas colunas. |
-| `GET`/`DELETE` | `/api/history` | Histórico em memória da sessão. |
-| `POST` | `/api/shutdown` | Encerra o servidor local (botão do painel). |
-| `GET` | `/docs` | Swagger UI gerado pelo FastAPI. |
+| `GET`/`DELETE` | `/api/history` | Histórico persistente. |
+| `POST` | `/api/fila/reprocessar` | Devolve os erros para a fila. |
+| `POST` | `/api/estudio/ideias` | Gera pauta nova. |
+| `POST` | `/api/estudio/organizar` | Analisa o board. |
+| `POST` | `/api/estudio/criar-cartoes` | Cria no Trello as ideias aprovadas. |
+| `POST` | `/api/shutdown` | Encerra o servidor. |
+| `GET` | `/docs` | Swagger UI. |
 
-Códigos de erro: `422` payload inválido · `409` configuração pendente ·
-`400` configuração inconsistente · `502` falha no Gemini ou no Trello
-(o corpo traz `stage` e `detail`).
+Erros: `422` payload inválido · `409` configuração pendente · `401` token/assinatura
+inválidos · `502` falha no Gemini ou no Trello (o corpo traz `stage` e `detail`).
+
+### Teste pelo Terminal
+
+```bash
+curl -X POST http://127.0.0.1:8000/webhook \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Pessoal, foi confirmado que haverá ceia na Estadual neste domingo, vamos gravar vídeos ao final do culto para divulgar a Vigília. Lívia já mandou as referências, Letícia vai fazer o roteiro hoje."}'
+```
+
+---
 
 ## Estrutura
 
 ```
 backend/
-├── Cerebro.command       # duplo clique: prepara tudo, sobe e abre o Chrome
-├── instalar_app.sh       # cria o .app em ~/Applications, com ícone
-├── main.py               # FastAPI: painel, API, lifespan, tratamento de erros
-├── get_trello_lists.py   # utilitário de mapeamento de boards/listas
+├── Cerebro.command           # duplo clique: sobe e abre o Chrome
+├── Cerebro Servidor.command  # modo servidor (rede local + token)
+├── instalar_app.sh           # cria o .app em ~/Applications
+├── instalar_servico.sh       # sobe junto com o login do Mac
+├── main.py                   # FastAPI: painel, API, webhooks, worker da fila
+├── get_trello_lists.py       # mapeia boards/listas pelo terminal
 ├── cerebro/
-│   ├── config.py         # .env → Settings validado (e gravação do .env)
-│   ├── models.py         # contratos, normalização de rótulos e datas
-│   ├── gemini.py         # prompt do Gerente de Projetos + parsing do JSON
-│   ├── trello.py         # cliente HTTP com retry e erros acionáveis
-│   ├── pipeline.py       # orquestração mensagem → classificação → cartão
-│   ├── history.py        # histórico em memória da sessão
-│   └── console.py        # logging colorido do terminal
-├── web/                  # painel (HTML/CSS/JS puro, sem CDN)
-├── tools/criar_icone.py  # gera o ícone do app sem dependências
-└── tests/                # 73 testes, sem chamadas de rede
+│   ├── config.py             # .env → Settings (e gravação do .env)
+│   ├── db.py                 # fila persistente em SQLite
+│   ├── models.py             # contratos, normalização de rótulos e datas
+│   ├── gemini.py             # classificação (Gerente de Projetos)
+│   ├── estudio.py            # criação e organização (Diretor de Criação)
+│   ├── whatsapp.py           # tradutores Evolution/Meta/genérico
+│   ├── trello.py             # cliente HTTP com retry
+│   ├── pipeline.py           # mensagem → classificação → cartão
+│   └── console.py            # logging colorido
+├── web/                      # painel (HTML/CSS/JS puro, sem CDN)
+├── whatsapp/                 # Evolution API em Docker + conectar.sh
+├── tools/criar_icone.py      # ícone do app, sem dependências
+└── tests/                    # 150 testes, sem chamadas de rede
 ```
 
 ## Testes
@@ -197,33 +200,38 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-A suíte (73 testes) cobre normalização de datas e rótulos, parsing de JSON malformado do modelo,
-retentativa, roteamento das listas, gravação do `.env`, histórico e os códigos de erro do webhook. Gemini e Trello são
-substituídos por dublês — nenhum teste cria cartão de verdade nem gasta cota de API.
+150 testes cobrindo normalização de datas e rótulos, JSON malformado do modelo,
+retentativa, fila offline com backoff, tradutores de WhatsApp (incluindo assinatura
+HMAC da Meta), estúdio criativo, token de rede e os códigos de erro das rotas. Gemini,
+Trello e WhatsApp são substituídos por dublês — nenhum teste faz chamada de rede, cria
+cartão ou gasta cota.
 
 ## Decisões de projeto
 
-- **Datas.** O Gemini devolve ISO; o backend converte para UTC no formato do Trello. Data
-  sem hora vira 12:00 no fuso da equipe (`TIMEZONE`), para um prazo "de domingo" não
-  aparecer como sábado à noite. Data impossível de interpretar vira `null` em vez de quebrar.
+- **Grava antes de processar.** A mensagem entra no banco antes da primeira chamada
+  externa; é o que permite sobreviver a queda de rede sem perder nada.
+- **Retentativa seletiva.** Erro transitório volta para a fila com espera crescente;
+  credencial inválida ou lista inexistente viram erro imediato, porque repetir só
+  queimaria cota.
 - **Classificação desconhecida vira `ignorar`.** Melhor perder uma classificação duvidosa
   do que poluir o board.
-- **Descrição audível.** O cartão sempre carrega a mensagem original em citação, além do
-  resumo da IA — o time consegue conferir o que a IA leu.
-- **Retentativa seletiva.** Erro transitório (5xx, timeout) é repetido; erro de credencial
-  ou de modelo não é, porque repetir não resolve.
-- **Falha alta.** Erros do Gemini e do Trello viram `502` com `stage` explícito, para o
-  emissor do webhook conseguir reenviar.
+- **Descrição auditável.** O cartão sempre carrega a mensagem original em citação, além
+  do resumo da IA.
+- **Duas temperaturas.** Classificar usa 0.2 (consistência); criar usa 0.9 (variedade).
+- **Nada de CDN.** O painel é HTML/CSS/JS local: funciona sem internet.
 
 ## Problemas comuns
 
 | Sintoma | Causa provável |
 | --- | --- |
 | `API key not valid` | A `GEMINI_API_KEY` não é uma chave da Gemini API. Gere em <https://aistudio.google.com/apikey> (formato `AIza…`). |
-| `404 models/gemini-1.5-flash is not found` | O modelo saiu do ar para a sua chave. Troque `GEMINI_MODEL` no `.env` (ex.: `gemini-2.5-flash`) — nada mais muda. |
+| `404 models/gemini-1.5-flash is not found` | O modelo saiu do ar para a sua chave. Troque `GEMINI_MODEL` no `.env` (ex.: `gemini-2.5-flash`). |
 | `Trello recusou as credenciais (401)` | `TRELLO_API_KEY`/`TRELLO_TOKEN` errados ou token expirado. |
-| `recurso não encontrado (404)` | ID de lista errado no `.env`. Rode `python get_trello_lists.py`. |
-| `Address already in use` | Outra coisa na porta 8000: `uvicorn main:app --port 8001`. |
+| `recurso não encontrado (404)` | ID de lista errado. Reconfigure pelo painel. |
+| Mensagens do grupo não chegam | Confira `bash whatsapp/conectar.sh status` e se o nome em `WHATSAPP_GRUPOS` bate com o do grupo. |
+| Fila crescendo | Abra o histórico: o erro de cada mensagem aparece embaixo dela. |
+| `Address already in use` | Outra coisa na porta: o `Cerebro.command` já procura porta livre sozinho. |
 
 > O pacote `google-generativeai` está em modo de manutenção (o Google recomenda o novo
-> `google-genai`). Ele continua funcionando; a migração toca apenas `cerebro/gemini.py`.
+> `google-genai`). Continua funcionando; a migração toca `cerebro/gemini.py` e
+> `cerebro/estudio.py`.

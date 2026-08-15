@@ -45,8 +45,9 @@ body {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 24px;
-  background: color-mix(in srgb, var(--painel) 92%, transparent);
-  backdrop-filter: saturate(180%) blur(12px);
+  /* Fundo sólido de propósito: com backdrop-filter o Chrome desenha um halo
+     em volta dos filhos quando a barra é sticky. */
+  background: var(--painel);
   border-bottom: 1px solid var(--borda);
 }
 
@@ -68,6 +69,32 @@ body {
 .pill-aviso { background: color-mix(in srgb, var(--alerta) 18%, transparent); color: var(--alerta); border-color: color-mix(in srgb, var(--alerta) 35%, transparent); }
 .pill-erro { background: color-mix(in srgb, var(--perigo) 18%, transparent); color: var(--perigo); border-color: color-mix(in srgb, var(--perigo) 35%, transparent); }
 .pill-neutro { background: var(--painel-alto); color: var(--texto-fraco); border-color: var(--borda); }
+
+/* ----------------------------------------------------------------- abas */
+.abas {
+  display: flex;
+  gap: 4px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px 24px 0;
+}
+.aba {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-fraco);
+  cursor: pointer;
+}
+.aba:hover { color: var(--texto); }
+.aba.ativa {
+  color: var(--texto);
+  background: var(--painel);
+  border-color: var(--borda);
+}
+.painel { display: flex; flex-direction: column; gap: 18px; }
 
 /* --------------------------------------------------------------- layout */
 main {
@@ -120,7 +147,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .btn-fantasma { background: transparent; color: var(--texto-fraco); }
 .btn-perigo { background: transparent; border-color: color-mix(in srgb, var(--perigo) 45%, var(--borda)); color: var(--perigo); }
 
-textarea, input[type="text"], select {
+textarea, input[type="text"], input[type="password"], select {
   width: 100%;
   background: var(--painel-alto);
   border: 1px solid var(--borda);
@@ -208,6 +235,90 @@ li.vazio { background: transparent; border-style: dashed; color: var(--texto-fra
 .historico a { color: var(--acento); text-decoration: none; font-weight: 600; }
 .historico a:hover { text-decoration: underline; }
 
+.historico .origem {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--texto-fraco); border: 1px solid var(--borda);
+  border-radius: 5px; padding: 1px 6px;
+}
+.historico .autor { font-size: 12px; color: var(--texto-fraco); }
+.erro-detalhe {
+  margin-top: 6px; font-size: 12px; color: var(--perigo);
+  word-break: break-word; opacity: .9;
+}
+.etiqueta-pendente { background: color-mix(in srgb, var(--alerta) 20%, transparent); color: var(--alerta); }
+.grupo-botoes { display: flex; gap: 8px; }
+
+/* --------------------------------------------------------------- estúdio */
+.grade-estudio { display: grid; grid-template-columns: 1fr 120px; gap: 12px; }
+.checkbox {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--texto-fraco);
+}
+.checkbox input { width: auto; }
+
+.ideias { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.ideia {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--painel-alto); border: 1px solid var(--borda);
+  border-radius: 10px; padding: 12px 14px; cursor: pointer;
+}
+.ideia:hover { border-color: color-mix(in srgb, var(--acento) 45%, var(--borda)); }
+.ideia input { width: auto; margin-top: 3px; flex: none; }
+.ideia strong { font-size: 14px; }
+.ideia p { margin: 5px 0 0; font-size: 13px; color: var(--texto-fraco); }
+.selos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.selo {
+  font-size: 11px; color: var(--texto-fraco);
+  background: var(--painel); border: 1px solid var(--borda);
+  border-radius: 999px; padding: 2px 9px;
+}
+
+.analise { margin-top: 14px; }
+.analise .resumo {
+  margin: 0 0 16px; padding: 12px 14px; font-size: 14px;
+  background: var(--painel-alto); border-left: 3px solid var(--acento);
+  border-radius: 0 9px 9px 0;
+}
+.analise h3 {
+  margin: 16px 0 8px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--texto-fraco);
+}
+ul.lista-analise { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ul.lista-analise li {
+  background: var(--painel-alto); border: 1px solid var(--borda);
+  border-radius: 9px; padding: 10px 12px; font-size: 13px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+}
+.motivo { color: var(--texto-fraco); flex: 1 1 100%; font-size: 12px; }
+.urgencia {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  border-radius: 5px; padding: 2px 7px;
+}
+.urgencia-alta { background: color-mix(in srgb, var(--perigo) 20%, transparent); color: var(--perigo); }
+.urgencia-media { background: color-mix(in srgb, var(--alerta) 20%, transparent); color: var(--alerta); }
+.urgencia-baixa { background: var(--borda); color: var(--texto-fraco); }
+
+/* -------------------------------------------------------------- conexões */
+.endereco {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  margin-top: 16px; padding: 12px 14px;
+  background: var(--painel-alto); border: 1px solid var(--borda); border-radius: 9px;
+  font-size: 13px; color: var(--texto-fraco);
+}
+.endereco code {
+  font-size: 12px; color: var(--texto);
+  background: var(--painel); border: 1px solid var(--borda);
+  border-radius: 6px; padding: 4px 9px; word-break: break-all;
+}
+ul.dados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ul.dados li {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 13px; padding: 9px 0; border-bottom: 1px solid var(--borda);
+}
+ul.dados li:last-child { border-bottom: none; }
+ul.dados span { color: var(--texto-fraco); }
+ul.dados code { font-size: 12px; }
+
 footer {
   max-width: 980px;
   margin: 0 auto;
@@ -218,6 +329,7 @@ footer {
 footer a { color: var(--texto-fraco); }
 
 @media (max-width: 760px) {
-  .grade-setup, .grade-meta, .colunas { grid-template-columns: 1fr; }
+  .grade-setup, .grade-meta, .colunas, .grade-estudio { grid-template-columns: 1fr; }
+  .abas { overflow-x: auto; }
   .topo { flex-wrap: wrap; }
 }

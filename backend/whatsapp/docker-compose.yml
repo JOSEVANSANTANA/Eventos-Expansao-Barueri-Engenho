@@ -1,0 +1,74 @@
+# Evolution API — ponte entre o WhatsApp e o Cérebro, rodando no próprio Mac.
+# Nenhuma mensagem sai da sua máquina: o container fala com o WhatsApp e entrega
+# direto no webhook local do Cérebro.
+#
+#   cd backend/whatsapp
+#   cp .env.exemplo .env      # defina EVOLUTION_API_KEY
+#   docker compose up -d
+#   bash conectar.sh          # gera o QR code para parear o número
+
+services:
+  evolution:
+    image: atendai/evolution-api:v2.2.3
+    container_name: cerebro-evolution
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?defina EVOLUTION_API_KEY no .env}
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+      # Banco (obrigatório na v2)
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:evolution@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: cerebro
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      # Cache
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: cerebro
+      CACHE_LOCAL_ENABLED: "false"
+      # O webhook é definido por instância pelo conectar.sh
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      QRCODE_LIMIT: "30"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cerebro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evolution
+      POSTGRES_DB: evolution
+    volumes:
+      - postgres_dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: cerebro-redis
+    restart: unless-stopped
+    volumes:
+      - redis_dados:/data
+
+volumes:
+  evolution_instances:
+  postgres_dados:
+  redis_dados:

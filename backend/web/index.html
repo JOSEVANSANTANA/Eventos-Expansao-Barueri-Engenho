@@ -13,98 +13,204 @@
       <span class="logo">🧠</span>
       <div>
         <h1>Cérebro de Operações</h1>
-        <p class="sub">EXPANSAO OSASCO · painel local</p>
+        <p class="sub">EXPANSAO OSASCO · painel</p>
       </div>
     </div>
     <div class="topo-acoes">
+      <span id="pill-fila" class="pill pill-neutro oculto"></span>
       <span id="pill-status" class="pill pill-neutro">verificando…</span>
       <button id="btn-atualizar" class="btn btn-fantasma" title="Recarregar dados">Atualizar</button>
-      <button id="btn-encerrar" class="btn btn-perigo" title="Desligar o servidor local">Encerrar</button>
+      <button id="btn-encerrar" class="btn btn-perigo" title="Desligar o servidor">Encerrar</button>
     </div>
   </header>
 
+  <nav class="abas">
+    <button class="aba ativa" data-alvo="painel-operacao">Operação</button>
+    <button class="aba" data-alvo="painel-estudio">Estúdio Criativo</button>
+    <button class="aba" data-alvo="painel-conexoes">Conexões</button>
+  </nav>
+
   <main>
-    <!-- Alerta de configuração -->
     <section id="alerta" class="cartao alerta oculto">
       <h2 id="alerta-titulo">Configuração pendente</h2>
       <p id="alerta-texto"></p>
     </section>
 
-    <!-- Assistente de configuração -->
-    <section id="setup" class="cartao oculto">
-      <div class="cartao-cabecalho">
-        <h2>1 · Escolha as colunas do Trello</h2>
-        <button id="btn-carregar-boards" class="btn btn-fantasma">Carregar boards</button>
-      </div>
-      <p class="ajuda">
-        O Cérebro precisa saber em qual coluna colocar <strong>ideias</strong> e em qual colocar
-        <strong>tarefas</strong>. A escolha é gravada no seu arquivo <code id="env-path">.env</code>.
-      </p>
-      <div class="grade-setup">
-        <label>
-          <span>Board</span>
-          <select id="sel-board"><option value="">— carregue os boards —</option></select>
-        </label>
-        <label>
-          <span>Coluna de IDEIAS</span>
-          <select id="sel-ideias" disabled><option value="">—</option></select>
-        </label>
-        <label>
-          <span>Coluna de TAREFAS</span>
-          <select id="sel-tarefas" disabled><option value="">—</option></select>
-        </label>
-      </div>
-      <div class="linha-acoes">
-        <button id="btn-salvar-listas" class="btn btn-primario" disabled>Salvar configuração</button>
-        <span id="setup-msg" class="msg"></span>
-      </div>
-    </section>
-
-    <!-- Processar mensagem -->
-    <section class="cartao">
-      <div class="cartao-cabecalho">
-        <h2>Processar mensagem</h2>
-        <button id="btn-exemplo" class="btn btn-fantasma">Usar exemplo</button>
-      </div>
-      <textarea id="txt-mensagem" rows="4"
-        placeholder="Cole aqui a mensagem do grupo…"></textarea>
-      <div class="grade-meta">
-        <label><span>Autor (opcional)</span><input id="inp-autor" type="text" placeholder="Ex.: Lívia"></label>
-        <label><span>Grupo (opcional)</span><input id="inp-grupo" type="text" placeholder="EXPANSAO OSASCO"></label>
-      </div>
-      <div class="linha-acoes">
-        <button id="btn-processar" class="btn btn-primario">Processar com o Gemini</button>
-        <span id="processar-msg" class="msg"></span>
-      </div>
-      <div id="resultado" class="resultado oculto"></div>
-    </section>
-
-    <!-- Board -->
-    <section class="cartao">
-      <div class="cartao-cabecalho">
-        <h2>Board ao vivo</h2>
-        <button id="btn-cards" class="btn btn-fantasma">Recarregar cartões</button>
-      </div>
-      <div class="colunas">
-        <div class="coluna">
-          <h3><span class="ponto ponto-ideia"></span> Ideias <span id="cont-ideias" class="contador">0</span></h3>
-          <ul id="lista-ideias" class="cards"><li class="vazio">—</li></ul>
+    <!-- ─────────────────────────── OPERAÇÃO ─────────────────────────── -->
+    <div id="painel-operacao" class="painel">
+      <section id="setup" class="cartao oculto">
+        <div class="cartao-cabecalho">
+          <h2>1 · Escolha as colunas do Trello</h2>
+          <button id="btn-carregar-boards" class="btn btn-fantasma">Carregar boards</button>
         </div>
-        <div class="coluna">
-          <h3><span class="ponto ponto-tarefa"></span> Tarefas <span id="cont-tarefas" class="contador">0</span></h3>
-          <ul id="lista-tarefas" class="cards"><li class="vazio">—</li></ul>
+        <p class="ajuda">
+          O Cérebro precisa saber onde colocar <strong>ideias</strong> e onde colocar
+          <strong>tarefas</strong>. A escolha é gravada no seu <code id="env-path">.env</code>.
+        </p>
+        <div class="grade-setup">
+          <label><span>Board</span>
+            <select id="sel-board"><option value="">— carregue os boards —</option></select>
+          </label>
+          <label><span>Coluna de IDEIAS</span>
+            <select id="sel-ideias" disabled><option value="">—</option></select>
+          </label>
+          <label><span>Coluna de TAREFAS</span>
+            <select id="sel-tarefas" disabled><option value="">—</option></select>
+          </label>
         </div>
-      </div>
-    </section>
+        <div class="linha-acoes">
+          <button id="btn-salvar-listas" class="btn btn-primario" disabled>Salvar configuração</button>
+          <span id="setup-msg" class="msg"></span>
+        </div>
+      </section>
 
-    <!-- Histórico -->
-    <section class="cartao">
-      <div class="cartao-cabecalho">
-        <h2>Histórico da sessão</h2>
-        <button id="btn-limpar-historico" class="btn btn-fantasma">Limpar</button>
-      </div>
-      <ul id="historico" class="historico"><li class="vazio">Nada processado ainda.</li></ul>
-    </section>
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2>Processar mensagem</h2>
+          <button id="btn-exemplo" class="btn btn-fantasma">Usar exemplo</button>
+        </div>
+        <textarea id="txt-mensagem" rows="4" placeholder="Cole aqui a mensagem do grupo…"></textarea>
+        <div class="grade-meta">
+          <label><span>Autor (opcional)</span><input id="inp-autor" type="text" placeholder="Ex.: Lívia"></label>
+          <label><span>Grupo (opcional)</span><input id="inp-grupo" type="text" placeholder="EXPANSAO OSASCO"></label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-processar" class="btn btn-primario">Processar com o Gemini</button>
+          <span id="processar-msg" class="msg"></span>
+        </div>
+        <div id="resultado" class="resultado oculto"></div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2>Board ao vivo</h2>
+          <button id="btn-cards" class="btn btn-fantasma">Recarregar cartões</button>
+        </div>
+        <div class="colunas">
+          <div class="coluna">
+            <h3><span class="ponto ponto-ideia"></span> Ideias <span id="cont-ideias" class="contador">0</span></h3>
+            <ul id="lista-ideias" class="cards"><li class="vazio">—</li></ul>
+          </div>
+          <div class="coluna">
+            <h3><span class="ponto ponto-tarefa"></span> Tarefas <span id="cont-tarefas" class="contador">0</span></h3>
+            <ul id="lista-tarefas" class="cards"><li class="vazio">—</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2>Histórico</h2>
+          <div class="grupo-botoes">
+            <button id="btn-reprocessar" class="btn btn-fantasma" title="Tentar de novo as que falharam">Reprocessar fila</button>
+            <button id="btn-limpar-historico" class="btn btn-fantasma">Limpar</button>
+          </div>
+        </div>
+        <ul id="historico" class="historico"><li class="vazio">Nada processado ainda.</li></ul>
+      </section>
+    </div>
+
+    <!-- ────────────────────────── ESTÚDIO ──────────────────────────── -->
+    <div id="painel-estudio" class="painel oculto">
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2>Gerar ideias novas</h2>
+        </div>
+        <p class="ajuda">
+          O Gemini lê o que já existe no board e propõe pauta nova — sem repetir o que
+          está lá. Você escolhe o que vai virar cartão.
+        </p>
+        <div class="grade-estudio">
+          <label><span>Tema, evento ou necessidade</span>
+            <input id="inp-tema" type="text" placeholder="Ex.: divulgação da Vigília de sexta">
+          </label>
+          <label><span>Quantas</span>
+            <select id="sel-quantidade">
+              <option>3</option><option selected>5</option><option>8</option><option>10</option>
+            </select>
+          </label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-gerar" class="btn btn-primario">Gerar ideias</button>
+          <label class="checkbox"><input id="chk-board" type="checkbox" checked> considerar o board atual</label>
+          <span id="estudio-msg" class="msg"></span>
+        </div>
+        <div id="ideias-geradas" class="ideias oculto"></div>
+        <div id="ideias-acoes" class="linha-acoes oculto">
+          <button id="btn-criar-cartoes" class="btn btn-primario">Criar selecionadas no Trello</button>
+          <label><select id="sel-destino">
+            <option value="ideias">na coluna Ideias</option>
+            <option value="tarefas">na coluna Tarefas</option>
+          </select></label>
+          <span id="criar-msg" class="msg"></span>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2>Organizar o board</h2>
+          <button id="btn-organizar" class="btn btn-primario">Analisar agora</button>
+        </div>
+        <p class="ajuda">
+          Lê as duas colunas e devolve o que priorizar, o que está duplicado e o que
+          está faltando. Não altera nada no Trello.
+        </p>
+        <div id="analise" class="analise oculto"></div>
+        <span id="organizar-msg" class="msg"></span>
+      </section>
+    </div>
+
+    <!-- ───────────────────────── CONEXÕES ──────────────────────────── -->
+    <div id="painel-conexoes" class="painel oculto">
+      <section class="cartao">
+        <div class="cartao-cabecalho"><h2>WhatsApp</h2></div>
+        <p class="ajuda">
+          Com um provedor conectado, as mensagens do grupo chegam sozinhas — ninguém
+          precisa colar nada aqui. Passo a passo completo em
+          <code>backend/whatsapp/README.md</code>.
+        </p>
+        <div class="grade-setup">
+          <label><span>Provedor</span>
+            <select id="sel-provedor">
+              <option value="nenhum">Desligado</option>
+              <option value="evolution">Evolution API (lê grupos)</option>
+              <option value="meta">Meta Cloud API (só conversa direta)</option>
+              <option value="generico">Genérico (Atalhos, n8n, Make…)</option>
+            </select>
+          </label>
+          <label><span>Grupos aceitos (separados por vírgula)</span>
+            <input id="inp-grupos" type="text" placeholder="EXPANSAO OSASCO">
+          </label>
+          <label id="campo-apikey"><span>Chave esperada no webhook</span>
+            <input id="inp-apikey" type="password" placeholder="deixe em branco para não alterar">
+          </label>
+          <label id="campo-verify" class="oculto"><span>Verify token (Meta)</span>
+            <input id="inp-verify" type="password" placeholder="deixe em branco para não alterar">
+          </label>
+          <label id="campo-secret" class="oculto"><span>App secret (Meta)</span>
+            <input id="inp-secret" type="password" placeholder="deixe em branco para não alterar">
+          </label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-salvar-whatsapp" class="btn btn-primario">Salvar conexão</button>
+          <span id="whatsapp-msg" class="msg"></span>
+        </div>
+        <div class="endereco">
+          <span>Cole esta URL no seu provedor:</span>
+          <code id="url-webhook">—</code>
+          <button id="btn-copiar-webhook" class="btn btn-fantasma">Copiar</button>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cabecalho"><h2>Acesso em rede</h2></div>
+        <p class="ajuda">
+          Para abrir o painel em outro aparelho ou receber webhooks de fora, rode
+          <code>Cerebro Servidor.command</code>. Ele publica na rede local e gera um token.
+        </p>
+        <ul id="rede" class="dados"></ul>
+      </section>
+    </div>
   </main>
 
   <footer>
