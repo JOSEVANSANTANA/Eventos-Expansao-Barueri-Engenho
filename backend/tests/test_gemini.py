@@ -101,7 +101,7 @@ def test_modelo_configurado_com_json_e_system_prompt(settings, fake_genai):
     GeminiAnalyzer(settings)
 
     kwargs = estado["kwargs"]
-    assert kwargs["model_name"] == "gemini-1.5-flash"
+    assert kwargs["model_name"] == "gemini-flash-latest"
     assert kwargs["generation_config"]["response_mime_type"] == "application/json"
     assert "Gerente de Projetos" in kwargs["system_instruction"]
 

@@ -78,7 +78,7 @@ def load_settings(
     load_dotenv(dotenv_path=env_path or ENV_PATH, override=override)
     return Settings(
         gemini_api_key=_read("GEMINI_API_KEY"),
-        gemini_model=_read("GEMINI_MODEL", required=False, default="gemini-1.5-flash"),
+        gemini_model=_read("GEMINI_MODEL", required=False, default="gemini-flash-latest"),
         trello_api_key=_read("TRELLO_API_KEY"),
         trello_token=_read("TRELLO_TOKEN"),
         trello_list_id_ideias=_read("TRELLO_LIST_ID_IDEIAS", required=require_lists),

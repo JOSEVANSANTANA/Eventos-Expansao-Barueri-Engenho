@@ -18,7 +18,7 @@ def settings(tmp_path) -> Settings:
     return Settings(
         db_path=str(tmp_path / "cerebro-teste.db"),
         gemini_api_key="fake-gemini-key",
-        gemini_model="gemini-1.5-flash",
+        gemini_model="gemini-flash-latest",
         trello_api_key="fake-trello-key",
         trello_token="fake-trello-token",
         trello_list_id_ideias="list_ideias_123",

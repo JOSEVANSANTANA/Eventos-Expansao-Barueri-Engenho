@@ -225,12 +225,20 @@ cartão ou gasta cota.
 | Sintoma | Causa provável |
 | --- | --- |
 | `API key not valid` | A `GEMINI_API_KEY` não é uma chave da Gemini API. Gere em <https://aistudio.google.com/apikey> (formato `AIza…`). |
-| `404 models/gemini-1.5-flash is not found` | O modelo saiu do ar para a sua chave. Troque `GEMINI_MODEL` no `.env` (ex.: `gemini-2.5-flash`). |
+| `404 ... model is not found` / `no longer available` | O Google aposentou o modelo. O padrão `gemini-flash-latest` evita isso; se você fixou uma versão no `.env`, volte para o alias. |
+| `429 You exceeded your current quota` | Limite do plano gratuito do Gemini (5 requisições por minuto). A mensagem **não se perde**: volta para a fila e é reprocessada em 1 minuto. Para volume alto, ative faturamento no Google AI Studio. |
 | `Trello recusou as credenciais (401)` | `TRELLO_API_KEY`/`TRELLO_TOKEN` errados ou token expirado. |
 | `recurso não encontrado (404)` | ID de lista errado. Reconfigure pelo painel. |
 | Mensagens do grupo não chegam | Confira `bash whatsapp/conectar.sh status` e se o nome em `WHATSAPP_GRUPOS` bate com o do grupo. |
 | Fila crescendo | Abra o histórico: o erro de cada mensagem aparece embaixo dela. |
 | `Address already in use` | Outra coisa na porta: o `Cerebro.command` já procura porta livre sozinho. |
+
+## Limites do plano gratuito do Gemini
+
+O nível gratuito permite **5 requisições por minuto** por modelo. Um grupo movimentado
+passa disso em rajadas — e é exatamente por isso que existe a fila: o erro `429` é tratado
+como temporário, a mensagem volta para a fila e entra sozinha no minuto seguinte. Se a fila
+viver cheia, ative o faturamento no Google AI Studio.
 
 > O pacote `google-generativeai` está em modo de manutenção (o Google recomenda o novo
 > `google-genai`). Continua funcionando; a migração toca `cerebro/gemini.py` e
