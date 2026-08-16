@@ -10,7 +10,9 @@ NOME="Cérebro de Operações"
 DESTINO="$HOME/Applications/$NOME.app"
 VERDE=$'\033[32m'; AZUL=$'\033[36m'; AMARELO=$'\033[33m'; FIM=$'\033[0m'
 
-echo "${AZUL}Instalando “$NOME”…${FIM}"
+# Atenção: nada de aspas tipográficas coladas em ${VAR}. O bash 3.2 do macOS não
+# é multibyte-aware e engole os bytes da aspa como parte do nome da variável.
+echo "${AZUL}Instalando \"${NOME}\"...${FIM}"
 mkdir -p "$HOME/Applications"
 rm -rf "$DESTINO"
 mkdir -p "$DESTINO/Contents/MacOS" "$DESTINO/Contents/Resources"
@@ -80,7 +82,7 @@ echo "${VERDE}✓${FIM} Instalado em: $DESTINO"
 echo
 echo "Agora é só:"
 echo "  1. Abrir o Finder → Aplicativos (ou a pasta ~/Applications)"
-echo "  2. Duplo clique em “$NOME”"
+echo "  2. Duplo clique em \"${NOME}\""
 echo "  3. Arrastar o ícone para o Dock, se quiser deixar fixo"
 echo
 echo "${AMARELO}Na primeira abertura${FIM} o macOS pode pedir confirmação:"

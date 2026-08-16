@@ -48,18 +48,30 @@ case "${1:-conectar}" in
     exit 0
     ;;
   grupos)
-    echo "${AZUL}Grupos do número conectado:${FIM}"
-    api GET "/group/fetchAllGroups/$INSTANCIA?getParticipants=false" \
-      | python3 -c '
-import json, sys
+    echo "${AZUL}Grupos do numero conectado:${FIM}"
+    api GET "/group/fetchAllGroups/${INSTANCIA}?getParticipants=false" \
+      > /tmp/cerebro-grupos.json
+    # Via arquivo (e nao com python3 -c) para nao precisar escapar aspas: f-string
+    # com barra invertida so e valida a partir do Python 3.12.
+    python3 - <<'PY'
+import json
+import pathlib
+
 try:
-    dados = json.load(sys.stdin)
+    dados = json.loads(pathlib.Path("/tmp/cerebro-grupos.json").read_text())
 except Exception:
-    print("(resposta inesperada — confira o status da conexão)"); raise SystemExit
+    print("  (resposta inesperada - confira: bash conectar.sh status)")
+    raise SystemExit
+
 grupos = dados if isinstance(dados, list) else dados.get("groups", [])
+if not grupos:
+    print("  (nenhum grupo encontrado - o numero ja foi pareado?)")
 for grupo in grupos:
-    print(f"  • {grupo.get(\"subject\", \"sem nome\")}   {grupo.get(\"id\", \"\")}")
-print("\nCopie o nome do grupo para WHATSAPP_GRUPOS no backend/.env")'
+    nome = grupo.get("subject", "sem nome")
+    print("  - %-40s %s" % (nome, grupo.get("id", "")))
+print()
+print("Copie o nome do grupo para WHATSAPP_GRUPOS no backend/.env")
+PY
     exit 0
     ;;
 esac
