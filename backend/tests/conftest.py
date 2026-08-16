@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cerebro.config import Settings  # noqa: E402
 from cerebro.models import Classification, WebhookMessage  # noqa: E402
+from cerebro.pipeline import Pipeline  # noqa: E402
+from cerebro.workspaces import AreaStore  # noqa: E402
 
 
 @pytest.fixture
@@ -27,6 +29,39 @@ def settings(tmp_path) -> Settings:
         request_timeout=5.0,
         host="127.0.0.1",
         port=8000,
+    )
+
+
+@pytest.fixture
+def areas(tmp_path):
+    """Store de áreas em banco temporário."""
+    store = AreaStore(tmp_path / "areas-teste.db")
+    yield store
+    store.close()
+
+
+@pytest.fixture
+def area(areas):
+    """Uma área pronta para uso, com as duas colunas escolhidas."""
+    return areas.criar(
+        "EXPANSAO OSASCO",
+        list_ideias="list_ideias_123",
+        list_ideias_nome="Banco de Ideias",
+        list_tarefas="list_tarefas_456",
+        list_tarefas_nome="A Fazer",
+    )
+
+
+def montar_pipeline(analyzer, trello, *, area=None, ideias="list_ideias_123",
+                    tarefas="list_tarefas_456") -> Pipeline:
+    """Pipeline de teste — evita repetir a montagem em cada arquivo."""
+    return Pipeline(
+        analyzer=analyzer,
+        trello=trello,
+        list_ideias=area.list_ideias if area else ideias,
+        list_tarefas=area.list_tarefas if area else tarefas,
+        area_nome=area.nome if area else "",
+        area_id=area.id if area else None,
     )
 
 

@@ -23,7 +23,8 @@ if [ "${1:-}" = "remover" ]; then
 fi
 
 PY="$BACKEND/venv/bin/python"
-if [ ! -x "$PY" ]; then
+if ! { [ -x "$PY" ] && "$PY" -c "import sys" >/dev/null 2>&1; }; then
+  [ -e "$BACKEND/venv" ] && { echo "→ Ambiente virtual incompleto — refazendo…"; rm -rf "$BACKEND/venv"; }
   echo "→ Criando ambiente virtual…"
   python3 -m venv "$BACKEND/venv" || exit 1
   "$PY" -m pip install --quiet --upgrade pip

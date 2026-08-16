@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS mensagens (
     autor            TEXT,
     grupo            TEXT,
     origem           TEXT NOT NULL DEFAULT 'painel',
+    area_id          INTEGER,
+    area_nome        TEXT,
     recebida_em      TEXT NOT NULL,
     status           TEXT NOT NULL DEFAULT 'pendente',
     tentativas       INTEGER NOT NULL DEFAULT 0,
@@ -57,7 +59,17 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=WAL")
         with self._lock:
             self._conn.executescript(ESQUEMA)
+            self._migrar()
             self._conn.commit()
+
+    def _migrar(self) -> None:
+        """Acrescenta colunas novas em bancos criados por versões anteriores."""
+        existentes = {
+            linha["name"] for linha in self._conn.execute("PRAGMA table_info(mensagens)")
+        }
+        for coluna, tipo in (("area_id", "INTEGER"), ("area_nome", "TEXT")):
+            if coluna not in existentes:
+                self._conn.execute(f"ALTER TABLE mensagens ADD COLUMN {coluna} {tipo}")
 
     # ------------------------------------------------------------------ tempo
     def _agora(self) -> datetime:
@@ -75,6 +87,8 @@ class Store:
         grupo: str | None = None,
         origem: str = "painel",
         external_id: str | None = None,
+        area_id: int | None = None,
+        area_nome: str | None = None,
     ) -> int | None:
         """Grava a mensagem como pendente. Devolve None se já existia (duplicata)."""
         with self._lock:
@@ -86,9 +100,29 @@ class Store:
                     return None
             cursor = self._conn.execute(
                 """INSERT INTO mensagens (external_id, texto, autor, grupo, origem,
-                                          recebida_em, status, proxima_tentativa)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?)""",
-                (external_id, texto, autor, grupo, origem, self._iso(), self._iso()),
+                                          area_id, area_nome, recebida_em, status,
+                                          proxima_tentativa)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)""",
+                (external_id, texto, autor, grupo, origem, area_id, area_nome,
+                 self._iso(), self._iso()),
+            )
+            self._conn.commit()
+            return int(cursor.lastrowid)
+
+    def registrar_evento(
+        self, texto: str, detalhe: str, *, autor: str | None = None,
+        grupo: str | None = None, area_nome: str | None = None, origem: str = "comando",
+    ) -> int:
+        """Anota no histórico algo que já está resolvido — um comando executado.
+
+        Entra como concluído: não é trabalho pendente, é registro do que aconteceu.
+        """
+        with self._lock:
+            cursor = self._conn.execute(
+                """INSERT INTO mensagens (texto, autor, grupo, origem, area_nome,
+                                          recebida_em, status, titulo, processada_em)
+                   VALUES (?, ?, ?, ?, ?, ?, 'comando', ?, ?)""",
+                (texto, autor, grupo, origem, area_nome, self._iso(), detalhe, self._iso()),
             )
             self._conn.commit()
             return int(cursor.lastrowid)
@@ -183,7 +217,8 @@ class Store:
         with self._lock:
             if apenas_concluidas:
                 cursor = self._conn.execute(
-                    "DELETE FROM mensagens WHERE status IN ('criado','ignorado','erro')"
+                    "DELETE FROM mensagens "
+                    "WHERE status IN ('criado','ignorado','erro','comando')"
                 )
             else:
                 cursor = self._conn.execute("DELETE FROM mensagens")

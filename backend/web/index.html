@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cérebro de Operações · EXPANSAO OSASCO</title>
+  <title>Cérebro de Operações</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
 </head>
@@ -13,10 +13,14 @@
       <span class="logo">🧠</span>
       <div>
         <h1>Cérebro de Operações</h1>
-        <p class="sub">EXPANSAO OSASCO · painel</p>
+        <p class="sub">painel de operações</p>
       </div>
     </div>
     <div class="topo-acoes">
+      <label class="seletor-area">
+        <span>Área</span>
+        <select id="sel-area-ativa"><option value="">—</option></select>
+      </label>
       <span id="pill-fila" class="pill pill-neutro oculto"></span>
       <span id="pill-status" class="pill pill-neutro">verificando…</span>
       <button id="btn-atualizar" class="btn btn-fantasma" title="Recarregar dados">Atualizar</button>
@@ -27,6 +31,7 @@
   <nav class="abas">
     <button class="aba ativa" data-alvo="painel-operacao">Operação</button>
     <button class="aba" data-alvo="painel-estudio">Estúdio Criativo</button>
+    <button class="aba" data-alvo="painel-areas">Áreas de Trabalho</button>
     <button class="aba" data-alvo="painel-conexoes">Conexões</button>
   </nav>
 
@@ -34,39 +39,16 @@
     <section id="alerta" class="cartao alerta oculto">
       <h2 id="alerta-titulo">Configuração pendente</h2>
       <p id="alerta-texto"></p>
+      <div class="linha-acoes">
+        <button id="btn-alerta-acao" class="btn btn-primario oculto"></button>
+      </div>
     </section>
 
     <!-- ─────────────────────────── OPERAÇÃO ─────────────────────────── -->
     <div id="painel-operacao" class="painel">
-      <section id="setup" class="cartao oculto">
-        <div class="cartao-cabecalho">
-          <h2>1 · Escolha as colunas do Trello</h2>
-          <button id="btn-carregar-boards" class="btn btn-fantasma">Carregar boards</button>
-        </div>
-        <p class="ajuda">
-          O Cérebro precisa saber onde colocar <strong>ideias</strong> e onde colocar
-          <strong>tarefas</strong>. A escolha é gravada no seu <code id="env-path">.env</code>.
-        </p>
-        <div class="grade-setup">
-          <label><span>Board</span>
-            <select id="sel-board"><option value="">— carregue os boards —</option></select>
-          </label>
-          <label><span>Coluna de IDEIAS</span>
-            <select id="sel-ideias" disabled><option value="">—</option></select>
-          </label>
-          <label><span>Coluna de TAREFAS</span>
-            <select id="sel-tarefas" disabled><option value="">—</option></select>
-          </label>
-        </div>
-        <div class="linha-acoes">
-          <button id="btn-salvar-listas" class="btn btn-primario" disabled>Salvar configuração</button>
-          <span id="setup-msg" class="msg"></span>
-        </div>
-      </section>
-
       <section class="cartao">
         <div class="cartao-cabecalho">
-          <h2>Processar mensagem</h2>
+          <h2>Processar mensagem <span id="area-operacao" class="chip-area"></span></h2>
           <button id="btn-exemplo" class="btn btn-fantasma">Usar exemplo</button>
         </div>
         <textarea id="txt-mensagem" rows="4" placeholder="Cole aqui a mensagem do grupo…"></textarea>
@@ -83,7 +65,7 @@
 
       <section class="cartao">
         <div class="cartao-cabecalho">
-          <h2>Board ao vivo</h2>
+          <h2>Board ao vivo <span id="area-board" class="chip-area"></span></h2>
           <button id="btn-cards" class="btn btn-fantasma">Recarregar cartões</button>
         </div>
         <div class="colunas">
@@ -114,11 +96,11 @@
     <div id="painel-estudio" class="painel oculto">
       <section class="cartao">
         <div class="cartao-cabecalho">
-          <h2>Gerar ideias novas</h2>
+          <h2>Gerar ideias novas <span id="area-estudio" class="chip-area"></span></h2>
         </div>
         <p class="ajuda">
-          O Gemini lê o que já existe no board e propõe pauta nova — sem repetir o que
-          está lá. Você escolhe o que vai virar cartão.
+          O Gemini lê o board da área selecionada e propõe pauta nova — sem repetir o que
+          está lá. Você escolhe o que vira cartão.
         </p>
         <div class="grade-estudio">
           <label><span>Tema, evento ou necessidade</span>
@@ -148,7 +130,7 @@
 
       <section class="cartao">
         <div class="cartao-cabecalho">
-          <h2>Organizar o board</h2>
+          <h2>Organizar o board <span id="area-organizar" class="chip-area"></span></h2>
           <button id="btn-organizar" class="btn btn-primario">Analisar agora</button>
         </div>
         <p class="ajuda">
@@ -160,13 +142,100 @@
       </section>
     </div>
 
+    <!-- ─────────────────────────── ÁREAS ───────────────────────────── -->
+    <div id="painel-areas" class="painel oculto">
+      <section class="cartao">
+        <div class="cartao-cabecalho">
+          <h2 id="form-area-titulo">Nova área de trabalho</h2>
+          <button id="btn-cancelar-area" class="btn btn-fantasma oculto">Cancelar edição</button>
+        </div>
+        <p class="ajuda">
+          Cada área é um board do Trello. Se ela pertence a outra conta ou organização,
+          preencha a chave e o token próprios — no Trello a credencial é por Power-Up.
+          Em branco, a área usa as chaves globais da aba Conexões.
+        </p>
+        <div class="grade-area">
+          <label class="largo"><span>Nome da área</span>
+            <input id="inp-area-nome" type="text" placeholder="Ex.: EXPANSAO OSASCO">
+          </label>
+          <label><span>Trello API Key própria (opcional)</span>
+            <input id="inp-area-key" type="text" placeholder="usa a chave global se vazio">
+          </label>
+          <label><span>Trello Token próprio (opcional)</span>
+            <input id="inp-area-token" type="password" placeholder="usa o token global se vazio">
+          </label>
+          <label><span>OAuth Secret (opcional)</span>
+            <input id="inp-area-secret" type="password" placeholder="raramente necessário">
+          </label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-carregar-boards" class="btn btn-fantasma">Carregar boards</button>
+          <span id="boards-msg" class="msg"></span>
+        </div>
+        <div class="grade-setup">
+          <label><span>Board</span>
+            <select id="sel-board"><option value="">— carregue os boards —</option></select>
+          </label>
+          <label><span>Coluna de IDEIAS</span>
+            <select id="sel-ideias" disabled><option value="">—</option></select>
+          </label>
+          <label><span>Coluna de TAREFAS</span>
+            <select id="sel-tarefas" disabled><option value="">—</option></select>
+          </label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-salvar-area" class="btn btn-primario">Salvar área</button>
+          <span id="area-msg" class="msg"></span>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-cabecalho"><h2>Áreas cadastradas</h2></div>
+        <p class="ajuda">
+          Ligue grupos e contatos do WhatsApp a cada área. Também dá para fazer isso pelo
+          próprio grupo, mandando <code>START TRELLO nome da área</code>.
+        </p>
+        <div id="lista-areas" class="areas"><p class="vazio-bloco">Nenhuma área ainda.</p></div>
+      </section>
+    </div>
+
     <!-- ───────────────────────── CONEXÕES ──────────────────────────── -->
     <div id="painel-conexoes" class="painel oculto">
       <section class="cartao">
+        <div class="cartao-cabecalho"><h2>Chaves de API</h2></div>
+        <p class="ajuda">
+          Gravadas no seu <code id="env-path">.env</code>, que fica só nesta máquina.
+          Campos em branco preservam o valor atual — nada é apagado por engano.
+        </p>
+        <div class="grade-chaves">
+          <label class="largo"><span>Gemini API Key <b id="tem-gemini" class="marcador"></b></span>
+            <input id="inp-gemini" type="password" placeholder="AIza… (deixe em branco para manter)">
+          </label>
+          <label><span>Modelo do Gemini</span>
+            <input id="inp-modelo" type="text" placeholder="gemini-flash-latest">
+          </label>
+          <label><span>Trello API Key global <b id="tem-trello" class="marcador"></b></span>
+            <input id="inp-trello-key" type="text" placeholder="deixe em branco para manter">
+          </label>
+          <label><span>Trello Token global</span>
+            <input id="inp-trello-token" type="password" placeholder="deixe em branco para manter">
+          </label>
+          <label><span>Trello OAuth Secret <b id="tem-secret" class="marcador"></b></span>
+            <input id="inp-trello-secret" type="password" placeholder="opcional">
+          </label>
+        </div>
+        <div class="linha-acoes">
+          <button id="btn-salvar-chaves" class="btn btn-primario">Salvar chaves</button>
+          <a href="https://trello.com/power-ups/admin" target="_blank" rel="noopener" class="link-ajuda">gerar chave do Trello →</a>
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="link-ajuda">gerar chave do Gemini →</a>
+          <span id="chaves-msg" class="msg"></span>
+        </div>
+      </section>
+
+      <section class="cartao">
         <div class="cartao-cabecalho"><h2>WhatsApp</h2></div>
         <p class="ajuda">
-          Com um provedor conectado, as mensagens do grupo chegam sozinhas — ninguém
-          precisa colar nada aqui. Passo a passo completo em
+          Com um provedor conectado, as mensagens chegam sozinhas. Passo a passo em
           <code>backend/whatsapp/README.md</code>.
         </p>
         <div class="grade-setup">
@@ -178,17 +247,17 @@
               <option value="generico">Genérico (Atalhos, n8n, Make…)</option>
             </select>
           </label>
-          <label><span>Grupos aceitos (separados por vírgula)</span>
-            <input id="inp-grupos" type="text" placeholder="EXPANSAO OSASCO">
+          <label><span>Grupos aceitos (vazio = todos)</span>
+            <input id="inp-grupos" type="text" placeholder="EXPANSAO OSASCO, Mídia">
           </label>
           <label id="campo-apikey"><span>Chave esperada no webhook</span>
-            <input id="inp-apikey" type="password" placeholder="deixe em branco para não alterar">
+            <input id="inp-apikey" type="password" placeholder="deixe em branco para manter">
           </label>
           <label id="campo-verify" class="oculto"><span>Verify token (Meta)</span>
-            <input id="inp-verify" type="password" placeholder="deixe em branco para não alterar">
+            <input id="inp-verify" type="password" placeholder="deixe em branco para manter">
           </label>
           <label id="campo-secret" class="oculto"><span>App secret (Meta)</span>
-            <input id="inp-secret" type="password" placeholder="deixe em branco para não alterar">
+            <input id="inp-secret" type="password" placeholder="deixe em branco para manter">
           </label>
         </div>
         <div class="linha-acoes">
@@ -200,13 +269,22 @@
           <code id="url-webhook">—</code>
           <button id="btn-copiar-webhook" class="btn btn-fantasma">Copiar</button>
         </div>
+        <div class="comandos-ajuda">
+          <strong>Comandos que a equipe pode digitar no próprio grupo:</strong>
+          <ul>
+            <li><code>START TRELLO &lt;área&gt;</code> — liga este grupo à área</li>
+            <li><code>PARAR TRELLO</code> — desliga este grupo</li>
+            <li><code>STATUS TRELLO</code> — mostra a área ligada</li>
+            <li><code>AREAS TRELLO</code> — lista as áreas cadastradas</li>
+          </ul>
+        </div>
       </section>
 
       <section class="cartao">
         <div class="cartao-cabecalho"><h2>Acesso em rede</h2></div>
         <p class="ajuda">
           Para abrir o painel em outro aparelho ou receber webhooks de fora, rode
-          <code>Cerebro Servidor.command</code>. Ele publica na rede local e gera um token.
+          <code>Cerebro Servidor.command</code>.
         </p>
         <ul id="rede" class="dados"></ul>
       </section>

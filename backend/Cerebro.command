@@ -35,9 +35,21 @@ if ! "$PYTHON_BASE" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3
 fi
 
 # 2 · Ambiente virtual --------------------------------------------------------
-if [ ! -x "$PY" ]; then
-  echo "→ Criando ambiente virtual (só na primeira vez)…"
-  "$PYTHON_BASE" -m venv "$VENV" || falhar "Não consegui criar o ambiente virtual."
+# A pasta pode existir de uma tentativa interrompida: aí o `venv` falha com
+# "File exists". Só confiamos nela se o python de dentro realmente funcionar.
+venv_utilizavel() {
+  [ -x "$PY" ] && "$PY" -c "import sys" >/dev/null 2>&1
+}
+
+if ! venv_utilizavel; then
+  if [ -e "$VENV" ]; then
+    echo "→ Ambiente virtual incompleto — refazendo do zero…"
+    rm -rf "$VENV"
+  else
+    echo "→ Criando ambiente virtual (só na primeira vez)…"
+  fi
+  "$PYTHON_BASE" -m venv "$VENV" || falhar "Não consegui criar o ambiente virtual em $(pwd)/$VENV"
+  rm -f "$MARCADOR"
 fi
 
 if [ ! -f "$MARCADOR" ] || [ requirements.txt -nt "$MARCADOR" ]; then

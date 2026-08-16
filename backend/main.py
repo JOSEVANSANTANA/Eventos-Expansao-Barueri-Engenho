@@ -25,6 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cerebro import __version__
+from cerebro.comandos import AJUDA, AJUDA_TEXTO, DESVINCULAR, LISTAR, STATUS, VINCULAR
+from cerebro.comandos import interpretar as interpretar_comando
 from cerebro.config import (
     ENV_PATH,
     ConfigError,
@@ -46,6 +48,7 @@ from cerebro.whatsapp import (
     verificar_apikey_evolution,
     verificar_assinatura_meta,
 )
+from cerebro.workspaces import Area, AreaError, AreaStore
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -62,10 +65,11 @@ class NotConfiguredError(RuntimeError):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Sobe sempre — mesmo sem configuração — para o painel poder guiar o setup."""
-    app.state.pipeline = None
+    app.state.pipelines = {}
     app.state.settings = None
     app.state.config_error = None
     app.state.store = None
+    app.state.areas = None
     app.state.estudio = None
     app.state.fila_tarefa = None
 
@@ -80,12 +84,21 @@ async def lifespan(app: FastAPI):
 
     if settings:
         app.state.store = Store(settings.db_path, timezone=settings.timezone)
+        app.state.areas = AreaStore(settings.db_path, timezone=settings.timezone)
+        migrada = app.state.areas.migrar_do_env(settings)
+        if migrada:
+            log.info("Área criada a partir do .env: %s", migrada.nome)
+
         banner(settings.host, settings.port, settings.gemini_model)
-        if settings.trello_list_id_ideias and settings.trello_list_id_tarefas:
-            log.info("Lista de IDEIAS  → %s", settings.trello_list_id_ideias)
-            log.info("Lista de TAREFAS → %s", settings.trello_list_id_tarefas)
+        areas = app.state.areas.listar()
+        if areas:
+            for area in areas:
+                marca = " (padrão)" if area.padrao else ""
+                estado = "pronta" if area.pronta else "sem listas"
+                vinculos = len(app.state.areas.vinculos(area.id))
+                log.info("Área %s%s — %s · %s vínculo(s)", area.nome, marca, estado, vinculos)
         else:
-            log.warning("%s", yellow("Faltam os IDs das listas — escolha-os no painel."))
+            log.warning("%s", yellow("Nenhuma área cadastrada — crie a primeira no painel."))
         if settings.whatsapp_ativo:
             log.info("WhatsApp: provedor %s", settings.whatsapp_provider)
         pendentes = app.state.store.estatisticas()["pendentes"]
@@ -103,8 +116,9 @@ async def lifespan(app: FastAPI):
             await tarefa
         except asyncio.CancelledError:
             pass
-    if getattr(app.state, "store", None):
-        app.state.store.close()
+    for recurso in ("store", "areas"):
+        if getattr(app.state, recurso, None):
+            getattr(app.state, recurso).close()
     log.info("Cérebro encerrado.")
 
 
@@ -116,21 +130,37 @@ async def _worker_fila(app: FastAPI) -> None:
         try:
             await asyncio.sleep(intervalo)
             store: Store | None = getattr(app.state, "store", None)
-            if store is None or settings is None:
-                continue
-            if not (settings.trello_list_id_ideias and settings.trello_list_id_tarefas):
+            areas: AreaStore | None = getattr(app.state, "areas", None)
+            if store is None or areas is None or settings is None:
                 continue
             vencidas = await run_in_threadpool(store.pendentes_vencidas, 5)
             if not vencidas:
                 continue
             log.info("Fila: reprocessando %s mensagem(ns)…", len(vencidas))
-            pipeline = _montar_pipeline(app, settings)
             for linha in vencidas:
+                area = _area_da_linha(areas, linha)
+                if area is None or not area.pronta:
+                    store.marcar_falha(
+                        linha["id"], "config",
+                        "nenhuma área pronta para esta mensagem", reagendar=True,
+                    )
+                    continue
+                pipeline = _pipeline_da_area(app, settings, area)
                 await run_in_threadpool(_processar_linha, pipeline, store, linha)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 — o worker nunca pode morrer
             log.error("Fila: erro inesperado no worker: %s", exc)
+
+
+def _area_da_linha(areas: AreaStore, linha: dict[str, Any]) -> Area | None:
+    """Área gravada na mensagem; se ela sumiu, tenta resolver pelo grupo/autor."""
+    if linha.get("area_id"):
+        try:
+            return areas.obter(int(linha["area_id"]))
+        except AreaError:
+            pass
+    return areas.resolver(grupo=linha.get("grupo"), autor=linha.get("autor"))
 
 
 def _processar_linha(pipeline: Pipeline, store: Store, linha: dict[str, Any]) -> None:
@@ -213,43 +243,6 @@ def current_settings(request: Request) -> Settings:
     return settings
 
 
-def trello_client(request: Request) -> TrelloClient:
-    settings = current_settings(request)
-    return TrelloClient(
-        settings.trello_api_key, settings.trello_token, timeout=settings.request_timeout
-    )
-
-
-def _montar_pipeline(app: FastAPI, settings: Settings) -> Pipeline:
-    pipeline: Pipeline | None = getattr(app.state, "pipeline", None)
-    if pipeline is None or pipeline.settings != settings:
-        pipeline = build_pipeline(settings)
-        app.state.pipeline = pipeline
-    return pipeline
-
-
-def get_pipeline(request: Request) -> Pipeline:
-    """Pipeline montado sob demanda (e recriado quando a configuração muda)."""
-    settings = current_settings(request)
-    if not (settings.trello_list_id_ideias and settings.trello_list_id_tarefas):
-        raise NotConfiguredError(
-            "Escolha as listas do Trello para IDEIAS e TAREFAS antes de processar mensagens."
-        )
-    return _montar_pipeline(request.app, settings)
-
-
-def get_pipeline_opcional(request: Request) -> Pipeline | None:
-    """Igual ao anterior, mas devolve None em vez de erro quando falta configuração.
-
-    O webhook do WhatsApp usa esta versão: mensagem que chega antes de o Trello
-    estar pronto vai para a fila em vez de ser recusada.
-    """
-    try:
-        return get_pipeline(request)
-    except NotConfiguredError:
-        return None
-
-
 def get_store(request: Request) -> Store:
     store: Store | None = getattr(request.app.state, "store", None)
     if store is None:
@@ -257,6 +250,74 @@ def get_store(request: Request) -> Store:
         store = Store(settings.db_path, timezone=settings.timezone)
         request.app.state.store = store
     return store
+
+
+def get_areas(request: Request) -> AreaStore:
+    areas: AreaStore | None = getattr(request.app.state, "areas", None)
+    if areas is None:
+        settings = current_settings(request)
+        areas = AreaStore(settings.db_path, timezone=settings.timezone)
+        request.app.state.areas = areas
+    return areas
+
+
+def area_selecionada(request: Request, area_id: int | None = None) -> Area:
+    """Área alvo da requisição: a informada, ou a padrão."""
+    areas = get_areas(request)
+    if area_id:
+        try:
+            return areas.obter(area_id)
+        except AreaError as exc:
+            raise NotConfiguredError(str(exc)) from exc
+    padrao = areas.padrao()
+    if padrao is None:
+        raise NotConfiguredError(
+            "Nenhuma área de trabalho cadastrada. Crie a primeira na aba Áreas."
+        )
+    return padrao
+
+
+def trello_da_area(request: Request, area: Area) -> TrelloClient:
+    settings = current_settings(request)
+    chave, token = area.credenciais(settings.trello_api_key, settings.trello_token)
+    if not (chave and token):
+        raise NotConfiguredError(
+            f"A área '{area.nome}' não tem chave/token do Trello, e não há chave global."
+        )
+    return TrelloClient(chave, token, timeout=settings.request_timeout)
+
+
+def trello_client(request: Request) -> TrelloClient:
+    """Cliente da área padrão — usado pelas rotas que não recebem area_id."""
+    return trello_da_area(request, area_selecionada(request))
+
+
+def _pipeline_da_area(app: FastAPI, settings: Settings, area: Area) -> Pipeline:
+    cache: dict[int, tuple[Any, Pipeline]] = getattr(app.state, "pipelines", None) or {}
+    app.state.pipelines = cache
+    assinatura = (
+        settings, area.trello_key, area.trello_token, area.list_ideias, area.list_tarefas,
+        area.nome,
+    )
+    guardado = cache.get(area.id)
+    if guardado and guardado[0] == assinatura:
+        return guardado[1]
+    pipeline = build_pipeline(settings, area)
+    cache[area.id] = (assinatura, pipeline)
+    return pipeline
+
+
+def pipeline_para(request: Request, area: Area) -> Pipeline:
+    if not area.pronta:
+        raise NotConfiguredError(
+            f"A área '{area.nome}' ainda não tem as colunas de ideias e tarefas escolhidas."
+        )
+    return _pipeline_da_area(request.app, current_settings(request), area)
+
+
+def get_pipeline(request: Request) -> Pipeline:
+    """Pipeline da área padrão — usado pelo webhook manual sem area_id."""
+    return pipeline_para(request, area_selecionada(request))
 
 
 def get_estudio(request: Request) -> EstudioCriativo:
@@ -270,7 +331,7 @@ def get_estudio(request: Request) -> EstudioCriativo:
 
 def _processar_e_registrar(
     pipeline: Pipeline, store: Store, mensagem: WebhookMessage, *, origem: str,
-    external_id: str | None = None,
+    external_id: str | None = None, area: Area | None = None,
 ) -> WebhookResponse:
     """Grava, processa e atualiza o estado — o caminho único de toda mensagem."""
     mensagem_id = store.registrar(
@@ -279,6 +340,8 @@ def _processar_e_registrar(
         grupo=mensagem.group,
         origem=origem,
         external_id=external_id,
+        area_id=area.id if area else None,
+        area_nome=area.nome if area else None,
     )
     if mensagem_id is None:  # duplicata do WhatsApp: já vimos essa mensagem
         return WebhookResponse(
@@ -313,22 +376,23 @@ def info() -> dict[str, str]:
 @app.get("/health")
 def health(request: Request) -> dict[str, object]:
     settings: Settings | None = getattr(request.app.state, "settings", None)
+    areas: AreaStore | None = getattr(request.app.state, "areas", None)
+    prontas = [a for a in areas.listar() if a.pronta] if areas else []
     return {
         "status": "ok",
         "version": __version__,
         "model": settings.gemini_model if settings else None,
-        "lists": {
-            "ideias": bool(settings and settings.trello_list_id_ideias),
-            "tarefas": bool(settings and settings.trello_list_id_tarefas),
-        },
+        "areas": len(prontas),
     }
 
 
 @app.get("/api/status")
 def api_status(request: Request) -> dict[str, Any]:
-    """Tudo que o painel precisa para decidir entre 'operar' e 'configurar'."""
+    """Tudo que o painel precisa para se desenhar."""
     settings: Settings | None = getattr(request.app.state, "settings", None)
     store: Store | None = getattr(request.app.state, "store", None)
+    areas: AreaStore | None = getattr(request.app.state, "areas", None)
+
     resultado: dict[str, Any] = {
         "version": __version__,
         "env_path": str(ENV_PATH),
@@ -336,8 +400,13 @@ def api_status(request: Request) -> dict[str, Any]:
         "model": settings.gemini_model if settings else None,
         "timezone": settings.timezone if settings else None,
         "ready": False,
-        "trello_user": None,
-        "lists": {"ideias": None, "tarefas": None},
+        "chaves": {
+            "gemini": bool(settings and settings.gemini_api_key),
+            "trello": bool(settings and settings.trello_api_key and settings.trello_token),
+            "trello_secret": bool(settings and settings.trello_secret),
+        },
+        "areas": [],
+        "area_padrao": None,
         "fila": store.estatisticas() if store else None,
         "whatsapp": {
             "ativo": bool(settings and settings.whatsapp_ativo),
@@ -350,40 +419,217 @@ def api_status(request: Request) -> dict[str, Any]:
             "token_exigido": bool(settings and settings.server_token),
         },
     }
-    if settings is None:
+    if settings is None or areas is None:
         return resultado
 
-    resultado["lists"] = {
-        "ideias": {"id": settings.trello_list_id_ideias or None, "name": None},
-        "tarefas": {"id": settings.trello_list_id_tarefas or None, "name": None},
-    }
-    resultado["ready"] = bool(settings.trello_list_id_ideias and settings.trello_list_id_tarefas)
+    vinculos_por_area: dict[int, list[dict[str, Any]]] = {}
+    for vinculo in areas.vinculos():
+        vinculos_por_area.setdefault(vinculo.area_id, []).append(vinculo.to_dict())
 
-    client = TrelloClient(
-        settings.trello_api_key, settings.trello_token, timeout=settings.request_timeout
-    )
-    try:
-        eu = client.me()
-        resultado["trello_user"] = eu.get("fullName") or eu.get("username")
-    except TrelloError as exc:
-        resultado["trello_error"] = str(exc)
-        return resultado
-
-    for chave in ("ideias", "tarefas"):
-        list_id = resultado["lists"][chave]["id"]
-        if not list_id:
-            continue
-        try:
-            resultado["lists"][chave]["name"] = client.get_list(list_id).get("name")
-        except TrelloError as exc:
-            resultado["lists"][chave]["error"] = str(exc)
-            resultado["ready"] = False
+    lista = []
+    for area in areas.listar():
+        dados = area.to_dict()
+        dados["vinculos"] = vinculos_por_area.get(area.id, [])
+        lista.append(dados)
+    resultado["areas"] = lista
+    padrao = areas.padrao()
+    resultado["area_padrao"] = padrao.id if padrao else None
+    resultado["ready"] = any(area["pronta"] for area in lista)
     return resultado
+
+
+# ------------------------------------------------------------------ áreas de trabalho
+class AreaEntrada(BaseModel):
+    nome: str = Field(min_length=2, max_length=80)
+    trello_key: str = ""
+    trello_token: str = ""
+    trello_secret: str = ""
+    board_id: str = ""
+    board_nome: str = ""
+    list_ideias: str = ""
+    list_ideias_nome: str = ""
+    list_tarefas: str = ""
+    list_tarefas_nome: str = ""
+
+
+class AreaEdicao(BaseModel):
+    nome: str | None = Field(default=None, min_length=2, max_length=80)
+    trello_key: str | None = None
+    trello_token: str | None = None
+    trello_secret: str | None = None
+    board_id: str | None = None
+    board_nome: str | None = None
+    list_ideias: str | None = None
+    list_ideias_nome: str | None = None
+    list_tarefas: str | None = None
+    list_tarefas_nome: str | None = None
+
+
+@app.get("/api/areas")
+def api_listar_areas(areas: AreaStore = Depends(get_areas)) -> list[dict[str, Any]]:
+    vinculos_por_area: dict[int, list[dict[str, Any]]] = {}
+    for vinculo in areas.vinculos():
+        vinculos_por_area.setdefault(vinculo.area_id, []).append(vinculo.to_dict())
+    saida = []
+    for area in areas.listar():
+        dados = area.to_dict()
+        dados["vinculos"] = vinculos_por_area.get(area.id, [])
+        saida.append(dados)
+    return saida
+
+
+@app.post("/api/areas", status_code=status.HTTP_201_CREATED)
+def api_criar_area(
+    entrada: AreaEntrada, request: Request, areas: AreaStore = Depends(get_areas)
+) -> dict[str, Any]:
+    campos = entrada.model_dump()
+    nome = campos.pop("nome")
+    area = areas.criar(nome, **{k: v for k, v in campos.items() if v})
+    request.app.state.pipelines = {}
+    log.info("Área criada: %s", area.nome)
+    return area.to_dict()
+
+
+@app.patch("/api/areas/{area_id}")
+def api_editar_area(
+    area_id: int, edicao: AreaEdicao, request: Request, areas: AreaStore = Depends(get_areas)
+) -> dict[str, Any]:
+    campos = {k: v for k, v in edicao.model_dump().items() if v is not None}
+    area = areas.atualizar(area_id, **campos)
+    request.app.state.pipelines = {}
+    log.info("Área atualizada: %s", area.nome)
+    return area.to_dict()
+
+
+@app.delete("/api/areas/{area_id}")
+def api_remover_area(
+    area_id: int, request: Request, areas: AreaStore = Depends(get_areas)
+) -> dict[str, str]:
+    area = areas.obter(area_id)
+    areas.remover(area_id)
+    request.app.state.pipelines = {}
+    log.info("Área removida: %s", area.nome)
+    return {"status": "removed", "nome": area.nome}
+
+
+@app.post("/api/areas/{area_id}/padrao")
+def api_definir_padrao(
+    area_id: int, areas: AreaStore = Depends(get_areas)
+) -> dict[str, Any]:
+    return areas.definir_padrao(area_id).to_dict()
+
+
+class VinculoEntrada(BaseModel):
+    identificador: str = Field(min_length=2, max_length=120)
+    tipo: str = Field(default="grupo", pattern="^(grupo|contato)$")
+
+
+@app.get("/api/areas/{area_id}/vinculos")
+def api_listar_vinculos(
+    area_id: int, areas: AreaStore = Depends(get_areas)
+) -> list[dict[str, Any]]:
+    areas.obter(area_id)
+    return [vinculo.to_dict() for vinculo in areas.vinculos(area_id)]
+
+
+@app.post("/api/areas/{area_id}/vinculos", status_code=status.HTTP_201_CREATED)
+def api_criar_vinculo(
+    area_id: int, entrada: VinculoEntrada, areas: AreaStore = Depends(get_areas)
+) -> dict[str, Any]:
+    vinculo = areas.vincular(area_id, entrada.identificador, entrada.tipo)
+    area = areas.obter(area_id)
+    log.info("Vínculo: %s '%s' → %s", entrada.tipo, entrada.identificador, area.nome)
+    return vinculo.to_dict()
+
+
+@app.delete("/api/vinculos/{vinculo_id}")
+def api_remover_vinculo(
+    vinculo_id: int, areas: AreaStore = Depends(get_areas)
+) -> dict[str, Any]:
+    removido = areas.desvincular(vinculo_id=vinculo_id)
+    if not removido:
+        raise AreaError(f"vínculo {vinculo_id} não encontrado")
+    return {"status": "removed"}
+
+
+# -------------------------------------------------------------------- credenciais
+class ChavesEntrada(BaseModel):
+    """Campos em branco preservam o valor atual — nunca apagam por engano."""
+
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
+    trello_api_key: str | None = None
+    trello_token: str | None = None
+    trello_secret: str | None = None
+
+
+@app.post("/api/config/chaves")
+def api_salvar_chaves(entrada: ChavesEntrada, request: Request) -> dict[str, Any]:
+    """Grava as chaves globais no .env, direto pelo painel."""
+    mapa = {
+        "gemini_api_key": "GEMINI_API_KEY",
+        "gemini_model": "GEMINI_MODEL",
+        "trello_api_key": "TRELLO_API_KEY",
+        "trello_token": "TRELLO_TOKEN",
+        "trello_secret": "TRELLO_SECRET",
+    }
+    valores = {
+        variavel: getattr(entrada, campo).strip()
+        for campo, variavel in mapa.items()
+        if getattr(entrada, campo) is not None and getattr(entrada, campo).strip()
+    }
+    if not valores:
+        raise ValueError("Nenhuma chave informada.")
+    write_env_values(valores)
+
+    try:
+        settings = reload_settings()
+    except ConfigError as exc:
+        request.app.state.config_error = str(exc)
+        raise NotConfiguredError(str(exc)) from exc
+
+    request.app.state.settings = settings
+    request.app.state.config_error = None
+    request.app.state.pipelines = {}
+    request.app.state.estudio = None
+    log.info("Chaves atualizadas: %s", ", ".join(sorted(valores)))
+    return {"status": "saved", "atualizadas": sorted(valores)}
+
+
+class TesteCredenciais(BaseModel):
+    trello_key: str = ""
+    trello_token: str = ""
+    area_id: int | None = None
+
+
+@app.post("/api/trello/boards")
+def api_boards_de(entrada: TesteCredenciais, request: Request) -> list[dict[str, Any]]:
+    """Boards visíveis para um par de credenciais — permite testar antes de salvar.
+
+    Sem credenciais no corpo, usa as da área informada (ou as globais).
+    """
+    settings = current_settings(request)
+    chave, token = entrada.trello_key.strip(), entrada.trello_token.strip()
+    if not (chave and token):
+        if entrada.area_id:
+            area = get_areas(request).obter(entrada.area_id)
+            chave, token = area.credenciais(settings.trello_api_key, settings.trello_token)
+        else:
+            chave, token = settings.trello_api_key, settings.trello_token
+    if not (chave and token):
+        raise NotConfiguredError("Informe a chave e o token do Trello.")
+
+    client = TrelloClient(chave, token, timeout=settings.request_timeout)
+    return _boards_com_listas(client)
 
 
 @app.get("/api/boards")
 def api_boards(client: TrelloClient = Depends(trello_client)) -> list[dict[str, Any]]:
-    """Boards abertos com suas listas — alimenta os seletores do painel."""
+    """Boards da área padrão (ou das credenciais globais)."""
+    return _boards_com_listas(client)
+
+
+def _boards_com_listas(client: TrelloClient) -> list[dict[str, Any]]:
     return [
         {
             "id": board["id"],
@@ -396,34 +642,6 @@ def api_boards(client: TrelloClient = Depends(trello_client)) -> list[dict[str, 
         }
         for board in client.list_boards()
     ]
-
-
-class ListsConfig(BaseModel):
-    ideias: str = Field(min_length=8, max_length=64)
-    tarefas: str = Field(min_length=8, max_length=64)
-
-
-@app.post("/api/config/lists")
-def api_salvar_listas(config: ListsConfig, request: Request) -> dict[str, Any]:
-    """Grava os IDs escolhidos no .env e recarrega a configuração em memória."""
-    write_env_values(
-        {
-            "TRELLO_LIST_ID_IDEIAS": config.ideias.strip(),
-            "TRELLO_LIST_ID_TAREFAS": config.tarefas.strip(),
-        }
-    )
-    try:
-        settings = reload_settings()
-    except ConfigError as exc:
-        request.app.state.config_error = str(exc)
-        raise NotConfiguredError(str(exc)) from exc
-
-    request.app.state.settings = settings
-    request.app.state.config_error = None
-    request.app.state.pipeline = None
-    request.app.state.estudio = None
-    log.info("Listas atualizadas: IDEIAS=%s · TAREFAS=%s", config.ideias, config.tarefas)
-    return {"status": "saved", "env_path": str(ENV_PATH)}
 
 
 class WhatsAppConfig(BaseModel):
@@ -456,16 +674,12 @@ def api_salvar_whatsapp(config: WhatsAppConfig, request: Request) -> dict[str, A
 
 
 @app.get("/api/cards")
-def api_cards(
-    request: Request, limite: int = 12, client: TrelloClient = Depends(trello_client)
-) -> dict[str, Any]:
-    """Últimos cartões das duas colunas, para acompanhar o board sem sair do painel."""
-    settings = current_settings(request)
-    saida: dict[str, Any] = {}
-    for chave, list_id in (
-        ("ideias", settings.trello_list_id_ideias),
-        ("tarefas", settings.trello_list_id_tarefas),
-    ):
+def api_cards(request: Request, area_id: int | None = None, limite: int = 12) -> dict[str, Any]:
+    """Últimos cartões das duas colunas da área escolhida."""
+    area = area_selecionada(request, area_id)
+    client = trello_da_area(request, area)
+    saida: dict[str, Any] = {"area": area.nome, "area_id": area.id}
+    for chave, list_id in (("ideias", area.list_ideias), ("tarefas", area.list_tarefas)):
         if not list_id:
             saida[chave] = []
             continue
@@ -516,50 +730,51 @@ class PedidoIdeias(BaseModel):
     tema: str = Field(min_length=3, max_length=500)
     quantidade: int = Field(default=5, ge=1, le=10)
     usar_board: bool = True
+    area_id: int | None = None
 
 
 @app.post("/api/estudio/ideias")
 def api_gerar_ideias(
-    pedido: PedidoIdeias,
-    request: Request,
-    client: TrelloClient = Depends(trello_client),
-    estudio: EstudioCriativo = Depends(get_estudio),
+    pedido: PedidoIdeias, request: Request, estudio: EstudioCriativo = Depends(get_estudio)
 ) -> dict[str, Any]:
-    """Gera pauta nova com o Gemini, ciente do que já existe no board."""
-    settings = current_settings(request)
+    """Gera pauta nova com o Gemini, ciente do que já existe no board da área."""
+    area = area_selecionada(request, pedido.area_id)
 
     contexto: list[str] = []
-    if pedido.usar_board and settings.trello_list_id_ideias:
+    if pedido.usar_board and area.list_ideias:
         try:
-            for list_id in (settings.trello_list_id_ideias, settings.trello_list_id_tarefas):
+            client = trello_da_area(request, area)
+            for list_id in (area.list_ideias, area.list_tarefas):
                 if list_id:
                     contexto += [c.get("name", "") for c in client.list_cards(list_id, limit=20)]
-        except TrelloError as exc:
+        except (TrelloError, NotConfiguredError) as exc:
             # Sem board não dá para evitar repetição, mas ainda dá para criar: segue.
             log.warning("Estúdio: sem contexto do board (%s)", exc)
 
-    ideias = estudio.gerar_ideias(
-        pedido.tema, quantidade=pedido.quantidade, contexto=contexto
-    )
-    log.info("Estúdio gerou %s ideia(s) sobre '%s'", len(ideias), pedido.tema[:60])
-    return {"tema": pedido.tema, "ideias": [ideia.to_dict() for ideia in ideias]}
+    ideias = estudio.gerar_ideias(pedido.tema, quantidade=pedido.quantidade, contexto=contexto)
+    log.info("Estúdio gerou %s ideia(s) sobre '%s' (%s)", len(ideias), pedido.tema[:50], area.nome)
+    return {"tema": pedido.tema, "area": area.nome, "ideias": [i.to_dict() for i in ideias]}
+
+
+class PedidoOrganizar(BaseModel):
+    area_id: int | None = None
 
 
 @app.post("/api/estudio/organizar")
 def api_organizar(
-    request: Request,
-    client: TrelloClient = Depends(trello_client),
-    estudio: EstudioCriativo = Depends(get_estudio),
+    pedido: PedidoOrganizar, request: Request, estudio: EstudioCriativo = Depends(get_estudio)
 ) -> dict[str, Any]:
-    """Lê o board e devolve prioridades, duplicatas e lacunas."""
-    settings = current_settings(request)
-    if not (settings.trello_list_id_ideias and settings.trello_list_id_tarefas):
-        raise NotConfiguredError("Configure as listas do Trello antes de organizar o board.")
+    """Lê o board da área e devolve prioridades, duplicatas e lacunas."""
+    area = area_selecionada(request, pedido.area_id)
+    if not area.pronta:
+        raise NotConfiguredError(f"A área '{area.nome}' ainda não tem as colunas escolhidas.")
 
-    ideias = client.list_cards(settings.trello_list_id_ideias, limit=40)
-    tarefas = client.list_cards(settings.trello_list_id_tarefas, limit=40)
+    client = trello_da_area(request, area)
+    ideias = client.list_cards(area.list_ideias, limit=40)
+    tarefas = client.list_cards(area.list_tarefas, limit=40)
     analise = estudio.organizar(ideias, tarefas)
-    log.info("Estúdio analisou o board (%s ideias, %s tarefas)", len(ideias), len(tarefas))
+    analise["area"] = area.nome
+    log.info("Estúdio analisou %s (%s ideias, %s tarefas)", area.nome, len(ideias), len(tarefas))
     return analise
 
 
@@ -574,24 +789,20 @@ class CartaoNovo(BaseModel):
 class PedidoCriarCartoes(BaseModel):
     destino: str = Field(default="ideias", pattern="^(ideias|tarefas)$")
     ideias: list[CartaoNovo] = Field(min_length=1, max_length=10)
+    area_id: int | None = None
 
 
 @app.post("/api/estudio/criar-cartoes")
-def api_criar_cartoes(
-    pedido: PedidoCriarCartoes,
-    request: Request,
-    client: TrelloClient = Depends(trello_client),
-) -> dict[str, Any]:
+def api_criar_cartoes(pedido: PedidoCriarCartoes, request: Request) -> dict[str, Any]:
     """Manda para o Trello as ideias que a equipe aprovou no painel."""
-    settings = current_settings(request)
-    list_id = (
-        settings.trello_list_id_ideias
-        if pedido.destino == "ideias"
-        else settings.trello_list_id_tarefas
-    )
+    area = area_selecionada(request, pedido.area_id)
+    list_id = area.list_ideias if pedido.destino == "ideias" else area.list_tarefas
     if not list_id:
-        raise NotConfiguredError(f"A lista de {pedido.destino} não está configurada.")
+        raise NotConfiguredError(
+            f"A lista de {pedido.destino} da área '{area.nome}' não está configurada."
+        )
 
+    client = trello_da_area(request, area)
     criados = []
     for item in pedido.ideias:
         ideia = Ideia(
@@ -604,17 +815,15 @@ def api_criar_cartoes(
         card = client.create_card(
             list_id=list_id,
             name=ideia.title,
-            description=_descricao_da_ideia(ideia),
+            description=_descricao_da_ideia(ideia, area.nome),
             due=ideia.due_date,
         )
-        criados.append(
-            {"title": ideia.title, "url": card.get("shortUrl"), "id": card.get("id")}
-        )
-    log.info("Estúdio criou %s cartão(ões) em %s", len(criados), pedido.destino)
-    return {"status": "created", "destino": pedido.destino, "cartoes": criados}
+        criados.append({"title": ideia.title, "url": card.get("shortUrl"), "id": card.get("id")})
+    log.info("Estúdio criou %s cartão(ões) em %s/%s", len(criados), area.nome, pedido.destino)
+    return {"status": "created", "destino": pedido.destino, "area": area.nome, "cartoes": criados}
 
 
-def _descricao_da_ideia(ideia: Ideia) -> str:
+def _descricao_da_ideia(ideia: Ideia, area_nome: str = "") -> str:
     partes = [ideia.description.strip()]
     meta = []
     if ideia.formato:
@@ -623,19 +832,25 @@ def _descricao_da_ideia(ideia: Ideia) -> str:
         meta.append(f"**Esforço:** {ideia.esforco}")
     if meta:
         partes.append(" · ".join(meta))
-    partes.append("_Ideia gerada pelo Estúdio Criativo do Cérebro de Operações._")
+    rodape = "_Ideia gerada pelo Estúdio Criativo do Cérebro de Operações"
+    partes.append(f"{rodape} ({area_nome})._" if area_nome else f"{rodape}._")
     return "\n\n".join(parte for parte in partes if parte)
 
 
 # ---------------------------------------------------------------------- webhooks
+class MensagemManual(WebhookMessage):
+    area_id: int | None = None
+
+
 @app.post("/webhook", response_model=WebhookResponse, status_code=status.HTTP_200_OK)
 def webhook(
-    message: WebhookMessage,
-    pipeline: Pipeline = Depends(get_pipeline),
-    store: Store = Depends(get_store),
+    message: MensagemManual, request: Request, store: Store = Depends(get_store)
 ) -> WebhookResponse:
     """Entrada manual: uma mensagem digitada ou colada no painel."""
-    return _processar_e_registrar(pipeline, store, message, origem="painel")
+    area = area_selecionada(request, message.area_id)
+    pipeline = pipeline_para(request, area)
+    limpa = WebhookMessage(text=message.text, sender=message.sender, group=message.group)
+    return _processar_e_registrar(pipeline, store, limpa, origem="painel", area=area)
 
 
 @app.get("/webhook/whatsapp", include_in_schema=False)
@@ -658,14 +873,14 @@ def whatsapp_verificacao(request: Request):
 @app.post("/webhook/whatsapp")
 async def whatsapp_webhook(
     request: Request,
-    pipeline: Pipeline | None = Depends(get_pipeline_opcional),
     store: Store = Depends(get_store),
+    areas: AreaStore = Depends(get_areas),
 ) -> Response:
-    """Entrada automática: mensagens que chegam do grupo, sem ninguém copiar nada."""
+    """Entrada automática: mensagens do grupo, sem ninguém copiar nada."""
     settings = current_settings(request)
     if not settings.whatsapp_ativo:
         raise NotConfiguredError(
-            "WhatsApp desligado. Escolha um provedor na aba WhatsApp do painel."
+            "WhatsApp desligado. Escolha um provedor na aba Conexões do painel."
         )
 
     corpo = await request.body()
@@ -699,21 +914,34 @@ async def whatsapp_webhook(
 
     mensagem = evento.mensagem
 
-    # Sem listas configuradas, a mensagem é guardada e processada depois — nada se perde.
-    if pipeline is None:
-        guardada = store.registrar(
+    # 1) Comandos de operação são resolvidos aqui e não gastam cota do Gemini.
+    comando = interpretar_comando(mensagem.text)
+    if comando:
+        resultado = await run_in_threadpool(_executar_comando, comando, mensagem, areas, store)
+        return JSONResponse(resultado)
+
+    # 2) Roteamento: o grupo manda na área de destino.
+    area = areas.resolver(grupo=mensagem.group, autor=mensagem.sender)
+    if area is None or not area.pronta:
+        store.registrar(
             mensagem.text,
             autor=mensagem.sender,
             grupo=mensagem.group,
             origem="whatsapp",
             external_id=evento.external_id,
+            area_id=area.id if area else None,
+            area_nome=area.nome if area else None,
         )
-        if guardada is None:
-            return JSONResponse({"status": "duplicate", "detail": "mensagem já recebida"})
-        log.warning("WhatsApp: mensagem enfileirada (listas do Trello ainda não configuradas).")
-        return JSONResponse({"status": "queued", "detail": "aguardando configuração das listas"})
+        motivo = (
+            "nenhuma área vinculada a este grupo"
+            if area is None
+            else f"a área {area.nome} ainda não tem as colunas escolhidas"
+        )
+        log.warning("WhatsApp: mensagem enfileirada — %s.", motivo)
+        return JSONResponse({"status": "queued", "detail": motivo})
 
     try:
+        pipeline = _pipeline_da_area(request.app, settings, area)
         resposta = await run_in_threadpool(
             _processar_e_registrar,
             pipeline,
@@ -721,6 +949,7 @@ async def whatsapp_webhook(
             mensagem,
             origem="whatsapp",
             external_id=evento.external_id,
+            area=area,
         )
     except (GeminiAnalysisError, TrelloError) as exc:
         # A mensagem já está gravada e será reprocessada pelo worker: responde 200
@@ -730,12 +959,81 @@ async def whatsapp_webhook(
     return JSONResponse(resposta.model_dump())
 
 
+def _executar_comando(comando, mensagem: WebhookMessage, areas: AreaStore, store: Store) -> dict:
+    """Executa START/PARAR/STATUS/AREAS vindos do próprio grupo."""
+    alvo_conversa = mensagem.group or mensagem.sender or ""
+    tipo = "grupo" if mensagem.group else "contato"
+    if not alvo_conversa:
+        return {"status": "skipped", "detail": "comando sem grupo/contato de origem"}
+
+    if comando.acao == VINCULAR:
+        area = areas.obter_por_nome(comando.alvo)
+        if area is None:
+            nomes = ", ".join(a.nome for a in areas.listar()) or "(nenhuma cadastrada)"
+            detalhe = f"Área '{comando.alvo}' não encontrada. Cadastradas: {nomes}"
+            store.registrar_evento(mensagem.text, detalhe, autor=mensagem.sender,
+                                   grupo=mensagem.group)
+            log.warning("Comando: %s", detalhe)
+            return {"status": "command_failed", "detail": detalhe}
+        areas.vincular(area.id, alvo_conversa, tipo)
+        detalhe = f"{tipo.capitalize()} '{alvo_conversa}' ligado à área {area.nome}"
+        store.registrar_evento(mensagem.text, detalhe, autor=mensagem.sender,
+                               grupo=mensagem.group, area_nome=area.nome)
+        log.info("Comando: %s", detalhe)
+        return {"status": "command", "detail": detalhe, "area": area.nome}
+
+    if comando.acao == DESVINCULAR:
+        removido = areas.desvincular(identificador=alvo_conversa, tipo=tipo)
+        detalhe = (
+            f"{tipo.capitalize()} '{alvo_conversa}' desligado do Trello"
+            if removido
+            else f"{tipo.capitalize()} '{alvo_conversa}' já não estava ligado a nenhuma área"
+        )
+        store.registrar_evento(mensagem.text, detalhe, autor=mensagem.sender,
+                               grupo=mensagem.group)
+        log.info("Comando: %s", detalhe)
+        return {"status": "command", "detail": detalhe}
+
+    if comando.acao == STATUS:
+        area = areas.area_de(alvo_conversa, tipo)
+        detalhe = (
+            f"'{alvo_conversa}' está ligado à área {area.nome}"
+            if area
+            else f"'{alvo_conversa}' não está ligado a nenhuma área"
+        )
+        store.registrar_evento(mensagem.text, detalhe, autor=mensagem.sender,
+                               grupo=mensagem.group, area_nome=area.nome if area else None)
+        return {"status": "command", "detail": detalhe}
+
+    if comando.acao == LISTAR:
+        nomes = ", ".join(a.nome for a in areas.listar()) or "(nenhuma cadastrada)"
+        detalhe = f"Áreas cadastradas: {nomes}"
+        store.registrar_evento(mensagem.text, detalhe, autor=mensagem.sender,
+                               grupo=mensagem.group)
+        return {"status": "command", "detail": detalhe}
+
+    if comando.acao == AJUDA:
+        store.registrar_evento(mensagem.text, AJUDA_TEXTO, autor=mensagem.sender,
+                               grupo=mensagem.group)
+        return {"status": "command", "detail": AJUDA_TEXTO}
+
+    return {"status": "skipped", "detail": "comando não reconhecido"}
+
+
 # --------------------------------------------------------------- tratamento de erros
 @app.exception_handler(NotConfiguredError)
 async def _not_configured(_: Request, exc: NotConfiguredError) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content={"status": "error", "stage": "config", "detail": str(exc)},
+    )
+
+
+@app.exception_handler(AreaError)
+async def _area_error(_: Request, exc: AreaError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"status": "error", "stage": "areas", "detail": str(exc)},
     )
 
 

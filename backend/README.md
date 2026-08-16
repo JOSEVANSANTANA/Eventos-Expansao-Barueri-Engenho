@@ -34,22 +34,19 @@ abre o painel no Chrome.
 
 Sem instalar o app, o duplo clique em `backend/Cerebro.command` faz o mesmo.
 
-# 2. Preencher as chaves
+# 2. Preencher as chaves — pelo painel
 
-Na primeira execução o `.env` é criado e aberto no editor. Preencha:
+Aba **Conexões** → **Chaves de API**: cole a chave do Gemini, a API Key e o Token do
+Trello (e o OAuth Secret, se precisar). O painel grava no `.env` sozinho; campos em
+branco preservam o que já está lá.
 
-```
-GEMINI_API_KEY=...      # https://aistudio.google.com/apikey
-TRELLO_API_KEY=...      # https://trello.com/power-ups/admin
-TRELLO_TOKEN=...
-```
+- Gemini: <https://aistudio.google.com/apikey>
+- Trello: <https://trello.com/power-ups/admin>
 
-Salve e rode o app de novo.
+# 3. Criar a primeira área de trabalho
 
-# 3. Escolher as colunas
-
-No painel, aba **Operação**: clique em **Carregar boards**, escolha o board e as duas
-colunas, e salve. O Cérebro grava os IDs no `.env` sozinho.
+Aba **Áreas de Trabalho**: dê um nome, clique em **Carregar boards**, escolha o board e
+as duas colunas, e salve.
 
 Pronto — já dá para colar uma mensagem em **Processar mensagem** e ver o cartão nascer.
 
@@ -74,8 +71,20 @@ Usa a mesma chave do Gemini para **produzir**, não só classificar:
   cartões duplicados que podem ser fundidos, lacunas e próximos passos. Não altera nada
   no Trello: é leitura e recomendação.
 
+### Áreas de Trabalho
+Cada área é um board do Trello, com suas colunas e — quando necessário — **chave e token
+próprios** (no Trello a credencial é por Power-Up, então boards de organizações
+diferentes costumam exigir chaves diferentes). Em branco, a área usa as chaves globais.
+
+Aqui você também liga **grupos e contatos do WhatsApp** a cada área, vê quem está ligado
+a quê e remove com um clique.
+
 ### Conexões
-Configura o WhatsApp e mostra o estado da rede (onde está escutando, se exige token).
+Chaves de API (Gemini e Trello), WhatsApp e estado da rede.
+
+### O seletor de área
+Fica na barra do topo e vale para o painel inteiro: **Operação** e **Estúdio Criativo**
+trabalham sempre na área escolhida ali. A escolha fica guardada no navegador.
 
 ---
 
@@ -116,6 +125,38 @@ Log em `~/Library/Logs/CerebroOperacoes.log`. O Mac precisa estar ligado e logad
 
 ---
 
+## Várias áreas, vários grupos
+
+Uma mensagem do WhatsApp vai para a área do **grupo que a mandou**:
+
+```
+grupo "Equipe Louvor"    → área LOUVOR BARUERI   → board do Louvor
+grupo "EXPANSAO OSASCO"  → área EXPANSAO OSASCO  → board da Mídia
+grupo sem vínculo        → área padrão (★ no seletor)
+```
+
+A ordem de resolução é: vínculo do grupo → vínculo do contato → área padrão.
+
+### Comandos no próprio grupo
+
+Ninguém precisa abrir o painel para ligar um grupo a uma área — basta mandar no grupo:
+
+| Comando | O que faz |
+| --- | --- |
+| `START TRELLO <área>` | Liga este grupo à área |
+| `PARAR TRELLO` | Desliga este grupo |
+| `STATUS TRELLO` | Diz a qual área o grupo está ligado |
+| `AREAS TRELLO` | Lista as áreas cadastradas |
+
+Funciona com ou sem barra (`/start`), com ou sem acento, em qualquer caixa. Aceita
+`iniciar`, `conectar`, `ligar`, `vincular` como sinônimos de `start`. O resultado aparece
+no histórico do painel.
+
+Comandos **não** vão para o Gemini nem viram cartão — e uma conversa normal que por acaso
+comece com "start" continua sendo tratada como mensagem.
+
+---
+
 ## WhatsApp automático
 
 Para as mensagens do grupo chegarem sozinhas: **[backend/whatsapp/README.md](whatsapp/README.md)**.
@@ -144,7 +185,13 @@ mensagem repetida (mesmo `id`) — sem cartão duplicado.
 | `GET` | `/health` | Sinal de vida. |
 | `GET` | `/api/status` | Estado completo: listas, fila, WhatsApp, rede. |
 | `GET` | `/api/boards` | Boards e colunas do Trello. |
-| `POST` | `/api/config/lists` · `/api/config/whatsapp` | Gravam no `.env`. |
+| `GET`/`POST` | `/api/areas` | Lista e cria áreas de trabalho. |
+| `PATCH`/`DELETE` | `/api/areas/{id}` | Edita e remove. |
+| `POST` | `/api/areas/{id}/padrao` | Define a área padrão. |
+| `GET`/`POST` | `/api/areas/{id}/vinculos` | Grupos/contatos ligados à área. |
+| `DELETE` | `/api/vinculos/{id}` | Remove um vínculo. |
+| `POST` | `/api/config/chaves` · `/api/config/whatsapp` | Gravam no `.env`. |
+| `POST` | `/api/trello/boards` | Boards de um par de credenciais (testa antes de salvar). |
 | `GET` | `/api/cards` | Últimos cartões das duas colunas. |
 | `GET`/`DELETE` | `/api/history` | Histórico persistente. |
 | `POST` | `/api/fila/reprocessar` | Devolve os erros para a fila. |
@@ -184,13 +231,15 @@ backend/
 │   ├── gemini.py             # classificação (Gerente de Projetos)
 │   ├── estudio.py            # criação e organização (Diretor de Criação)
 │   ├── whatsapp.py           # tradutores Evolution/Meta/genérico
+│   ├── workspaces.py         # áreas de trabalho e vínculos com grupos
+│   ├── comandos.py           # START/PARAR/STATUS digitados no grupo
 │   ├── trello.py             # cliente HTTP com retry
 │   ├── pipeline.py           # mensagem → classificação → cartão
 │   └── console.py            # logging colorido
 ├── web/                      # painel (HTML/CSS/JS puro, sem CDN)
 ├── whatsapp/                 # Evolution API em Docker + conectar.sh
 ├── tools/criar_icone.py      # ícone do app, sem dependências
-└── tests/                    # 150 testes, sem chamadas de rede
+└── tests/                    # 229 testes, sem chamadas de rede
 ```
 
 ## Testes
@@ -200,9 +249,10 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-150 testes cobrindo normalização de datas e rótulos, JSON malformado do modelo,
+229 testes cobrindo normalização de datas e rótulos, JSON malformado do modelo,
 retentativa, fila offline com backoff, tradutores de WhatsApp (incluindo assinatura
-HMAC da Meta), estúdio criativo, token de rede e os códigos de erro das rotas. Gemini,
+HMAC da Meta), áreas de trabalho e vínculos, comandos do grupo, estúdio criativo,
+token de rede e os códigos de erro das rotas. Gemini,
 Trello e WhatsApp são substituídos por dublês — nenhum teste faz chamada de rede, cria
 cartão ou gasta cota.
 

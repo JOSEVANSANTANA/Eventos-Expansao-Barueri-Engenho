@@ -185,6 +185,7 @@ class WebhookResponse(BaseModel):
     card_url: str | None = None
     card_id: str | None = None
     due_date: str | None = None
+    area: str | None = None
     detail: str | None = None
 
 

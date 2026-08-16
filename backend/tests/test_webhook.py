@@ -1,3 +1,5 @@
+"""Webhook manual do painel, histórico e endpoints básicos."""
+
 from __future__ import annotations
 
 import pytest
@@ -9,7 +11,8 @@ from cerebro.gemini import GeminiAnalysisError
 from cerebro.models import ActionType, Classification
 from cerebro.pipeline import Pipeline
 from cerebro.trello import TrelloError
-from main import app, get_pipeline, get_store
+from cerebro.workspaces import AreaStore
+from main import app, get_areas, get_store
 
 PAYLOAD = {
     "text": (
@@ -21,25 +24,47 @@ PAYLOAD = {
 
 
 @pytest.fixture
-def client(settings, tmp_path):
-    """TestClient com pipeline e banco substituídos — nenhuma chamada externa."""
+def client(settings, tmp_path, monkeypatch):
+    """TestClient com pipeline e bancos substituídos — nenhuma chamada externa."""
     fakes: dict = {}
 
     def _make(resultado, trello=None):
         trello = trello or FakeTrello()
-        store = Store(tmp_path / "teste.db", timezone=settings.timezone)
-        fakes["trello"] = trello
-        fakes["store"] = store
-        app.dependency_overrides[get_pipeline] = lambda: Pipeline(
-            settings=settings, analyzer=FakeAnalyzer(resultado), trello=trello
+        store = Store(tmp_path / "webhook.db", timezone=settings.timezone)
+        areas = AreaStore(tmp_path / "webhook.db", timezone=settings.timezone)
+        area = areas.criar(
+            "EXPANSAO OSASCO", list_ideias="list_ideias_123", list_tarefas="list_tarefas_456"
         )
+        fakes.update(trello=trello, store=store, areas=areas, area=area)
+
+        monkeypatch.setattr(
+            "main.build_pipeline",
+            lambda cfg, alvo: Pipeline(
+                analyzer=FakeAnalyzer(resultado),
+                trello=trello,
+                list_ideias=alvo.list_ideias,
+                list_tarefas=alvo.list_tarefas,
+                area_nome=alvo.nome,
+                area_id=alvo.id,
+            ),
+        )
+        app.state.settings = settings
+        app.state.config_error = None
+        app.state.pipelines = {}
+        app.state.store = store
+        app.state.areas = areas
         app.dependency_overrides[get_store] = lambda: store
+        app.dependency_overrides[get_areas] = lambda: areas
         return TestClient(app), fakes
 
     yield _make
     app.dependency_overrides.clear()
-    if "store" in fakes:
-        fakes["store"].close()
+    app.state.settings = None
+    app.state.store = None
+    app.state.areas = None
+    for chave in ("store", "areas"):
+        if chave in fakes:
+            fakes[chave].close()
 
 
 def test_webhook_cria_cartao_de_tarefa(client):
@@ -59,6 +84,7 @@ def test_webhook_cria_cartao_de_tarefa(client):
     assert corpo["status"] == "created"
     assert corpo["action_type"] == "tarefa"
     assert corpo["card_url"] == "https://trello.com/c/abc123"
+    assert corpo["area"] == "EXPANSAO OSASCO"
     assert len(fakes["trello"].cards) == 1
 
 
@@ -112,38 +138,6 @@ def test_falha_deixa_a_mensagem_na_fila(client):
     assert len(fakes["store"].pendentes_vencidas()) == 0  # aguardando o backoff
 
 
-def test_health_endpoint():
-    resposta = TestClient(app).get("/health")
-    assert resposta.status_code == 200
-    assert resposta.json()["status"] == "ok"
-
-
-def test_raiz_serve_o_painel():
-    resposta = TestClient(app).get("/")
-    assert resposta.status_code == 200
-    assert "Cérebro de Operações" in resposta.text
-
-
-def test_api_info_identifica_o_servico():
-    corpo = TestClient(app).get("/api/info").json()
-    assert corpo["service"] == "cerebro-de-operacoes"
-
-
-def test_status_sem_configuracao_nao_quebra():
-    """O painel precisa carregar mesmo com o .env pela metade."""
-    corpo = TestClient(app).get("/api/status").json()
-    assert corpo["ready"] is False
-    assert corpo["lists"] == {"ideias": None, "tarefas": None}
-    assert corpo["whatsapp"]["ativo"] is False
-
-
-def test_webhook_sem_configuracao_responde_409():
-    """Sem listas escolhidas, a resposta orienta em vez de estourar."""
-    resposta = TestClient(app).post("/webhook", json=PAYLOAD)
-    assert resposta.status_code == 409
-    assert resposta.json()["stage"] == "config"
-
-
 def test_historico_registra_o_que_foi_criado(client):
     http, _ = client(
         Classification(action_type=ActionType.TAREFA, title="Gravar vídeos", description="Y")
@@ -155,6 +149,7 @@ def test_historico_registra_o_que_foi_criado(client):
     assert itens[0]["status"] == "criado"
     assert itens[0]["titulo"] == "Gravar vídeos"
     assert itens[0]["origem"] == "painel"
+    assert itens[0]["area_nome"] == "EXPANSAO OSASCO"
 
 
 def test_historico_registra_falha_do_gemini(client):
@@ -177,3 +172,36 @@ def test_limpar_historico_preserva_a_fila(client):
 
     assert resposta.json()["removidos"] == 1
     assert fakes["store"].estatisticas()["pendentes"] == 1
+
+
+# --------------------------------------------------------- endpoints básicos
+def test_health_endpoint():
+    resposta = TestClient(app).get("/health")
+    assert resposta.status_code == 200
+    assert resposta.json()["status"] == "ok"
+
+
+def test_raiz_serve_o_painel():
+    resposta = TestClient(app).get("/")
+    assert resposta.status_code == 200
+    assert "Cérebro de Operações" in resposta.text
+
+
+def test_api_info_identifica_o_servico():
+    corpo = TestClient(app).get("/api/info").json()
+    assert corpo["service"] == "cerebro-de-operacoes"
+
+
+def test_status_sem_configuracao_nao_quebra():
+    """O painel precisa carregar mesmo com o .env pela metade."""
+    corpo = TestClient(app).get("/api/status").json()
+    assert corpo["ready"] is False
+    assert corpo["areas"] == []
+    assert corpo["whatsapp"]["ativo"] is False
+
+
+def test_webhook_sem_configuracao_responde_409():
+    """Sem área cadastrada, a resposta orienta em vez de estourar."""
+    resposta = TestClient(app).post("/webhook", json=PAYLOAD)
+    assert resposta.status_code == 409
+    assert resposta.json()["stage"] == "config"

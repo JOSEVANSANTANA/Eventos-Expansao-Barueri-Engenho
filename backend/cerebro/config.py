@@ -32,6 +32,9 @@ class Settings:
     request_timeout: float
     host: str
     port: int
+    # OAuth Secret do Power-Up. Opcional: a API REST usa chave+token; o segredo
+    # só entra em fluxos OAuth. Guardado para quem precisar.
+    trello_secret: str = ""
     # --- servidor e fila (com padrão: o .env antigo continua válido) ---
     db_path: str = str(BASE_DIR / "dados" / "cerebro.db")
     server_token: str = ""
@@ -81,6 +84,7 @@ def load_settings(
         gemini_model=_read("GEMINI_MODEL", required=False, default="gemini-flash-latest"),
         trello_api_key=_read("TRELLO_API_KEY"),
         trello_token=_read("TRELLO_TOKEN"),
+        trello_secret=_read("TRELLO_SECRET", required=False),
         trello_list_id_ideias=_read("TRELLO_LIST_ID_IDEIAS", required=require_lists),
         trello_list_id_tarefas=_read("TRELLO_LIST_ID_TAREFAS", required=require_lists),
         timezone=_read("TIMEZONE", required=False, default="America/Sao_Paulo"),
