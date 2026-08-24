@@ -106,6 +106,7 @@ Abrir  →  Rodar varredura  →  Escolher pauta  →  Gerar pacote  →  Telepr
 3. **Revisar a checagem** — antes de gravar, olhe o bloco 9. Se houver dado marcado
    como `NÃO VERIFICADO`, resolva ou corte a frase.
 4. **Teleprompter** — botão no topo. Espaço = play/pause, setas = velocidade, Esc = sair.
+   Contagem regressiva de 3 antes de começar a rolar.
 5. **Publicar** — copie legenda, tags e descrição do bloco 7; gere a capa com o prompt
    do bloco 8.
 
@@ -113,6 +114,33 @@ Abrir  →  Rodar varredura  →  Escolher pauta  →  Gerar pacote  →  Telepr
 antes de varrer. Vai ser tratado como pista e validado — nunca aceito como verdade.
 
 ---
+
+## Velocidade do teleprompter
+
+Dois modos, no seletor da barra inferior.
+
+**Automática (padrão).** A ferramenta lê o próprio roteiro e calcula a rolagem:
+
+1. Conta as palavras **faladas** — as marcações `[ASSIM]` não entram, você não as lê em voz alta.
+2. Soma o tempo das **pausas** que o roteiro pede. `[PAUSA DRAMÁTICA]` vale 1,4s,
+   `[PAUSA CURTA]` 0,6s, mudanças de tom 0,3–0,5s. Sem isso o texto sobe rápido demais,
+   porque o silêncio não conta palavra mas consome tempo.
+3. Divide a altura rolável pela duração: `duração = palavras ÷ ppm × 60 + pausas`.
+
+Você controla só uma coisa — **o ritmo de fala em palavras por minuto**. O padrão é 150,
+que é uma locução firme em português. A rolagem se ajusta sozinha, inclusive quando você
+muda o tamanho da fonte (fonte maior estica o texto e exige mais px/s para a mesma duração).
+
+O painel embaixo mostra a conta e **compara com a duração que o roteiro pediu**:
+
+- `no alvo de 55s` — pode gravar.
+- `roteiro pede 55s — 13s a mais; use 189 ppm` — dá para resolver acelerando a fala.
+- `roteiro pede 10min: corte ~200 palavras (não dá para resolver só com a velocidade)` —
+  quando o ajuste necessário sai da faixa humana (100 a 200 ppm), o problema é o tamanho
+  do texto, e a ferramenta diz quantas palavras sobram ou faltam em vez de sugerir um
+  ritmo que ninguém consegue.
+
+**Manual.** Pixels por segundo direto, para quem prefere no olho.
 
 ## De onde vêm os números
 

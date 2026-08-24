@@ -279,32 +279,58 @@
 <!-- ================= TELEPROMPTER ================= -->
 <div class="tp" id="teleprompter">
   <div class="tp-guia"></div>
+  <div class="tp-contagem" id="tpContagem">3</div>
   <div class="tp-txt" id="tpTexto"></div>
+
   <div class="tp-barra">
-    <button class="btn btn-ouro btn-sm" id="tpPlay">▶ Iniciar</button>
-    <button class="btn btn-sm btn-fantasma" id="tpReiniciar">↻ Início</button>
-    <div class="grupo">
-      <label>Velocidade</label>
-      <input type="range" id="tpVel" min="1" max="60" value="16">
-      <span class="tp-val" id="tpVelVal">16</span>
-    </div>
-    <div class="grupo">
-      <label>Fonte</label>
-      <input type="range" id="tpTam" min="22" max="88" value="42">
-      <span class="tp-val" id="tpTamVal">42</span>
-    </div>
-    <div class="grupo">
+    <div class="tp-linha">
+      <button class="btn btn-ouro" id="tpPlay">▶ Iniciar</button>
+      <button class="btn btn-sm btn-fantasma" id="tpReiniciar">↻ Início</button>
+
+      <select id="tpFonte" style="width:auto;padding:7px 11px;font-size:12.5px">
+        <option value="">Nenhum roteiro carregado</option>
+      </select>
+
+      <div class="grupo">
+        <label for="tpModo">Velocidade</label>
+        <select id="tpModo" style="width:auto;padding:6px 10px;font-size:12.5px">
+          <option value="auto">Automática</option>
+          <option value="manual">Manual</option>
+        </select>
+        <span class="tp-val" id="tpVelVal">150 ppm</span>
+      </div>
+
+      <div class="grupo so-auto">
+        <label for="tpWpm">Ritmo de fala</label>
+        <input type="range" id="tpWpm" min="80" max="220" step="5" value="150">
+        <span class="tp-val"><span id="tpWpmVal">150</span> ppm</span>
+      </div>
+
+      <div class="grupo so-manual">
+        <label for="tpVel">Pixels por segundo</label>
+        <input type="range" id="tpVel" min="1" max="120" value="16">
+      </div>
+
+      <div class="grupo">
+        <label for="tpTam">Fonte</label>
+        <input type="range" id="tpTam" min="22" max="88" value="42">
+        <span class="tp-val" id="tpTamVal">42</span>
+      </div>
+
       <label class="switch" style="gap:7px">
         <input type="checkbox" id="tpEspelho"><span class="switch-tr"></span>
         <span style="font-size:11.5px;color:var(--txt-2);font-weight:600">Espelhar</span>
       </label>
+
+      <button class="btn btn-sm btn-fantasma" id="tpFechar" style="margin-left:auto">Fechar</button>
     </div>
-    <select id="tpFonte" style="width:auto;padding:6px 11px;font-size:12.5px">
-      <option value="short">Roteiro Short</option>
-      <option value="longo">Roteiro Longo</option>
-    </select>
-    <span style="font-size:11px;color:var(--txt-3);margin-left:auto">Espaço = play/pause · ↑↓ = velocidade · Esc = sair</span>
-    <button class="btn btn-sm btn-fantasma" id="tpFechar">Fechar</button>
+
+    <div class="tp-linha tp-rodape">
+      <span id="tpPainel">Nenhum roteiro carregado.</span>
+      <span class="tp-sep">·</span>
+      <span>rolagem <b id="tpEfetiva">—</b></span>
+      <span class="tp-atalhos">Espaço = play/pause · ↑↓ = velocidade · Esc = sair</span>
+    </div>
   </div>
 </div>
 

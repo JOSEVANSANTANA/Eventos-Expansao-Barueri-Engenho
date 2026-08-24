@@ -342,7 +342,11 @@ async function gerarPacote(pauta) {
     renderPacote(j);
     window.TP.definirRoteiros(
       j.roteiroShort && j.roteiroShort.texto,
-      j.roteiroLongo && j.roteiroLongo.texto
+      j.roteiroLongo && j.roteiroLongo.texto,
+      {
+        short: Number(j.roteiroShort && j.roteiroShort.duracaoEstimadaSeg) || 0,
+        longo: (Number(j.roteiroLongo && j.roteiroLongo.duracaoEstimadaMin) || 0) * 60
+      }
     );
     $('#acoesPacote').style.display = 'flex';
     toast('Pacote pronto.', 'ok');
@@ -715,7 +719,14 @@ function renderHistorico() {
     irPara('pacote');
     $('#tituloPacote').textContent = item.tema || 'Pacote salvo';
     renderPacote(item);
-    window.TP.definirRoteiros(item.roteiroShort && item.roteiroShort.texto, item.roteiroLongo && item.roteiroLongo.texto);
+    window.TP.definirRoteiros(
+      item.roteiroShort && item.roteiroShort.texto,
+      item.roteiroLongo && item.roteiroLongo.texto,
+      {
+        short: Number(item.roteiroShort && item.roteiroShort.duracaoEstimadaSeg) || 0,
+        longo: (Number(item.roteiroLongo && item.roteiroLongo.duracaoEstimadaMin) || 0) * 60
+      }
+    );
     $('#acoesPacote').style.display = 'flex';
   });
   area.querySelectorAll('[data-baixar]').forEach(b => b.onclick = () => {
