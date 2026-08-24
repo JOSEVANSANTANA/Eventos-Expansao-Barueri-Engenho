@@ -97,7 +97,8 @@ function renderMacro() {
   if (!p) return;
   const cartoes = [];
 
-  const ordem = ['selic', 'cdi', 'ipca12m', 'dolar', 'euro', 'ipcaMes', 'igpm', 'poupanca'];
+  const ordem = ['selic', 'cdi', 'ipca12m', 'dolar', 'euro', 'ipcaMes', 'igpm', 'poupanca',
+                 'pfTotal', 'pfPessoal', 'pfCheque', 'pfPessoalMes'];
   ordem.forEach(chave => {
     const i = p.indicadores[chave];
     if (!i) return;
@@ -105,7 +106,7 @@ function renderMacro() {
       ? `R$ ${i.valor.toFixed(4).replace('.', ',')}`
       : `${String(i.valor).replace('.', ',')}${i.unidade.includes('%') ? '%' : ''}`;
     cartoes.push(`
-      <div class="macro">
+      <div class="macro${i.grupo === 'credito' ? ' custo' : ''}">
         <div class="rot">${esc(i.rotulo)}</div>
         <div class="val">${esc(valor)}</div>
         <div class="meta">${esc(i.data)} · <a href="${esc(i.linkFonte)}" target="_blank" rel="noopener">BCB ${i.codigo}</a></div>

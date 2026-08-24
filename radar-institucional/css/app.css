@@ -175,6 +175,8 @@ body{
 .macro .meta a:hover{text-decoration:underline}
 .macro.destaque::before{background:var(--verde)}
 .macro.destaque .val{color:var(--verde)}
+.macro.custo::before{background:var(--vermelho)}
+.macro.custo .val{color:var(--vermelho)}
 .macro.erro::before{background:var(--vermelho)}
 .macro.erro .val{font-size:14px;color:var(--txt-3);font-weight:600}
 

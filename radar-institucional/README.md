@@ -68,12 +68,20 @@ Todo indicador do painel vem de API pública em fonte primária, com data e link
 | Fonte | O que traz |
 |---|---|
 | **BCB / SGS** | Selic, CDI, IPCA (mês e 12 meses), dólar e euro PTAX, IGP-M, poupança |
+| **BCB / SGS — crédito** | Juros médios PF: total, crédito pessoal (a.a. e a.m.) e cheque especial |
 | **BCB / Focus** | Expectativa de mercado para Selic, IPCA, PIB e câmbio |
 | **IBGE / SIDRA** | IPCA (fonte cruzada) |
 | **Busca web via OpenRouter** | Notícia das últimas 72h, com URL e data em cada citação |
 
 O **juro real ex-ante** é calculado, não copiado: `(1 + Selic) / (1 + IPCA esperado) - 1`.
 O método aparece no tooltip do card.
+
+Os cartões de **crédito aparecem em vermelho**: são custo que o cliente paga, não
+rendimento que ele recebe. São o material bruto mais forte para conteúdo de crédito
+com garantia, consórcio e reestruturação de dívida — o contraste entre o que a pessoa
+paga hoje e o que ela poderia pagar é o argumento inteiro. Os rótulos dessas séries
+foram conferidos um a um no Portal de Dados Abertos do BCB, porque códigos vizinhos
+medem coisas diferentes (20741 é cheque especial, 20742 é crédito pessoal).
 
 Se um indicador falhar, ele é **omitido** e a IA recebe aviso explícito para não
 inventar valor no lugar. Dado ausente é sempre melhor que dado inventado.

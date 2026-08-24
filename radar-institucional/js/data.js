@@ -21,7 +21,16 @@ const SERIES = [
   { cod: 1,     chave: 'dolar',     rotulo: 'Dolar PTAX (venda)',        unidade: 'R$',     tipo: 'diaria' },
   { cod: 21619, chave: 'euro',      rotulo: 'Euro PTAX (venda)',         unidade: 'R$',     tipo: 'diaria' },
   { cod: 189,   chave: 'igpm',      rotulo: 'IGP-M no mes',              unidade: '%',      tipo: 'mensal' },
-  { cod: 195,   chave: 'poupanca',  rotulo: 'Poupanca (rendimento)',     unidade: '%',      tipo: 'periodo' }
+  { cod: 195,   chave: 'poupanca',  rotulo: 'Poupanca (rendimento)',     unidade: '%',      tipo: 'periodo' },
+
+  /* Taxas de credito PF. Rotulos conferidos no Portal de Dados Abertos do BCB.
+     Sao o material bruto mais forte para conteudo de credito com garantia,
+     consorcio e reestruturacao de divida: mostram o custo real que o cliente
+     paga hoje sem perceber. */
+  { cod: 20740, chave: 'pfTotal',   rotulo: 'Juros PF - total',              unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 20742, chave: 'pfPessoal', rotulo: 'Juros PF - credito pessoal',    unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 20741, chave: 'pfCheque',  rotulo: 'Juros PF - cheque especial',    unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 25464, chave: 'pfPessoalMes', rotulo: 'Credito pessoal ao mes',     unidade: '%',      tipo: 'mensal', grupo: 'credito' }
 ];
 
 const linkSerie = (cod) =>
@@ -52,6 +61,7 @@ async function buscarSerie(s) {
     valorBruto: ultimo.valor,
     data: ultimo.data,
     codigo: s.cod,
+    grupo: s.grupo || 'macro',
     fonte: 'Banco Central do Brasil - SGS',
     linkFonte: linkSerie(s.cod),
     ok: true
