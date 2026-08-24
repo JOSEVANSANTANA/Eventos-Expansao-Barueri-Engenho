@@ -30,8 +30,9 @@ barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
 1. Crie uma chave em [openrouter.ai/keys](https://openrouter.ai/keys)
 2. Na ferramenta, clique em **Configurações** e cole a chave
 3. Clique em **Testar chave** para confirmar
-4. Preencha sua identidade (marca, certificações, bagagem) — isso entra na voz do roteiro
-5. Salvar
+4. Deixe o modelo em **Automático** (padrão)
+5. Preencha sua identidade (marca, certificações, bagagem) — isso entra na voz do roteiro
+6. Salvar
 
 **Sobre a chave:** fica no `localStorage` do seu navegador e vai direto para a
 OpenRouter. Não passa por servidor intermediário. Como é ferramenta local, não
@@ -39,6 +40,58 @@ publique esta página em endereço público com a chave dentro, e prefira uma ch
 com limite de gasto definido no painel da OpenRouter.
 
 ---
+
+## Escolha de modelo
+
+A OpenRouter é um roteador, e a ferramenta usa isso a favor: em vez de cravar um
+modelo, ela lê o catálogo vivo (`/api/v1/models`, endpoint público) e **pontua cada
+modelo** para esta tarefa específica — escrever roteiro longo em português e devolver
+JSON válido. A pontuação está explícita em `js/openrouter.js`, na função `pontuar()`,
+e segue a ordem em que as coisas quebram na prática:
+
+| Peso | Critério | Por quê |
+|---|---|---|
+| +1000 | é o `openrouter/free` | roteador oficial: distribui a carga, é o que menos esbarra em limite |
+| +200 / −400 | tamanho do modelo | ≥90B ganha, <15B perde: modelo pequeno não sustenta roteiro de 12 min |
+| +250 | suporta `structured_outputs` | JSON quebrado é a segunda falha mais comum |
+| +120 | texto puro (não multimodal) | segue instrução melhor |
+| ~×12 | log₂ do contexto | importa, mas menos que o resto |
+
+Modelos que não servem são descartados antes: geradores de música, classificadores
+de segurança, embeddings, TTS e modelos `stealth/` (que registram os prompts).
+
+No seletor você vê os **três grupos** — Automático, Gratuitos e Pagos — com a lista
+completa lida da OpenRouter na hora. Escolher um modelo específico não desliga a
+proteção: ele vai como primeiro da fila e os gratuitos ficam de reserva atrás.
+
+## Por que a varredura sempre devolve algo
+
+Cada chamada percorre uma **cascata** de até 7 modelos (`chamarComCascata`). Ela trata
+dois casos separadamente:
+
+- **402, sem créditos.** A busca web é cobrada por consulta, mesmo com modelo gratuito.
+  Então 402 com busca ligada é quase sempre a busca, não o modelo. A cascata **desliga
+  a busca e repete o mesmo modelo** — e o resultado vem marcado.
+- **429, limite atingido.** Espera progressiva e passa para o próximo modelo.
+  O tier gratuito dá 20 chamadas por minuto e 50 por dia.
+
+Qualquer outra falha simplesmente avança para o próximo da fila.
+
+### O que muda quando a busca não roda
+
+Isso importa mais que tudo, então a ferramenta grita em vez de sussurrar: aparece um
+**aviso vermelho no topo** das pautas e do pacote dizendo que não houve busca web.
+
+E o prompt muda junto — não é o mesmo pedido com menos informação. Em modo sem busca,
+o modelo é **proibido** de citar notícia, evento, lei ou qualquer número que não esteja
+literalmente no bloco de dados do Banco Central, e proibido de inventar URL. As pautas
+saem do contraste entre os indicadores reais, que é material forte por si só: juro real
+contra custo do crédito, poupança contra cheque especial, IPCA corrente contra
+expectativa do Focus.
+
+Traduzindo: **sem saldo você continua recebendo pauta e roteiro**, com números
+verdadeiros e datados — só não recebe novidade das últimas 72 horas. Para ligar a
+busca, basta ter saldo na OpenRouter (a partir de US$ 0,007 por consulta).
 
 ## Fluxo de trabalho diário
 
@@ -130,10 +183,16 @@ conforme a operação amadurece.
 
 ## Custo
 
-Cada varredura e cada pacote são uma chamada à OpenRouter, cobrada por token, mais a
-busca web (a partir de US$ 0,007 por consulta no Exa). Modelo mais forte gera roteiro
-melhor e custa mais — dá para usar um modelo barato na varredura e um forte no pacote.
-Defina limite de gasto no painel da OpenRouter.
+No modo **Automático** com modelos gratuitos, os tokens não custam nada — o limite é de
+uso, não de dinheiro: 20 chamadas por minuto e 50 por dia (1.000 por dia se você já
+comprou US$ 10 em créditos alguma vez).
+
+O que custa é a **busca web**: a partir de US$ 0,007 por consulta. É o único item que
+exige saldo, e é o que separa "pauta com notícia de hoje" de "pauta com dado do Banco
+Central". Uns poucos dólares cobrem meses de produção diária.
+
+Modelos pagos geram roteiro melhor e custam por token. Defina limite de gasto no painel
+da OpenRouter de qualquer forma.
 
 ---
 

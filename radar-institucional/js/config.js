@@ -8,8 +8,10 @@ const CHAVE_HIST = 'radar_hist_v1';
 const CFG_PADRAO = {
   // --- OpenRouter ---
   apiKey: '',
-  modelo: 'anthropic/claude-sonnet-4.5',
-  modeloRadar: 'anthropic/claude-sonnet-4.5',
+  // 'auto' = o app pontua o catalogo vivo da OpenRouter e escolhe o melhor
+  // gratuito do momento, com cascata de reserva atras.
+  modelo: 'auto',
+  modeloRadar: 'auto',
   buscaWeb: true,
   maxResultadosBusca: 8,
   temperatura: 0.7,
@@ -30,14 +32,12 @@ const CFG_PADRAO = {
   brapiToken: ''
 };
 
-/* Modelos sugeridos. A lista viva vem da API em /models; estes sao os
-   defaults seguros caso a busca falhe. */
-const MODELOS_SUGERIDOS = [
-  { id: 'anthropic/claude-sonnet-4.5', rotulo: 'Claude Sonnet 4.5 - equilibrio (recomendado)' },
-  { id: 'anthropic/claude-opus-4.1',   rotulo: 'Claude Opus 4.1 - maxima qualidade de roteiro' },
-  { id: 'openai/gpt-4o',               rotulo: 'GPT-4o - rapido' },
-  { id: 'google/gemini-2.5-pro',       rotulo: 'Gemini 2.5 Pro - contexto longo' },
-  { id: 'deepseek/deepseek-chat',      rotulo: 'DeepSeek - baixo custo' }
+/* Plano B do seletor: usado apenas se o catalogo da OpenRouter nao carregar.
+   Sao ids de roteador, que mudam menos que ids de modelo especifico. */
+const MODELOS_RESERVA = [
+  { id: 'auto', rotulo: 'Automatico - melhor gratuito do momento (recomendado)' },
+  { id: 'openrouter/free', rotulo: 'Roteador Gratuito da OpenRouter' },
+  { id: 'openrouter/auto', rotulo: 'Roteador Automatico (pago, escolhe o melhor)' }
 ];
 
 function lerCfg() {
@@ -89,7 +89,7 @@ function removerDoHistorico(id) {
 
 if (typeof window !== 'undefined') {
   window.CFG = {
-    CFG_PADRAO, MODELOS_SUGERIDOS,
+    CFG_PADRAO, MODELOS_RESERVA,
     lerCfg, salvarCfg, lerHistorico, salvarNoHistorico, removerDoHistorico
   };
 }

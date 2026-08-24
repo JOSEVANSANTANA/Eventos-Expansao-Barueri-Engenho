@@ -216,18 +216,233 @@ function extrairJSON(texto) {
   return null;
 }
 
-/* Lista de modelos disponiveis (opcional, para o seletor). */
-async function listarModelos(cfg) {
-  try {
-    const r = await fetch(`${OR_BASE}/models`, { headers: cabecalhos(cfg.apiKey) });
-    if (!r.ok) return null;
-    const j = await r.json();
-    return (j.data || [])
-      .map(m => ({ id: m.id, rotulo: `${m.name || m.id}`, contexto: m.context_length }))
-      .sort((a, b) => a.id.localeCompare(b.id));
-  } catch (e) {
-    return null;
+/* -------------------------------------------------------------------------
+   CATALOGO DE MODELOS
+   -------------------------------------------------------------------------
+   O endpoint /models e publico: funciona antes mesmo de ter chave. Isso
+   permite montar o seletor com a lista viva da OpenRouter em vez de uma
+   lista fixa que envelhece.
+
+   A OpenRouter e um roteador. A ideia aqui e a mesma: em vez de cravar um
+   modelo, o app pontua o catalogo e escolhe o melhor disponivel no momento,
+   priorizando os gratuitos.
+   ------------------------------------------------------------------------- */
+
+/* Modelos que existem no catalogo mas nao servem para escrever roteiro:
+   geradores de musica, classificadores de seguranca, embeddings, TTS. */
+const PADRAO_IMPRESTAVEL = /(lyria|content-safety|guard|moderation|embed|rerank|tts|whisper|transcri|image-gen|video-gen|dall-e|stable-diffusion|flux)/i;
+
+function ehGratuito(m) {
+  const p = m.pricing || {};
+  return Number(p.prompt) === 0 && Number(p.completion) === 0;
+}
+
+function ehRoteador(m) {
+  return m.id === 'openrouter/free' || m.id === 'openrouter/auto';
+}
+
+/* Extrai o tamanho do modelo do proprio id: "120b-a12b" = 120B totais com
+   12B ativos; "9b" = 9B. Pega o maior numero, que e o total. Devolve null
+   quando o id nao diz o tamanho - varios nao dizem, e isso nao e demerito. */
+function tamanhoEmB(id) {
+  const achados = String(id).toLowerCase().match(/(\d+(?:\.\d+)?)b\b/g);
+  if (!achados) return null;
+  const nums = achados.map((t) => parseFloat(t)).filter((n) => !isNaN(n));
+  return nums.length ? Math.max(...nums) : null;
+}
+
+/* Pontua a aptidao do modelo para a tarefa: escrever roteiro longo em
+   portugues e devolver JSON valido.
+
+   O peso segue a ordem em que as coisas quebram na pratica:
+   1. Tamanho do modelo - um modelo pequeno nao sustenta roteiro de 12 minutos
+      com coerencia, por mais que cumpra esquema de saida.
+   2. Aderencia a esquema - JSON quebrado e a segunda falha mais comum.
+   3. Contexto - importa, mas menos que os dois acima. */
+function pontuar(m) {
+  if (PADRAO_IMPRESTAVEL.test(m.id) || PADRAO_IMPRESTAVEL.test(m.name || '')) return -1;
+
+  // Modelos "stealth" sao experimentais e registram os prompts para avaliacao.
+  // Nao entram por padrao numa ferramenta de trabalho.
+  if (/^stealth\//i.test(m.id)) return -1;
+
+  const arq = m.architecture || {};
+  const entra = arq.input_modalities || [];
+  const sai = arq.output_modalities || [];
+  if (!entra.includes('text')) return -1;
+  if (!sai.includes('text')) return -1;
+  if (sai.includes('audio') || sai.includes('image')) return -1;
+
+  const par = m.supported_parameters || [];
+  let pt = 0;
+
+  // O roteador gratuito lidera: distribui a carga entre varios modelos e por
+  // isso e o que menos esbarra em limite por modelo.
+  if (m.id === 'openrouter/free') pt += 1000;
+
+  const b = tamanhoEmB(m.id);
+  if (b !== null) {
+    if (b < 15) pt -= 400;
+    else if (b < 40) pt -= 80;
+    else if (b < 90) pt += 80;
+    else pt += 200;
   }
+
+  if (par.includes('structured_outputs')) pt += 250;
+  if (par.includes('response_format')) pt += 120;
+
+  const ctx = m.context_length || 0;
+  if (ctx > 0) pt += Math.log2(ctx) * 12;
+
+  // Texto puro tende a seguir instrucao melhor que multimodal generalista.
+  if (entra.length === 1 && entra[0] === 'text') pt += 120;
+
+  return pt;
+}
+
+/* Catalogo completo, ja separado e ordenado. */
+async function catalogoModelos() {
+  const r = await fetch(`${OR_BASE}/models`, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new ErroOpenRouter(`Nao consegui listar os modelos (HTTP ${r.status}).`, r.status, null);
+  const j = await r.json();
+
+  const todos = (j.data || []).map((m) => ({
+    id: m.id,
+    nome: m.name || m.id,
+    contexto: m.context_length || 0,
+    gratis: ehGratuito(m),
+    roteador: ehRoteador(m),
+    pontos: pontuar(m)
+  }));
+
+  const uteis = todos.filter((m) => m.pontos >= 0);
+  const porPontos = (a, b) => b.pontos - a.pontos;
+
+  return {
+    roteadores: uteis.filter((m) => m.roteador).sort(porPontos),
+    gratuitos: uteis.filter((m) => m.gratis && !m.roteador).sort(porPontos),
+    pagos: uteis.filter((m) => !m.gratis && !m.roteador).sort((a, b) => a.id.localeCompare(b.id)),
+    total: todos.length,
+    atualizadoEm: new Date().toISOString()
+  };
+}
+
+/* A cadeia que a cascata percorre. Em modo automatico, os melhores
+   gratuitos do momento. Em modo manual, o escolhido primeiro e os
+   gratuitos logo atras, para nunca ficar sem resposta. */
+async function montarCadeia(cfg, modeloPreferido) {
+  let cat = null;
+  try { cat = await catalogoModelos(); } catch (e) { /* cai no plano B abaixo */ }
+
+  if (!cat) {
+    // Sem catalogo, usa o roteador gratuito, que e o id mais estavel que existe.
+    return modeloPreferido && modeloPreferido !== 'auto'
+      ? [modeloPreferido, 'openrouter/free']
+      : ['openrouter/free'];
+  }
+
+  const melhoresGratis = [...cat.roteadores.filter((m) => m.gratis), ...cat.gratuitos]
+    .map((m) => m.id)
+    .slice(0, 6);
+
+  const cadeia = (!modeloPreferido || modeloPreferido === 'auto')
+    ? melhoresGratis
+    : [modeloPreferido, ...melhoresGratis];
+
+  return [...new Set(cadeia)].slice(0, 7);
+}
+
+/* -------------------------------------------------------------------------
+   CASCATA - a garantia de que uma varredura sempre devolve alguma coisa
+   -------------------------------------------------------------------------
+   Percorre a cadeia de modelos ate um responder. Trata dois casos a parte:
+
+   402 (sem creditos): a busca web e cobrada por consulta, mesmo com modelo
+   gratuito. Entao 402 com busca ligada quase sempre e a busca, nao o modelo.
+   A cascata desliga a busca e repete o MESMO modelo - e avisa quem chamou,
+   porque sem busca as regras do roteiro mudam.
+
+   429 (limite): espera e segue para o proximo modelo.
+   ------------------------------------------------------------------------- */
+
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function chamarComCascata(cfg, opcoes = {}) {
+  const preferido = opcoes.modelo || cfg.modelo;
+  const cadeia = await montarCadeia(cfg, preferido);
+  const tentativas = [];
+
+  let comBusca = opcoes.buscaWeb !== false && cfg.buscaWeb;
+
+  for (let i = 0; i < cadeia.length; i++) {
+    const modelo = cadeia[i];
+
+    // As mensagens dependem de haver busca ou nao: sem busca, o prompt
+    // precisa proibir qualquer fato que nao esteja nos dados injetados.
+    const mensagens = opcoes.mensagensPara
+      ? opcoes.mensagensPara(comBusca)
+      : opcoes.mensagens;
+
+    if (opcoes.aoTentar) opcoes.aoTentar({ modelo, comBusca, indice: i, total: cadeia.length });
+
+    try {
+      const r = await chamar(cfg, mensagens, {
+        ...opcoes,
+        modelo,
+        buscaWeb: comBusca
+      });
+
+      if (!r.texto || !r.texto.trim()) {
+        throw new ErroOpenRouter('O modelo devolveu resposta vazia.', 0, null);
+      }
+
+      return { ...r, modeloUsado: modelo, buscaUsada: comBusca, tentativas };
+
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+
+      tentativas.push({ modelo, comBusca, status: e.status || 0, erro: e.message });
+
+      // Sem creditos e busca ligada: a busca e a causa. Repete sem ela.
+      if (e.status === 402 && comBusca) {
+        comBusca = false;
+        i--;
+        continue;
+      }
+
+      if (e.status === 429) {
+        await espera(1200 * (i + 1));
+        continue;
+      }
+
+      // 401 e problema de chave: trocar de modelo nao resolve nada.
+      if (e.status === 401) throw e;
+    }
+  }
+
+  throw new ErroOpenRouter(resumirFalhas(tentativas, cadeia), 0, tentativas);
+}
+
+function resumirFalhas(tentativas, cadeia) {
+  if (!tentativas.length) return 'Nenhum modelo pode ser acionado.';
+
+  const semCredito = tentativas.some((t) => t.status === 402);
+  const limitado = tentativas.every((t) => t.status === 429);
+
+  if (limitado) {
+    return 'Todos os modelos gratuitos estao no limite de uso agora. '
+      + 'O tier gratuito permite 20 chamadas por minuto e 50 por dia. '
+      + 'Aguarde alguns minutos e tente de novo.';
+  }
+  if (semCredito) {
+    return 'Sem creditos na OpenRouter e nenhum modelo gratuito respondeu. '
+      + 'Adicione saldo em openrouter.ai/credits, ou aguarde: o limite diario '
+      + 'do tier gratuito e de 50 chamadas.';
+  }
+
+  const ultima = tentativas[tentativas.length - 1];
+  return `Tentei ${tentativas.length} modelo(s) de ${cadeia.length} na fila e nenhum respondeu. `
+    + `Ultimo erro: ${ultima.erro}`;
 }
 
 /* Teste rapido de credencial. */
@@ -249,5 +464,5 @@ async function testarChave(cfg) {
 }
 
 if (typeof window !== 'undefined') {
-  window.OR = { chamar, extrairJSON, listarModelos, testarChave, ErroOpenRouter };
+  window.OR = { chamar, chamarComCascata, extrairJSON, catalogoModelos, montarCadeia, testarChave, ErroOpenRouter };
 }

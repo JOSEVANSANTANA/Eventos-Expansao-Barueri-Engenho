@@ -8,7 +8,8 @@ const APP = {
   panoramaTexto: '',
   pautas: [],
   pacote: null,
-  pautaAtual: null
+  pautaAtual: null,
+  catalogo: null
 };
 
 /* ---------- utilitarios ------------------------------------------------- */
@@ -149,32 +150,42 @@ async function rodarVarredura() {
   area.innerHTML = `
     <div class="carregando-box">
       <div class="spinner"></div>
-      <div class="carregando-txt">Varrendo o mercado…</div>
+      <div class="carregando-txt" id="carregandoRadar">Varrendo o mercado…</div>
       <div class="carregando-sub">Buscando notícia das últimas 72h, cruzando com dados do Banco Central e classificando por potencial viral.</div>
       <div class="stream" id="streamRadar"></div>
     </div>`;
 
   const stream = $('#streamRadar');
-  const prompt = window.PROMPTS.promptRadar(APP.cfg, APP.panoramaTexto, $('#dadosColados').value);
+  const colado = $('#dadosColados').value;
 
   try {
-    const r = await window.OR.chamar(
-      APP.cfg,
-      [{ role: 'user', content: prompt }],
-      {
-        modelo: APP.cfg.modeloRadar,
-        aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
-      }
-    );
+    const r = await window.OR.chamarComCascata(APP.cfg, {
+      modelo: APP.cfg.modeloRadar,
+      // A cascata pode desligar a busca no meio do caminho. Cada versão do
+      // prompt carrega regras diferentes, então ela pede a certa na hora.
+      mensagensPara: (comBusca) => ([{
+        role: 'user',
+        content: window.PROMPTS.promptRadar(APP.cfg, APP.panoramaTexto, colado, { semBusca: !comBusca })
+      }]),
+      aoTentar: ({ modelo, comBusca, indice, total }) => {
+        stream.textContent = '';
+        const r0 = $('#carregandoRadar');
+        if (r0) r0.textContent = indice === 0
+          ? `Consultando ${modelo}${comBusca ? ' com busca web' : ' sem busca web'}…`
+          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+      },
+      aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
+    });
 
     const j = window.OR.extrairJSON(r.texto);
     if (!j || !Array.isArray(j.pautas) || !j.pautas.length) {
-      throw new Error('O modelo não devolveu pautas em formato válido. Tente de novo ou troque o modelo em Configurações.');
+      throw new Error(`${r.modeloUsado} respondeu, mas fora do formato esperado. `
+        + 'Tente de novo, ou escolha um modelo específico em Configurações.');
     }
 
     APP.pautas = j.pautas;
-    renderPautas(j, r.citacoes);
-    toast(`${j.pautas.length} pautas encontradas.`, 'ok');
+    renderPautas(j, r.citacoes, r);
+    toast(`${j.pautas.length} pautas via ${r.modeloUsado}.`, 'ok');
 
   } catch (e) {
     area.innerHTML = `
@@ -186,9 +197,35 @@ async function rodarVarredura() {
   }
 }
 
-function renderPautas(j, citacoes) {
+function renderPautas(j, citacoes, resultado) {
   const kb = window.KB;
   let html = '';
+
+  // Faltar busca web muda o valor do que está na tela. Precisa ficar
+  // impossível de ignorar, não escondido num rodapé.
+  if (resultado && resultado.buscaUsada === false) {
+    html += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+      <b>Estas pautas saíram SEM busca web.</b><br>
+      A busca da OpenRouter é cobrada por consulta e não pôde ser executada agora
+      — normalmente por falta de saldo. As pautas abaixo foram construídas apenas
+      com os dados do Banco Central que você vê no painel, que são reais e datados,
+      e não com notícia das últimas 72 horas.
+      <div style="margin-top:8px"><b>Na prática:</b> os ângulos são válidos e os
+      números são verdadeiros, mas nada aqui é novidade do dia. Antes de gravar
+      qualquer pauta que mencione fato recente, confirme na fonte.</div>
+      <div style="margin-top:8px;font-size:12px;opacity:.85">Para ligar a busca,
+      adicione saldo em openrouter.ai/credits — a partir de US$ 0,007 por consulta.</div>
+    </div></div>`;
+  }
+
+  if (resultado && resultado.modeloUsado) {
+    const t = (resultado.tentativas || []).length;
+    html += `<div class="cartao" style="margin-bottom:18px;padding:12px 16px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+      <span class="tag tag-mestre">${esc(resultado.modeloUsado)}</span>
+      <span style="color:var(--txt-3)">busca web: <b style="color:${resultado.buscaUsada ? 'var(--verde)' : 'var(--vermelho)'}">${resultado.buscaUsada ? 'ativa' : 'inativa'}</b></span>
+      ${t ? `<span style="color:var(--txt-3)">${t} tentativa(s) antes desta</span>` : ''}
+    </div>`;
+  }
 
   if (j.leituraDeCenario) {
     html += `<div class="cartao" style="margin-bottom:18px;border-left:3px solid var(--ouro)">
@@ -262,34 +299,44 @@ async function gerarPacote(pauta) {
   $('#areaPacote').innerHTML = `
     <div class="carregando-box">
       <div class="spinner"></div>
-      <div class="carregando-txt">Escrevendo o pacote…</div>
+      <div class="carregando-txt" id="carregandoPacote">Escrevendo o pacote…</div>
       <div class="carregando-sub">Confirmando os fatos na web, ancorando na filosofia do mestre e montando roteiro, CTA, direção e SEO.</div>
       <div class="stream" id="streamPacote"></div>
     </div>`;
 
   const stream = $('#streamPacote');
-  const prompt = window.PROMPTS.promptPacote(APP.cfg, APP.panoramaTexto, pauta, {
-    formato: APP.cfg.formatoPadrao,
-    produtoId: APP.cfg.produtoPreferido || pauta.produtoSugerido,
-    mestreId: pauta.mestreSugerido
-  });
 
   try {
-    const r = await window.OR.chamar(
-      APP.cfg,
-      [{ role: 'user', content: prompt }],
-      {
-        modelo: APP.cfg.modelo,
-        maxTokens: 16000,
-        aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
-      }
-    );
+    const r = await window.OR.chamarComCascata(APP.cfg, {
+      modelo: APP.cfg.modelo,
+      maxTokens: 16000,
+      mensagensPara: (comBusca) => ([{
+        role: 'user',
+        content: window.PROMPTS.promptPacote(APP.cfg, APP.panoramaTexto, pauta, {
+          formato: APP.cfg.formatoPadrao,
+          produtoId: APP.cfg.produtoPreferido || pauta.produtoSugerido,
+          mestreId: pauta.mestreSugerido,
+          semBusca: !comBusca
+        })
+      }]),
+      aoTentar: ({ modelo, comBusca, indice, total }) => {
+        stream.textContent = '';
+        const r0 = $('#carregandoPacote');
+        if (r0) r0.textContent = indice === 0
+          ? `Escrevendo com ${modelo}${comBusca ? '' : ' (sem busca web)'}…`
+          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+      },
+      aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
+    });
 
     const j = window.OR.extrairJSON(r.texto);
-    if (!j) throw new Error('O modelo não devolveu JSON válido. Tente de novo ou use um modelo mais forte em Configurações.');
+    if (!j) throw new Error(`${r.modeloUsado} respondeu fora do formato esperado. `
+      + 'Tente de novo, ou escolha um modelo específico em Configurações.');
 
     j._citacoes = r.citacoes || [];
     j._geradoEm = new Date().toISOString();
+    j._modeloUsado = r.modeloUsado;
+    j._buscaUsada = r.buscaUsada;
     APP.pacote = j;
 
     renderPacote(j);
@@ -318,8 +365,17 @@ function bloco(num, titulo, corpo, aberto = true) {
 }
 
 function renderPacote(j) {
-  $('#subPacote').textContent = `Gerado em ${new Date(j._geradoEm).toLocaleString('pt-BR')}`;
+  const origem = j._modeloUsado ? ` · ${j._modeloUsado}` : '';
+  $('#subPacote').textContent = `Gerado em ${new Date(j._geradoEm).toLocaleString('pt-BR')}${origem}`;
   let h = '';
+
+  if (j._buscaUsada === false) {
+    h += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+      <b>Pacote gerado SEM busca web.</b> Os números vieram do painel do Banco Central,
+      que são reais e datados, mas nenhum fato recente foi confirmado na internet.
+      Trate qualquer menção a acontecimento atual como não verificada até você conferir.
+    </div></div>`;
+  }
 
   /* --- verificacao no topo: o que importa antes de gravar --- */
   const naoVerificados = arr(j.checagem).filter(c => String(c.status || '').toUpperCase().includes('NAO') || String(c.status || '').toUpperCase().includes('NÃO'));
@@ -676,6 +732,63 @@ function renderHistorico() {
 /* =========================================================================
    CONFIGURACOES
    ========================================================================= */
+/* Popula os dois seletores com o catálogo vivo da OpenRouter.
+   O endpoint /models é público, então isso funciona mesmo antes de haver
+   chave configurada. Se a rede falhar, cai na lista de reserva e o app
+   continua utilizável. */
+async function preencherModelos(c) {
+  const seletores = [
+    { sel: '#cfgModelo', valor: c.modelo },
+    { sel: '#cfgModeloRadar', valor: c.modeloRadar }
+  ];
+
+  const aplicar = (html, aviso) => {
+    seletores.forEach(({ sel, valor }) => {
+      const el = $(sel);
+      if (!el) return;
+      el.innerHTML = html;
+      // Um modelo salvo antes pode ter saído do catálogo. Em vez de trocar
+      // silenciosamente a escolha do usuário, mantém a opção visível.
+      if (![...el.querySelectorAll('option')].some(o => o.value === valor)) {
+        el.add(new Option(`${valor} (fora do catálogo atual)`, valor), 0);
+      }
+      el.value = valor;
+    });
+    const av = $('#avisoCatalogo');
+    if (av) av.textContent = aviso;
+  };
+
+  // Estado provisório enquanto o catálogo carrega.
+  aplicar(window.CFG.MODELOS_RESERVA.map(m =>
+    `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''), 'Carregando catálogo…');
+
+  try {
+    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
+
+    const grupo = (rotulo, itens, marcar) => itens.length
+      ? `<optgroup label="${esc(rotulo)}">` + itens.map(m =>
+          `<option value="${esc(m.id)}">${esc(m.nome)}${marcar ? ` — ${(m.contexto / 1000).toFixed(0)}k` : ''}</option>`
+        ).join('') + '</optgroup>'
+      : '';
+
+    const html =
+      `<optgroup label="Escolha automática">
+         <option value="auto">Automático — melhor gratuito do momento (recomendado)</option>
+       </optgroup>`
+      + grupo('Roteadores da OpenRouter', cat.roteadores, false)
+      + grupo(`Gratuitos (${cat.gratuitos.length}) — ordenados por aptidão`, cat.gratuitos, true)
+      + grupo(`Pagos (${cat.pagos.length})`, cat.pagos, false);
+
+    aplicar(html, `${cat.gratuitos.length} modelos gratuitos e ${cat.pagos.length} pagos disponíveis agora `
+      + `(catálogo de ${cat.total} lido da OpenRouter).`);
+
+  } catch (e) {
+    aplicar(window.CFG.MODELOS_RESERVA.map(m =>
+      `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''),
+      'Não consegui ler o catálogo da OpenRouter. Usando a lista de reserva — o modo Automático continua funcionando.');
+  }
+}
+
 function abrirConfig() {
   const c = APP.cfg;
   $('#cfgApiKey').value = c.apiKey;
@@ -689,14 +802,7 @@ function abrirConfig() {
   });
   $('#cfgFormato').value = c.formatoPadrao;
 
-  const opcoes = window.CFG.MODELOS_SUGERIDOS.map(m => `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join('');
-  ['#cfgModelo', '#cfgModeloRadar'].forEach(sel => {
-    const el = $(sel);
-    el.innerHTML = opcoes;
-    const valor = sel === '#cfgModelo' ? c.modelo : c.modeloRadar;
-    if (![...el.options].some(o => o.value === valor)) el.add(new Option(valor, valor), 0);
-    el.value = valor;
-  });
+  preencherModelos(c);
 
   $('#cfgProduto').innerHTML = '<option value="">A IA escolhe pela dor da pauta</option>' +
     window.KB.PRODUTOS.map(p => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join('');

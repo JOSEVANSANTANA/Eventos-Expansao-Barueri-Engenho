@@ -62,6 +62,43 @@ ${c.regrasParaIA.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 - Nao repita o mesmo dado tres vezes para preencher tempo.`;
 }
 
+/* ---------- 2b. MODO SEM BUSCA WEB -------------------------------------
+   Sem busca, o modelo nao tem como confirmar nada que nao esteja no bloco
+   de dados injetado. Entregar ainda assim e possivel - inventar nao e. As
+   regras abaixo trocam "verifique na web" por "so existe o que esta aqui".
+   ------------------------------------------------------------------------- */
+function blocoSemBusca() {
+  return `# ATENCAO: BUSCA WEB INDISPONIVEL NESTA EXECUCAO
+
+Voce NAO tem acesso a internet agora. Isso muda as regras de forma absoluta:
+
+1. As UNICAS fontes de numero que voce pode usar sao (a) o bloco DADOS REAIS
+   injetado abaixo, e (b) o que o usuario colou manualmente, se houver.
+2. E TERMINANTEMENTE PROIBIDO citar qualquer noticia, evento, declaracao,
+   decisao, lei, projeto de lei ou acontecimento recente. Voce nao tem como
+   verificar nada disso e sua memoria de treino esta desatualizada. Inventar
+   uma manchete e o pior erro possivel aqui.
+3. E PROIBIDO citar qualquer numero que nao esteja literalmente no bloco de
+   dados. Nada de "o mercado espera", "segundo levantamento", "dados mostram".
+4. E PROIBIDO inventar URL. O array "fontes" deve conter APENAS os links do
+   Banco Central que acompanham os dados injetados, ou ficar vazio.
+5. Toda citacao de investidor deve ser PARAFRASE de conceito consagrado, sem
+   aspas e sem frase textual atribuida.
+
+O QUE VOCE DEVE FAZER: construir as pautas a partir dos dados macro reais que
+voce TEM. Eles sao fortes o suficiente. Contraste indicadores entre si, mostre
+o que a relacao entre eles revela, e ancore na filosofia dos mestres - que e
+atemporal e nao depende de noticia.
+
+Exemplos do tipo de angulo que funciona sem busca: o tamanho do juro real
+contra o custo do credito ao consumidor; a distancia entre o que a poupanca
+paga e o que o cheque especial cobra dentro do mesmo banco; o que a expectativa
+de inflacao do Focus diz sobre a inflacao corrente. Tudo isso sai dos dados.
+
+Em "alertasDeVerificacao", declare na primeira linha: "Busca web indisponivel
+nesta execucao - as pautas vieram apenas dos dados do Banco Central."`;
+}
+
 /* ---------- 3. MARCACOES DE TELEPROMPTER -------------------------------- */
 const MARCACOES = `# MARCACOES DE DIRECAO (obrigatorias dentro do texto do roteiro)
 Insira, no meio do texto corrido, entre colchetes maiusculos, para guiar a performance:
@@ -73,7 +110,8 @@ O texto entre marcacoes deve ser texto CORRIDO e natural, pronto para leitura fl
 em teleprompter - sem topicos, sem bullets, sem numeracao dentro da fala.`;
 
 /* ---------- 4. PROMPT: RADAR DO DIA ------------------------------------- */
-function promptRadar(cfg, panoramaTexto, extras) {
+function promptRadar(cfg, panoramaTexto, extras, opcoes) {
+  const semBusca = !!(opcoes && opcoes.semBusca);
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const foco = window.KB.PRODUTOS.filter(p => p.prioridade === 1).map(p => p.nome).join('; ');
 
@@ -81,13 +119,15 @@ function promptRadar(cfg, panoramaTexto, extras) {
 
 ${blocoRegras()}
 
+${semBusca ? blocoSemBusca() + '\n' : ''}
 # DADOS REAIS JA COLETADOS (verdade de base - pode usar livremente, ja estao verificados)
 ${panoramaTexto}
 
 ${extras && extras.trim() ? `# DADOS COLADOS PELO USUARIO (Trends/BuzzSumo/outros - trate como pista, valide antes de afirmar)\n${extras.trim()}\n` : ''}
 # SUA TAREFA AGORA
-Hoje e ${hoje}. Faca uma VARREDURA na web do que esta genuinamente quente NAS ULTIMAS 72 HORAS
-no mercado financeiro brasileiro e no que afeta o bolso do investidor brasileiro.
+Hoje e ${hoje}. ${semBusca
+  ? 'Sem acesso a web, monte as pautas a partir EXCLUSIVAMENTE dos dados macro reais acima e do que o usuario colou. Nao invente noticia.'
+  : 'Faca uma VARREDURA na web do que esta genuinamente quente NAS ULTIMAS 72 HORAS no mercado financeiro brasileiro e no que afeta o bolso do investidor brasileiro.'}
 
 Priorize temas que:
 - Estao em alta de busca/noticia AGORA (nao tema atemporal);
@@ -127,7 +167,9 @@ para quem X e otimo - ou o contrario.
 temperaturaViral: inteiro de 0 a 100. Seja honesto e criterioso - se o tema e morno, de nota
 baixa. Nota alta so para tema com controversia real e volume de busca real.
 Ordene "pautas" da maior para a menor temperatura.
-CADA pauta precisa de pelo menos 1 fonte com URL real encontrada na busca. Sem fonte, corte a pauta.`;
+${semBusca
+  ? 'Como nao houve busca, o array "fontes" de cada pauta deve conter apenas os links do Banco Central dos dados usados, ou ficar vazio. NAO invente URL.'
+  : 'CADA pauta precisa de pelo menos 1 fonte com URL real encontrada na busca. Sem fonte, corte a pauta.'}`;
 }
 
 /* ---------- 5. PROMPT: PACOTE COMPLETO ---------------------------------- */
@@ -136,6 +178,7 @@ function promptPacote(cfg, panoramaTexto, pauta, opcoes) {
   const mestre = kb.MESTRES.find(m => m.id === (opcoes.mestreId || pauta.mestreSugerido)) || kb.MESTRES[0];
   const produto = kb.PRODUTOS.find(p => p.id === (opcoes.produtoId || pauta.produtoSugerido)) || kb.PRODUTOS[0];
   const formato = opcoes.formato || 'ambos';
+  const semBusca = !!opcoes.semBusca;
 
   const dossieMestre = `# MESTRE PARA ANCORAR A TESE: ${mestre.nome} (${mestre.titulo})
 Origem verificada: ${mestre.origem}
@@ -164,6 +207,7 @@ ${(produto.dadosParaChecar || []).map(d => `- ${d}`).join('\n')}`;
 
 ${blocoRegras()}
 
+${semBusca ? blocoSemBusca() + '\n' : ''}
 ${MARCACOES}
 
 # DADOS REAIS JA COLETADOS (verdade de base verificada)
@@ -181,8 +225,9 @@ Dor do publico: ${pauta.dorDoPublico || ''}
 Fontes ja levantadas: ${(pauta.fontes || []).map(f => `${f.titulo} (${f.url}, ${f.data})`).join(' | ') || 'nenhuma - busque agora'}
 
 # SUA TAREFA
-Use a busca web para CONFIRMAR e ATUALIZAR os fatos desta pauta agora, e produza o pacote
-completo de conteudo. Formato solicitado: ${formato === 'ambos' ? 'SHORT e LONGO (os dois)' : formato.toUpperCase()}.
+${semBusca
+  ? 'SEM acesso a web nesta execucao: construa o pacote apenas com os dados macro injetados acima e com a filosofia do mestre. Nao afirme nenhum fato recente.'
+  : 'Use a busca web para CONFIRMAR e ATUALIZAR os fatos desta pauta agora, e produza o pacote completo de conteudo.'} Formato solicitado: ${formato === 'ambos' ? 'SHORT e LONGO (os dois)' : formato.toUpperCase()}.
 
 Especificacao do SHORT: ${specShort.duracao}, ${specShort.palavras}.
   Estrutura: ${specShort.estrutura}
@@ -287,5 +332,5 @@ Responda APENAS com o novo roteiro em texto corrido, sem comentario nenhum.`;
 }
 
 if (typeof window !== 'undefined') {
-  window.PROMPTS = { promptRadar, promptPacote, promptVariacao, blocoIdentidade, blocoRegras, MARCACOES };
+  window.PROMPTS = { promptRadar, promptPacote, promptVariacao, blocoIdentidade, blocoRegras, blocoSemBusca, MARCACOES };
 }
