@@ -26,6 +26,19 @@ function cabecalhos(apiKey) {
   };
 }
 
+/* Diagnostico de falha de rede, com o caso file:// tratado a parte. */
+function mensagemDeRede() {
+  if (location.protocol === 'file:') {
+    return 'Nao consegui falar com a OpenRouter. Voce abriu o arquivo direto do disco '
+      + '(file://), e a OpenRouter pode recusar chamadas sem endereco de origem. '
+      + 'Rode pelo servidor local: abra o terminal na pasta e execute '
+      + '"python3 -m http.server 8080", depois acesse http://localhost:8080. '
+      + 'Isso resolve na maioria dos casos.';
+  }
+  return 'Nao consegui falar com a OpenRouter. Verifique sua conexao com a internet '
+    + 'e se algum bloqueador de anuncios ou firewall esta barrando openrouter.ai.';
+}
+
 /* Traduz erro de API em mensagem acionavel em portugues. */
 function traduzErro(status, corpo) {
   const msg = (corpo && corpo.error && corpo.error.message) || '';
@@ -63,12 +76,22 @@ async function chamar(cfg, mensagens, opcoes = {}) {
     }];
   }
 
-  const resposta = await fetch(`${OR_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: cabecalhos(cfg.apiKey),
-    body: JSON.stringify(corpo),
-    signal: opcoes.signal
-  });
+  let resposta;
+  try {
+    resposta = await fetch(`${OR_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: cabecalhos(cfg.apiKey),
+      body: JSON.stringify(corpo),
+      signal: opcoes.signal
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    // Um TypeError aqui quase sempre e a rede caindo antes da resposta.
+    // Aberto por file://, a origem vai como "null" e o servidor pode recusar
+    // no CORS - o navegador nao deixa a pagina ver o motivo, so o erro generico.
+    // Entao o diagnostico tem que vir daqui.
+    throw new ErroOpenRouter(mensagemDeRede(), 0, null);
+  }
 
   if (!resposta.ok) {
     let j = null;
@@ -221,7 +244,7 @@ async function testarChave(cfg) {
     const limite = d.limit === null || d.limit === undefined ? 'sem limite definido' : `limite ${d.limit}`;
     return { ok: true, mensagem: `Chave valida. Uso: ${d.usage ?? 0} | ${limite}.` };
   } catch (e) {
-    return { ok: false, mensagem: 'Nao foi possivel falar com a OpenRouter. Verifique sua conexao.' };
+    return { ok: false, mensagem: mensagemDeRede() };
   }
 }
 

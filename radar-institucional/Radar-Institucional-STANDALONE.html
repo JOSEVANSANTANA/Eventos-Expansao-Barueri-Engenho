@@ -1,0 +1,3156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radar Institucional — Central de Conteúdo Financeiro</title>
+<meta name="description" content="Varredura diária do mercado, roteiro pronto para teleprompter, CTA de banking e SEO — com dado real e fonte rastreável.">
+<meta name="theme-color" content="#080B11">
+<!-- standalone: sem manifest -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   RADAR INSTITUCIONAL - Interface
+   ========================================================================= */
+
+:root{
+  --bg:#080B11;
+  --bg-2:#0D121B;
+  --surf:#121926;
+  --surf-2:#182231;
+  --surf-3:#1F2A3C;
+  --linha:#26344A;
+  --linha-forte:#33455F;
+
+  --txt:#E9EEF7;
+  --txt-2:#A9B6CA;
+  --txt-3:#6E7D95;
+
+  --ouro:#E5B75C;
+  --ouro-esc:#B98F3C;
+  --verde:#19C98B;
+  --vermelho:#F0525F;
+  --azul:#4D8DF6;
+  --roxo:#9B7BF0;
+
+  --raio:14px;
+  --raio-sm:9px;
+  --sombra:0 12px 34px rgba(0,0,0,.5);
+  --sombra-sm:0 3px 12px rgba(0,0,0,.35);
+  --trans:.18s cubic-bezier(.4,0,.2,1);
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{height:100%}
+
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:
+    radial-gradient(1100px 620px at 82% -12%, rgba(229,183,92,.07), transparent 62%),
+    radial-gradient(880px 520px at 8% 108%, rgba(77,141,246,.07), transparent 62%),
+    var(--bg);
+  color:var(--txt);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+
+::selection{background:rgba(229,183,92,.28)}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:var(--bg-2)}
+::-webkit-scrollbar-thumb{background:var(--linha-forte);border-radius:6px;border:2px solid var(--bg-2)}
+::-webkit-scrollbar-thumb:hover{background:#45607F}
+
+/* =========================================================================
+   CABECALHO
+   ========================================================================= */
+.topo{
+  position:sticky;top:0;z-index:60;
+  background:rgba(8,11,17,.9);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--linha);
+}
+.topo-in{
+  max-width:1560px;margin:0 auto;padding:12px 22px;
+  display:flex;align-items:center;gap:20px;
+}
+.logo{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.logo-marca{
+  width:36px;height:36px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(140deg,var(--ouro),var(--ouro-esc));
+  display:grid;place-items:center;
+  font-weight:800;font-size:16px;color:#12161F;
+  box-shadow:0 3px 14px rgba(229,183,92,.32);
+}
+.logo-txt strong{display:block;font-size:15px;font-weight:700;letter-spacing:-.2px;line-height:1.25}
+.logo-txt span{display:block;font-size:10.5px;color:var(--txt-3);text-transform:uppercase;letter-spacing:1.3px;font-weight:600}
+
+.abas{display:flex;gap:3px;margin-left:8px;overflow-x:auto;scrollbar-width:none}
+.abas::-webkit-scrollbar{display:none}
+.aba{
+  background:none;border:0;color:var(--txt-2);
+  padding:8px 14px;border-radius:var(--raio-sm);
+  font-size:13.5px;font-weight:600;font-family:inherit;
+  cursor:pointer;white-space:nowrap;transition:var(--trans);
+}
+.aba:hover{color:var(--txt);background:var(--surf)}
+.aba.ativa{color:#12161F;background:linear-gradient(140deg,var(--ouro),var(--ouro-esc));box-shadow:0 2px 10px rgba(229,183,92,.26)}
+
+.topo-dir{margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0}
+
+.pilula{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 11px;border-radius:99px;
+  font-size:11.5px;font-weight:600;
+  background:var(--surf);border:1px solid var(--linha);color:var(--txt-2);
+}
+.ponto{width:7px;height:7px;border-radius:50%;background:var(--txt-3);flex-shrink:0}
+.ponto.on{background:var(--verde);box-shadow:0 0 9px rgba(25,201,139,.75)}
+.ponto.off{background:var(--vermelho)}
+.ponto.carregando{background:var(--ouro);animation:pulsar 1.1s ease-in-out infinite}
+@keyframes pulsar{0%,100%{opacity:1}50%{opacity:.28}}
+
+/* =========================================================================
+   BOTOES
+   ========================================================================= */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:9px 16px;border-radius:var(--raio-sm);
+  border:1px solid var(--linha-forte);background:var(--surf-2);color:var(--txt);
+  font-family:inherit;font-size:13.5px;font-weight:600;
+  cursor:pointer;transition:var(--trans);white-space:nowrap;
+}
+.btn:hover:not(:disabled){background:var(--surf-3);border-color:#41577A;transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.btn-ouro{
+  background:linear-gradient(140deg,var(--ouro),var(--ouro-esc));
+  border-color:transparent;color:#12161F;font-weight:700;
+  box-shadow:0 3px 14px rgba(229,183,92,.28);
+}
+.btn-ouro:hover:not(:disabled){box-shadow:0 6px 22px rgba(229,183,92,.42);background:linear-gradient(140deg,#F0C570,var(--ouro))}
+
+.btn-fantasma{background:transparent;border-color:var(--linha)}
+.btn-fantasma:hover:not(:disabled){background:var(--surf)}
+
+.btn-sm{padding:6px 11px;font-size:12px}
+.btn-lg{padding:13px 26px;font-size:15px}
+
+/* =========================================================================
+   LAYOUT
+   ========================================================================= */
+.tela{display:none;max-width:1560px;margin:0 auto;padding:24px 22px 90px}
+.tela.ativa{display:block;animation:entrar .25s ease}
+@keyframes entrar{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+.cabecalho-secao{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.cabecalho-secao h2{font-size:23px;font-weight:750;letter-spacing:-.5px;line-height:1.2}
+.cabecalho-secao p{color:var(--txt-3);font-size:13.5px;margin-top:3px}
+.cabecalho-secao .acoes{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+
+.cartao{
+  background:var(--surf);border:1px solid var(--linha);
+  border-radius:var(--raio);padding:20px;
+}
+.cartao + .cartao{margin-top:16px}
+
+.grade{display:grid;gap:16px}
+.g-auto{grid-template-columns:repeat(auto-fill,minmax(285px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+
+/* =========================================================================
+   PAINEL MACRO
+   ========================================================================= */
+.faixa-macro{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+  gap:10px;margin-bottom:22px;
+}
+.macro{
+  background:linear-gradient(160deg,var(--surf-2),var(--surf));
+  border:1px solid var(--linha);border-radius:var(--raio-sm);
+  padding:13px 15px;position:relative;overflow:hidden;transition:var(--trans);
+  display:flex;flex-direction:column;
+}
+.macro:hover{border-color:var(--linha-forte);transform:translateY(-2px)}
+.macro::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ouro);opacity:.85}
+.macro .rot{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--txt-3);font-weight:700;margin-bottom:5px;min-height:2.5em;display:flex;align-items:flex-start}
+.macro .val{font-size:22px;font-weight:750;letter-spacing:-.7px;font-variant-numeric:tabular-nums;line-height:1.1}
+.macro .meta{font-size:10.5px;color:var(--txt-3);margin-top:auto;padding-top:5px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.macro .meta a{color:var(--azul);text-decoration:none}
+.macro .meta a:hover{text-decoration:underline}
+.macro.destaque::before{background:var(--verde)}
+.macro.destaque .val{color:var(--verde)}
+.macro.custo::before{background:var(--vermelho)}
+.macro.custo .val{color:var(--vermelho)}
+.macro.erro::before{background:var(--vermelho)}
+.macro.erro .val{font-size:14px;color:var(--txt-3);font-weight:600}
+
+/* =========================================================================
+   PAUTAS
+   ========================================================================= */
+.pauta{
+  background:var(--surf);border:1px solid var(--linha);border-radius:var(--raio);
+  padding:19px;cursor:pointer;transition:var(--trans);position:relative;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.pauta:hover{border-color:var(--ouro-esc);transform:translateY(-3px);box-shadow:var(--sombra)}
+.pauta-topo{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px}
+.termo{
+  flex-shrink:0;width:47px;height:47px;border-radius:11px;
+  display:grid;place-items:center;font-size:16px;font-weight:800;
+  font-variant-numeric:tabular-nums;border:2px solid;
+}
+.termo.q{color:var(--vermelho);border-color:rgba(240,82,95,.42);background:rgba(240,82,95,.11)}
+.termo.m{color:var(--ouro);border-color:rgba(229,183,92,.42);background:rgba(229,183,92,.11)}
+.termo.f{color:var(--txt-3);border-color:var(--linha);background:var(--surf-2)}
+.pauta h3{font-size:15.5px;font-weight:700;line-height:1.35;letter-spacing:-.25px}
+.pauta .quando{font-size:11px;color:var(--txt-3);margin-top:4px}
+
+.angulo{
+  background:rgba(229,183,92,.08);border-left:3px solid var(--ouro);
+  border-radius:0 var(--raio-sm) var(--raio-sm) 0;
+  padding:11px 13px;margin:11px 0;font-size:13px;line-height:1.55;color:#F2DFB8;
+}
+.angulo b{color:var(--ouro);display:block;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+
+.pauta .dor{font-size:12.5px;color:var(--txt-2);line-height:1.55}
+.pauta-rodape{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:13px;flex-wrap:wrap}
+
+.tag{
+  font-size:10.5px;font-weight:700;padding:3.5px 9px;border-radius:99px;
+  text-transform:uppercase;letter-spacing:.6px;
+}
+.tag-produto{background:rgba(25,201,139,.13);color:var(--verde);border:1px solid rgba(25,201,139,.28)}
+.tag-mestre{background:rgba(155,123,240,.13);color:var(--roxo);border:1px solid rgba(155,123,240,.28)}
+.tag-formato{background:rgba(77,141,246,.13);color:var(--azul);border:1px solid rgba(77,141,246,.28)}
+.tag-fonte{background:var(--surf-2);color:var(--txt-3);border:1px solid var(--linha)}
+
+/* =========================================================================
+   PACOTE GERADO
+   ========================================================================= */
+.bloco{
+  background:var(--surf);border:1px solid var(--linha);
+  border-radius:var(--raio);margin-bottom:15px;overflow:hidden;
+}
+.bloco-cab{
+  display:flex;align-items:center;gap:11px;padding:14px 18px;
+  background:var(--surf-2);border-bottom:1px solid var(--linha);
+  cursor:pointer;user-select:none;
+}
+.bloco-cab:hover{background:var(--surf-3)}
+.bloco-num{
+  width:25px;height:25px;border-radius:7px;flex-shrink:0;
+  background:linear-gradient(140deg,var(--ouro),var(--ouro-esc));
+  color:#12161F;display:grid;place-items:center;font-size:12px;font-weight:800;
+}
+.bloco-cab h3{font-size:14.5px;font-weight:700;flex:1;letter-spacing:-.2px}
+.seta{color:var(--txt-3);transition:transform var(--trans);font-size:12px}
+.bloco.fechado .seta{transform:rotate(-90deg)}
+.bloco.fechado .bloco-corpo{display:none}
+.bloco-corpo{padding:18px}
+
+.rotulo{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.1px;
+  color:var(--txt-3);margin-bottom:7px;display:flex;align-items:center;gap:7px;
+}
+.campo{margin-bottom:17px}
+.campo:last-child{margin-bottom:0}
+
+/* Roteiro / teleprompter preview */
+.roteiro{
+  background:var(--bg-2);border:1px solid var(--linha);border-radius:var(--raio-sm);
+  padding:19px;font-size:15.5px;line-height:2;white-space:pre-wrap;
+  max-height:460px;overflow-y:auto;
+}
+.roteiro .marca{
+  color:var(--ouro);font-weight:700;font-size:12px;
+  background:rgba(229,183,92,.12);padding:1.5px 7px;border-radius:5px;
+  white-space:nowrap;letter-spacing:.4px;
+}
+.gancho{
+  background:linear-gradient(135deg,rgba(240,82,95,.14),rgba(229,183,92,.09));
+  border:1px solid rgba(240,82,95,.3);border-radius:var(--raio-sm);
+  padding:15px 17px;font-size:17px;font-weight:650;line-height:1.5;margin-bottom:15px;
+}
+.gancho .rotulo{color:var(--vermelho)}
+
+.lista-limpa{list-style:none;display:flex;flex-direction:column;gap:8px}
+.lista-limpa li{
+  padding:10px 13px;background:var(--surf-2);border-radius:var(--raio-sm);
+  font-size:13.5px;line-height:1.55;border-left:2.5px solid var(--linha-forte);
+}
+.lista-num{counter-reset:n;list-style:none;display:flex;flex-direction:column;gap:8px}
+.lista-num li{
+  counter-increment:n;position:relative;padding:10px 13px 10px 40px;
+  background:var(--surf-2);border-radius:var(--raio-sm);font-size:13.5px;line-height:1.55;
+}
+.lista-num li::before{
+  content:counter(n);position:absolute;left:12px;top:10px;
+  width:19px;height:19px;border-radius:5px;background:var(--surf-3);
+  color:var(--ouro);font-size:11px;font-weight:800;display:grid;place-items:center;
+}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  font-size:12px;padding:5px 11px;border-radius:99px;
+  background:var(--surf-2);border:1px solid var(--linha);color:var(--txt-2);
+  cursor:pointer;transition:var(--trans);font-family:var(--mono);
+}
+.chip:hover{border-color:var(--ouro);color:var(--ouro)}
+
+/* Fontes e checagem */
+.fonte{
+  display:flex;gap:11px;padding:11px 13px;background:var(--surf-2);
+  border-radius:var(--raio-sm);margin-bottom:8px;font-size:12.5px;line-height:1.5;
+}
+.fonte-i{color:var(--verde);flex-shrink:0;font-size:14px}
+.fonte a{color:var(--azul);text-decoration:none;word-break:break-all}
+.fonte a:hover{text-decoration:underline}
+
+.check{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 13px;
+  border-radius:var(--raio-sm);margin-bottom:7px;font-size:12.5px;line-height:1.5;
+}
+.check.ok{background:rgba(25,201,139,.08);border:1px solid rgba(25,201,139,.22)}
+.check.nao{background:rgba(240,82,95,.09);border:1px solid rgba(240,82,95,.3)}
+.check-i{flex-shrink:0;font-weight:800;font-size:13px}
+.check.ok .check-i{color:var(--verde)}
+.check.nao .check-i{color:var(--vermelho)}
+
+.aviso{
+  display:flex;gap:11px;padding:13px 15px;border-radius:var(--raio-sm);
+  font-size:13px;line-height:1.6;margin-bottom:15px;
+}
+.aviso-i{flex-shrink:0;font-size:16px}
+.aviso.alerta{background:rgba(240,82,95,.09);border:1px solid rgba(240,82,95,.3);color:#FFC5CA}
+.aviso.info{background:rgba(77,141,246,.08);border:1px solid rgba(77,141,246,.25);color:#C4DAFB}
+.aviso.legal{background:var(--surf-2);border:1px solid var(--linha);color:var(--txt-3);font-size:11.5px}
+
+/* Prompt de thumbnail */
+.prompt-en{
+  background:var(--bg-2);border:1px solid var(--roxo);border-radius:var(--raio-sm);
+  padding:15px;font-family:var(--mono);font-size:12.5px;line-height:1.75;
+  color:#DCCFFA;white-space:pre-wrap;word-break:break-word;
+}
+
+/* =========================================================================
+   FORMULARIOS
+   ========================================================================= */
+label.rot{display:block;font-size:12px;font-weight:650;color:var(--txt-2);margin-bottom:6px}
+input[type=text],input[type=password],input[type=number],select,textarea{
+  width:100%;padding:10px 13px;border-radius:var(--raio-sm);
+  border:1px solid var(--linha);background:var(--bg-2);color:var(--txt);
+  font-family:inherit;font-size:13.5px;transition:var(--trans);
+}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--ouro);box-shadow:0 0 0 3px rgba(229,183,92,.13);
+}
+textarea{resize:vertical;min-height:96px;line-height:1.65}
+.dica{font-size:11.5px;color:var(--txt-3);margin-top:5px;line-height:1.5}
+.linha-form{display:grid;gap:15px;margin-bottom:15px}
+.linha-form.duas{grid-template-columns:1fr 1fr}
+
+.switch{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.switch input{display:none}
+.switch-tr{
+  width:40px;height:22px;border-radius:99px;background:var(--surf-3);
+  border:1px solid var(--linha-forte);position:relative;transition:var(--trans);flex-shrink:0;
+}
+.switch-tr::after{
+  content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;
+  border-radius:50%;background:var(--txt-3);transition:var(--trans);
+}
+.switch input:checked + .switch-tr{background:rgba(229,183,92,.28);border-color:var(--ouro)}
+.switch input:checked + .switch-tr::after{transform:translateX(18px);background:var(--ouro)}
+
+/* =========================================================================
+   TELEPROMPTER
+   ========================================================================= */
+.tp{
+  position:fixed;inset:0;z-index:999;background:#000;display:none;
+  flex-direction:column;
+}
+.tp.on{display:flex}
+.tp-txt{
+  flex:1;overflow-y:scroll;padding:52vh 6vw;
+  font-size:var(--tp-tam,42px);line-height:1.62;font-weight:600;
+  color:#fff;text-align:center;scrollbar-width:none;
+}
+.tp-txt::-webkit-scrollbar{display:none}
+.tp-txt .marca{
+  color:var(--ouro);font-size:.52em;font-weight:700;opacity:.82;
+  background:rgba(229,183,92,.14);padding:2px 10px;border-radius:6px;
+}
+.tp.espelho .tp-txt{transform:scaleX(-1)}
+.tp-guia{
+  position:absolute;left:0;right:0;top:50%;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(229,183,92,.5),transparent);
+  pointer-events:none;
+}
+.tp-barra{
+  display:flex;align-items:center;gap:13px;padding:12px 20px;
+  background:rgba(10,14,20,.96);border-top:1px solid var(--linha);flex-wrap:wrap;
+}
+.tp-barra .grupo{display:flex;align-items:center;gap:8px}
+.tp-barra label{font-size:11px;color:var(--txt-3);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+.tp-barra input[type=range]{width:105px;accent-color:var(--ouro)}
+.tp-val{font-family:var(--mono);font-size:12px;color:var(--ouro);min-width:38px;font-weight:700}
+
+/* =========================================================================
+   DIVERSOS
+   ========================================================================= */
+.vazio{text-align:center;padding:64px 22px;color:var(--txt-3)}
+.vazio-i{font-size:46px;margin-bottom:15px;opacity:.5}
+.vazio h3{font-size:17px;color:var(--txt-2);margin-bottom:7px;font-weight:650}
+.vazio p{font-size:13.5px;max-width:460px;margin:0 auto 19px;line-height:1.65}
+
+.carregando-box{text-align:center;padding:52px 22px}
+.spinner{
+  width:36px;height:36px;margin:0 auto 17px;border-radius:50%;
+  border:3px solid var(--surf-3);border-top-color:var(--ouro);
+  animation:girar .75s linear infinite;
+}
+@keyframes girar{to{transform:rotate(360deg)}}
+.carregando-txt{color:var(--txt-2);font-size:14px;font-weight:600}
+.carregando-sub{color:var(--txt-3);font-size:12.5px;margin-top:6px}
+
+.stream{
+  background:var(--bg-2);border:1px solid var(--linha);border-radius:var(--raio-sm);
+  padding:15px;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+  color:var(--txt-3);max-height:230px;overflow-y:auto;white-space:pre-wrap;
+  word-break:break-word;margin-top:15px;
+}
+
+.toast-area{position:fixed;bottom:22px;right:22px;z-index:2000;display:flex;flex-direction:column;gap:9px}
+.toast{
+  background:var(--surf-2);border:1px solid var(--linha-forte);
+  border-radius:var(--raio-sm);padding:12px 17px;font-size:13px;font-weight:600;
+  box-shadow:var(--sombra);animation:subir .22s ease;max-width:370px;line-height:1.5;
+}
+@keyframes subir{from{opacity:0;transform:translateY(11px)}to{opacity:1;transform:none}}
+.toast.ok{border-left:3px solid var(--verde)}
+.toast.err{border-left:3px solid var(--vermelho)}
+.toast.info{border-left:3px solid var(--azul)}
+
+/* Modal */
+.modal{
+  position:fixed;inset:0;z-index:900;background:rgba(4,6,10,.8);
+  backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:22px;
+}
+.modal.on{display:flex}
+.modal-cx{
+  background:var(--surf);border:1px solid var(--linha-forte);border-radius:var(--raio);
+  max-width:760px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:var(--sombra);
+}
+.modal-cab{
+  display:flex;align-items:center;padding:17px 21px;
+  border-bottom:1px solid var(--linha);position:sticky;top:0;background:var(--surf);z-index:2;
+}
+.modal-cab h3{font-size:16.5px;font-weight:700;flex:1}
+.modal-corpo{padding:21px}
+
+/* Mestres / influenciadores */
+.perfil{background:var(--surf);border:1px solid var(--linha);border-radius:var(--raio);padding:18px;transition:var(--trans)}
+.perfil:hover{border-color:var(--linha-forte)}
+.perfil h3{font-size:16px;font-weight:700;letter-spacing:-.25px}
+.perfil .sub{font-size:11.5px;color:var(--ouro);font-weight:650;text-transform:uppercase;letter-spacing:.8px;margin:3px 0 9px}
+.perfil .origem{font-size:11.5px;color:var(--txt-3);font-style:italic;margin-bottom:12px;line-height:1.5}
+.princ{background:var(--surf-2);border-radius:var(--raio-sm);padding:11px 13px;margin-bottom:8px}
+.princ b{display:block;font-size:12.5px;color:var(--ouro);margin-bottom:4px}
+.princ p{font-size:12.5px;line-height:1.6;color:var(--txt-2)}
+.princ cite{display:block;font-size:10.5px;color:var(--txt-3);margin-top:6px;font-style:normal}
+
+.selo-validar{
+  display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+  padding:3px 8px;border-radius:99px;background:rgba(240,82,95,.12);
+  color:var(--vermelho);border:1px solid rgba(240,82,95,.3);
+}
+
+/* Fontes de tendencia */
+.fonte-link{
+  display:flex;align-items:center;gap:11px;padding:12px 14px;
+  background:var(--surf);border:1px solid var(--linha);border-radius:var(--raio-sm);
+  text-decoration:none;color:var(--txt);transition:var(--trans);
+}
+.fonte-link:hover{border-color:var(--ouro);transform:translateX(3px)}
+.fonte-link .nome{font-size:13.5px;font-weight:650;flex:1}
+.fonte-link .tipo{font-size:11px;color:var(--txt-3)}
+
+/* Historico */
+.hist{
+  display:flex;align-items:center;gap:14px;padding:14px 16px;
+  background:var(--surf);border:1px solid var(--linha);border-radius:var(--raio-sm);
+  margin-bottom:9px;transition:var(--trans);
+}
+.hist:hover{border-color:var(--linha-forte)}
+.hist .info{flex:1;min-width:0}
+.hist .info h4{font-size:14px;font-weight:650;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist .info span{font-size:11.5px;color:var(--txt-3)}
+
+@media(max-width:860px){
+  .topo-in{flex-wrap:wrap;gap:11px}
+  .abas{order:3;width:100%}
+  .linha-form.duas{grid-template-columns:1fr}
+  .tela{padding:18px 15px 80px}
+  .tp-txt{font-size:calc(var(--tp-tam,42px) * .68);padding:46vh 5vw}
+}
+
+</style>
+</head>
+<body>
+
+<!-- ================= TOPO ================= -->
+<header class="topo">
+  <div class="topo-in">
+    <div class="logo">
+      <div class="logo-marca">RI</div>
+      <div class="logo-txt">
+        <strong>Radar Institucional</strong>
+        <span id="logoMarca">Central de Conteúdo</span>
+      </div>
+    </div>
+
+    <nav class="abas" id="abas">
+      <button class="aba ativa" data-tela="radar">Radar do Dia</button>
+      <button class="aba" data-tela="pacote">Pacote</button>
+      <button class="aba" data-tela="mestres">Mestres</button>
+      <button class="aba" data-tela="concorrencia">Concorrência</button>
+      <button class="aba" data-tela="produtos">Esteira</button>
+      <button class="aba" data-tela="fontes">Fontes</button>
+      <button class="aba" data-tela="historico">Histórico</button>
+    </nav>
+
+    <div class="topo-dir">
+      <span class="pilula" id="statusApi"><span class="ponto off"></span><span>Sem chave</span></span>
+      <button class="btn btn-sm btn-fantasma" id="btnConfig">Configurações</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= TELA: RADAR ================= -->
+<main class="tela ativa" id="tela-radar">
+
+  <div class="faixa-macro" id="faixaMacro"></div>
+
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Radar do Dia</h2>
+      <p id="subRadar">Varredura do que está quente agora no mercado — com fonte e data em cada pauta.</p>
+    </div>
+    <div class="acoes">
+      <button class="btn btn-fantasma" id="btnAtualizarMacro">Atualizar macro</button>
+      <button class="btn btn-ouro btn-lg" id="btnVarrer">Rodar varredura do dia</button>
+    </div>
+  </div>
+
+  <div class="cartao" style="margin-bottom:18px">
+    <div class="rotulo">Injeção manual de dados <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--txt-3)">— opcional</span></div>
+    <textarea id="dadosColados" placeholder="Cole aqui o que você viu no Google Trends, BuzzSumo, Exploding Topics, um print de notícia, um trecho de relatório… A varredura vai tratar isso como pista e validar antes de usar."></textarea>
+    <div class="dica">Deixe vazio para a ferramenta buscar tudo sozinha. Nada colado aqui é aceito como verdade sem confirmação em fonte.</div>
+  </div>
+
+  <div id="areaPautas">
+    <div class="vazio">
+      <div class="vazio-i">◎</div>
+      <h3>Nenhuma varredura rodada hoje</h3>
+      <p>Clique em <b>Rodar varredura do dia</b>. A ferramenta busca na web o que está quente nas últimas 72 horas, cruza com os dados do Banco Central e devolve as pautas ordenadas por potencial de viralização.</p>
+      <button class="btn btn-ouro btn-lg" id="btnVarrer2">Rodar varredura do dia</button>
+    </div>
+  </div>
+</main>
+
+<!-- ================= TELA: PACOTE ================= -->
+<main class="tela" id="tela-pacote">
+  <div class="cabecalho-secao">
+    <div>
+      <h2 id="tituloPacote">Pacote de Conteúdo</h2>
+      <p id="subPacote">Escolha uma pauta no Radar para gerar o pacote completo.</p>
+    </div>
+    <div class="acoes" id="acoesPacote" style="display:none">
+      <button class="btn btn-fantasma" id="btnCopiarTudo">Copiar tudo</button>
+      <button class="btn btn-fantasma" id="btnBaixar">Baixar .md</button>
+      <button class="btn btn-fantasma" id="btnSalvar">Salvar</button>
+      <button class="btn btn-ouro" id="btnTeleprompter">Abrir Teleprompter</button>
+    </div>
+  </div>
+  <div id="areaPacote">
+    <div class="vazio">
+      <div class="vazio-i">▤</div>
+      <h3>Nenhum pacote gerado</h3>
+      <p>Rode a varredura no Radar do Dia e clique em uma pauta. Você recebe: análise de cenário, roteiro de short, roteiro longo, CTA consultivo, direção audiovisual, SEO completo e prompt de thumbnail.</p>
+    </div>
+  </div>
+</main>
+
+<!-- ================= TELA: MESTRES ================= -->
+<main class="tela" id="tela-mestres">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Biblioteca dos Mestres</h2>
+      <p>Princípios com origem rastreável. Nada aqui é frase de efeito sem fonte.</p>
+    </div>
+  </div>
+  <div class="grade g-2" id="gradeMestres"></div>
+</main>
+
+<!-- ================= TELA: CONCORRÊNCIA ================= -->
+<main class="tela" id="tela-concorrencia">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Radar de Concorrência</h2>
+      <p>Como cada criador abordaria a pauta — e onde está a sua brecha.</p>
+    </div>
+  </div>
+  <div class="aviso info">
+    <span class="aviso-i">◆</span>
+    <div>Perfis marcados como <b>a validar</b> não são afirmados pelo sistema. A ferramenta busca na web antes de usar qualquer informação sobre eles — o mesmo padrão anti-alucinação aplicado aos dados de mercado.</div>
+  </div>
+  <div class="grade g-2" id="gradeConcorrencia"></div>
+</main>
+
+<!-- ================= TELA: PRODUTOS ================= -->
+<main class="tela" id="tela-produtos">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Esteira de Produtos</h2>
+      <p>Cada produto com a dor que resolve, o gatilho narrativo, o CTA pronto e as objeções antecipadas.</p>
+    </div>
+  </div>
+  <div class="grade g-2" id="gradeProdutos"></div>
+</main>
+
+<!-- ================= TELA: FONTES ================= -->
+<main class="tela" id="tela-fontes">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Fontes de Tendência</h2>
+      <p>Consultas pré-montadas. Abra, veja o que está subindo e cole no campo de injeção manual do Radar.</p>
+    </div>
+  </div>
+  <div class="aviso info">
+    <span class="aviso-i">◆</span>
+    <div>Google Trends, BuzzSumo, Semrush e Ahrefs não expõem API pública gratuita que funcione direto do navegador. Em vez de fingir integração, a ferramenta abre a consulta certa em um clique — e a varredura por IA cobre o restante com busca web real e citação de URL.</div>
+  </div>
+  <div class="grade g-auto" id="gradeFontes"></div>
+
+  <h3 style="margin:26px 0 14px;font-size:17px;font-weight:700">Indicadores ao vivo — fonte primária</h3>
+  <div class="grade g-auto" id="gradeSeries"></div>
+</main>
+
+<!-- ================= TELA: HISTÓRICO ================= -->
+<main class="tela" id="tela-historico">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Histórico</h2>
+      <p>Seus pacotes salvos. Ficam neste navegador.</p>
+    </div>
+    <div class="acoes"><button class="btn btn-fantasma" id="btnExportarTudo">Exportar tudo (.json)</button></div>
+  </div>
+  <div id="areaHistorico"></div>
+</main>
+
+<!-- ================= MODAL: CONFIGURAÇÕES ================= -->
+<div class="modal" id="modalConfig">
+  <div class="modal-cx">
+    <div class="modal-cab">
+      <h3>Configurações</h3>
+      <button class="btn btn-sm btn-fantasma" id="btnFecharConfig">Fechar</button>
+    </div>
+    <div class="modal-corpo">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Conexão OpenRouter</h4>
+      <div class="linha-form">
+        <div>
+          <label class="rot" for="cfgApiKey">Chave da API</label>
+          <input type="password" id="cfgApiKey" placeholder="sk-or-v1-...">
+          <div class="dica">Pegue em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--azul)">openrouter.ai/keys</a>. Fica salva só no seu navegador (localStorage) e vai direto para a OpenRouter — nenhum servidor intermediário. Como é uma ferramenta local, não use esta chave em página pública e prefira uma chave com limite de gasto definido.</div>
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgModelo">Modelo para o pacote</label>
+          <select id="cfgModelo"></select>
+          <div class="dica">Modelo mais forte = roteiro melhor.</div>
+        </div>
+        <div>
+          <label class="rot" for="cfgModeloRadar">Modelo para a varredura</label>
+          <select id="cfgModeloRadar"></select>
+          <div class="dica">Pode ser mais barato: aqui o peso é a busca.</div>
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgTemp">Temperatura — <span id="cfgTempVal">0.7</span></label>
+          <input type="range" id="cfgTemp" min="0" max="1.2" step="0.05" style="width:100%;accent-color:var(--ouro)">
+          <div class="dica">Baixo = mais previsível. Alto = mais criativo.</div>
+        </div>
+        <div>
+          <label class="rot" for="cfgMaxBusca">Resultados de busca por consulta</label>
+          <input type="number" id="cfgMaxBusca" min="3" max="20">
+          <div class="dica">Mais resultados = mais fontes, custo maior.</div>
+        </div>
+      </div>
+      <div class="linha-form">
+        <label class="switch">
+          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
+          <span style="font-size:13.5px;font-weight:600">Busca web ativada <span style="color:var(--txt-3);font-weight:400">— é o que torna os dados verificáveis</span></span>
+        </label>
+      </div>
+      <button class="btn btn-fantasma btn-sm" id="btnTestarChave">Testar chave</button>
+      <span id="resultadoChave" style="margin-left:11px;font-size:12.5px"></span>
+
+      <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Sua identidade no roteiro</h4>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgMarca">Marca / canal</label>
+          <input type="text" id="cfgMarca" placeholder="ainda não definido">
+        </div>
+        <div>
+          <label class="rot" for="cfgCredenciais">Certificações</label>
+          <input type="text" id="cfgCredenciais">
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgInstituicoes">Bagagem institucional</label>
+          <input type="text" id="cfgInstituicoes">
+        </div>
+        <div>
+          <label class="rot" for="cfgPublico">Público atendido</label>
+          <input type="text" id="cfgPublico">
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgFormacao">Formação</label>
+          <input type="text" id="cfgFormacao">
+        </div>
+        <div>
+          <label class="rot" for="cfgExperiencia">Tempo de mercado</label>
+          <input type="text" id="cfgExperiencia">
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Produção</h4>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgFormato">Formato padrão</label>
+          <select id="cfgFormato">
+            <option value="ambos">Short + Longo</option>
+            <option value="short">Só Short</option>
+            <option value="longo">Só Longo</option>
+          </select>
+        </div>
+        <div>
+          <label class="rot" for="cfgProduto">Produto preferido no CTA</label>
+          <select id="cfgProduto"></select>
+          <div class="dica">Vazio = a IA escolhe pela dor da pauta.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:22px">
+        <button class="btn btn-ouro" id="btnSalvarConfig">Salvar configurações</button>
+        <button class="btn btn-fantasma" id="btnLimparDados">Limpar tudo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TELEPROMPTER ================= -->
+<div class="tp" id="teleprompter">
+  <div class="tp-guia"></div>
+  <div class="tp-txt" id="tpTexto"></div>
+  <div class="tp-barra">
+    <button class="btn btn-ouro btn-sm" id="tpPlay">▶ Iniciar</button>
+    <button class="btn btn-sm btn-fantasma" id="tpReiniciar">↻ Início</button>
+    <div class="grupo">
+      <label>Velocidade</label>
+      <input type="range" id="tpVel" min="1" max="60" value="16">
+      <span class="tp-val" id="tpVelVal">16</span>
+    </div>
+    <div class="grupo">
+      <label>Fonte</label>
+      <input type="range" id="tpTam" min="22" max="88" value="42">
+      <span class="tp-val" id="tpTamVal">42</span>
+    </div>
+    <div class="grupo">
+      <label class="switch" style="gap:7px">
+        <input type="checkbox" id="tpEspelho"><span class="switch-tr"></span>
+        <span style="font-size:11.5px;color:var(--txt-2);font-weight:600">Espelhar</span>
+      </label>
+    </div>
+    <select id="tpFonte" style="width:auto;padding:6px 11px;font-size:12.5px">
+      <option value="short">Roteiro Short</option>
+      <option value="longo">Roteiro Longo</option>
+    </select>
+    <span style="font-size:11px;color:var(--txt-3);margin-left:auto">Espaço = play/pause · ↑↓ = velocidade · Esc = sair</span>
+    <button class="btn btn-sm btn-fantasma" id="tpFechar">Fechar</button>
+  </div>
+</div>
+
+<div class="toast-area" id="toasts"></div>
+
+<script>
+/* ===== knowledge.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Base de Conhecimento
+   -------------------------------------------------------------------------
+   REGRA DE OURO DESTE ARQUIVO:
+   Nada aqui pode ser inventado. Todo principio tem origem rastreavel
+   (livro + ano, carta ao acionista, metodo publico ou entrevista).
+   Perfis marcados com "validar: true" NAO sao afirmados pelo sistema:
+   a ferramenta busca na web antes de usar. Isso e proposital.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   1. OS MESTRES - principios fundamentais para ancorar roteiros
+   ------------------------------------------------------------------------- */
+const MESTRES = [
+  {
+    id: 'graham',
+    nome: 'Benjamin Graham',
+    vida: '1894-1976',
+    titulo: 'O Pai do Value Investing',
+    origem: 'Security Analysis (1934, com David Dodd) e O Investidor Inteligente (1949)',
+    principios: [
+      {
+        nome: 'Margem de Seguranca',
+        essencia: 'Comprar por preco significativamente abaixo do valor intrinseco. A diferenca absorve o erro de analise e o azar.',
+        fonte: 'O Investidor Inteligente, cap. 20'
+      },
+      {
+        nome: 'Mr. Market',
+        essencia: 'O mercado e um socio maniaco-depressivo que todo dia te oferece um preco. Voce nao e obrigado a aceitar - so a aproveitar quando ele enlouquece.',
+        fonte: 'O Investidor Inteligente, cap. 8'
+      },
+      {
+        nome: 'Investimento x Especulacao',
+        essencia: 'Investimento e a operacao que, apos analise, promete seguranca do principal e retorno adequado. Tudo o mais e especulacao.',
+        fonte: 'O Investidor Inteligente, cap. 1'
+      }
+    ],
+    ganchoViral: 'O homem que ensinou Buffett dizia que 90% do que chamam de investimento e aposta disfarcada.',
+    usarQuando: ['euforia de mercado', 'ativo caro', 'hype', 'FOMO', 'bolha', 'cripto', 'IPO']
+  },
+  {
+    id: 'buffett',
+    nome: 'Warren Buffett',
+    vida: 'n. 1930',
+    titulo: 'O Investidor Lendario',
+    origem: 'Cartas anuais aos acionistas da Berkshire Hathaway (1965-presente)',
+    principios: [
+      {
+        nome: 'Circulo de Competencia',
+        essencia: 'Nao importa o tamanho do circulo. Importa saber exatamente onde fica a borda dele.',
+        fonte: 'Carta aos acionistas da Berkshire, 1996'
+      },
+      {
+        nome: 'Fosso Economico (Moat)',
+        essencia: 'Procure negocios com vantagem competitiva duravel, nao empresas que so estao com um bom trimestre.',
+        fonte: 'Cartas Berkshire, uso recorrente desde os anos 1980'
+      },
+      {
+        nome: 'Contrarianismo Disciplinado',
+        essencia: 'Seja temeroso quando os outros sao gananciosos, e ganancioso quando os outros sao temerosos.',
+        fonte: 'Carta aos acionistas da Berkshire, 1986'
+      },
+      {
+        nome: 'Horizonte',
+        essencia: 'Nosso periodo de manutencao favorito e para sempre.',
+        fonte: 'Carta aos acionistas da Berkshire, 1988'
+      }
+    ],
+    ganchoViral: 'Buffett bateu o S&P 500 por quase 60 anos fazendo o oposto do que o mercado grita todo dia.',
+    usarQuando: ['panico', 'queda de bolsa', 'longo prazo', 'paciencia', 'juros compostos', 'crise'],
+    checarAoVivo: 'Retorno anualizado da Berkshire vs S&P 500 - conferir na carta anual mais recente antes de citar numero.'
+  },
+  {
+    id: 'lynch',
+    nome: 'Peter Lynch',
+    vida: 'n. 1944',
+    titulo: 'O Gestor de Fundos de Sucesso',
+    origem: 'Fidelity Magellan Fund (1977-1990); livros One Up on Wall Street (1989) e Beating the Street (1993)',
+    principios: [
+      {
+        nome: 'Invista no que voce entende',
+        essencia: 'O investidor comum tem vantagem: ele ve a tendencia no shopping, no trabalho e na rua antes de Wall Street colocar no relatorio.',
+        fonte: 'One Up on Wall Street (1989)'
+      },
+      {
+        nome: 'Tenbagger',
+        essencia: 'Uma unica acao que multiplica por 10 carrega uma carteira inteira de erros.',
+        fonte: 'One Up on Wall Street (1989)'
+      },
+      {
+        nome: 'As 6 categorias',
+        essencia: 'Slow growers, stalwarts, fast growers, ciclicas, turnarounds e asset plays. Cada uma tem regra propria - tratar tudo igual e o erro do amador.',
+        fonte: 'One Up on Wall Street (1989)'
+      }
+    ],
+    ganchoViral: 'Lynch entregou cerca de 29% ao ano por 13 anos e dizia que o investidor comum pode ganhar do gestor profissional.',
+    usarQuando: ['acoes', 'stock picking', 'small caps', 'consumo', 'varejo', 'tese simples'],
+    checarAoVivo: 'Retorno anualizado do Magellan (aprox. 29% a.a. entre 1977-1990) - confirmar antes de citar.'
+  },
+  {
+    id: 'bogle',
+    nome: 'John C. Bogle',
+    vida: '1929-2019',
+    titulo: 'O Criador do Fundo de Indice',
+    origem: 'Fundador da Vanguard (1975); O Pequeno Livro do Investimento de Bom Senso (2007)',
+    principios: [
+      {
+        nome: 'Custo e o inimigo',
+        essencia: 'No mercado, voce nao recebe o que paga. Voce recebe exatamente o que NAO paga em taxa.',
+        fonte: 'O Pequeno Livro do Investimento de Bom Senso (2007)'
+      },
+      {
+        nome: 'Compre o palheiro',
+        essencia: 'Nao procure a agulha no palheiro. Compre o palheiro inteiro.',
+        fonte: 'O Pequeno Livro do Investimento de Bom Senso (2007)'
+      }
+    ],
+    ganchoViral: 'Bogle provou com matematica que a taxa que voce nem percebe come decadas do seu patrimonio.',
+    usarQuando: ['taxa de administracao', 'fundos', 'banco', 'ETF', 'custo', 'previdencia', 'come-cotas']
+  },
+  {
+    id: 'munger',
+    nome: 'Charlie Munger',
+    vida: '1924-2023',
+    titulo: 'O Arquiteto dos Modelos Mentais',
+    origem: 'Vice-presidente da Berkshire Hathaway; Poor Charlie’s Almanack (2005)',
+    principios: [
+      {
+        nome: 'Inversao',
+        essencia: 'Inverta, sempre inverta. Em vez de perguntar como ter sucesso, pergunte o que garante o fracasso - e nao faca isso.',
+        fonte: 'Poor Charlie’s Almanack (2005)'
+      },
+      {
+        nome: 'Latticework de modelos mentais',
+        essencia: 'Quem so tem um modelo mental distorce todo problema para caber nele.',
+        fonte: 'Poor Charlie’s Almanack (2005)'
+      }
+    ],
+    ganchoViral: 'Munger resolvia problema financeiro ao contrario: primeiro listava tudo que destroi patrimonio.',
+    usarQuando: ['erro do investidor', 'vies', 'psicologia', 'decisao', 'armadilha']
+  },
+  {
+    id: 'fisher',
+    nome: 'Philip Fisher',
+    vida: '1907-2004',
+    titulo: 'O Pioneiro do Growth Investing',
+    origem: 'Common Stocks and Uncommon Profits (1958)',
+    principios: [
+      {
+        nome: 'Scuttlebutt',
+        essencia: 'Antes de comprar, converse com clientes, fornecedores, concorrentes e ex-funcionarios. O balanco conta o passado; eles contam o futuro.',
+        fonte: 'Common Stocks and Uncommon Profits (1958)'
+      }
+    ],
+    ganchoViral: 'Fisher nao lia so balanco: ele investigava a empresa como detetive antes de investir um centavo.',
+    usarQuando: ['analise de empresa', 'qualidade', 'gestao', 'due diligence']
+  },
+  {
+    id: 'dalio',
+    nome: 'Ray Dalio',
+    vida: 'n. 1949',
+    titulo: 'O Macro dos Ciclos de Divida',
+    origem: 'Fundador da Bridgewater Associates; Principios (2017) e Big Debt Crises (2018)',
+    principios: [
+      {
+        nome: 'Ciclo de divida de longo prazo',
+        essencia: 'Toda economia repete o mesmo ciclo de alavancagem, estouro e desalavancagem. Quem entende o ciclo nao se assusta com o noticiario.',
+        fonte: 'Big Debt Crises (2018)'
+      },
+      {
+        nome: 'Diversificacao entre ambientes',
+        essencia: 'Diversifique entre cenarios economicos, nao entre ativos que sobem e caem juntos.',
+        fonte: 'Conceito do portfolio All Weather, Bridgewater'
+      }
+    ],
+    ganchoViral: 'Dalio avisa: a maior parte dos investidores acha que esta diversificada e tem tudo apostado no mesmo cenario.',
+    usarQuando: ['divida publica', 'macro', 'crise', 'diversificacao', 'cambio', 'juros', 'fiscal']
+  },
+  {
+    id: 'templeton',
+    nome: 'John Templeton',
+    vida: '1912-2008',
+    titulo: 'O Contrarian Global',
+    origem: 'Templeton Growth Fund (1954)',
+    principios: [
+      {
+        nome: 'Ponto de pessimismo maximo',
+        essencia: 'O momento de comprar e quando o pessimismo esta no auge; o de vender, quando o otimismo esta.',
+        fonte: 'Maxima atribuida a Templeton, repetida em suas entrevistas e materiais da Templeton Funds'
+      }
+    ],
+    ganchoViral: 'Templeton ficou bilionario comprando exatamente o que estava na capa dos jornais como desastre.',
+    usarQuando: ['panico', 'manchete negativa', 'setor odiado', 'contrarian', 'exterior']
+  },
+  {
+    id: 'kiyosaki',
+    nome: 'Robert Kiyosaki',
+    vida: 'n. 1947',
+    titulo: 'O Popularizador da Educacao Financeira',
+    origem: 'Pai Rico, Pai Pobre (1997)',
+    principios: [
+      {
+        nome: 'Ativo x Passivo',
+        essencia: 'Ativo poe dinheiro no seu bolso. Passivo tira. A maioria compra passivo achando que esta comprando ativo.',
+        fonte: 'Pai Rico, Pai Pobre (1997)'
+      },
+      {
+        nome: 'Divida boa x divida ruim',
+        essencia: 'Divida que compra ativo gerador de renda trabalha para voce. Divida que compra consumo trabalha contra voce.',
+        fonte: 'Pai Rico, Pai Pobre (1997)'
+      }
+    ],
+    ganchoViral: 'A frase de Kiyosaki que mais irrita economista: sua casa propria nao e um ativo.',
+    usarQuando: ['imovel', 'divida', 'alavancagem', 'renda passiva', 'mentalidade', 'CGI'],
+    alerta: 'Kiyosaki e popular mas contestado por rigor tecnico. Use o conceito (ativo x passivo, divida boa) como porta de entrada e ancore o rigor em Graham, Buffett ou dado do BCB. Nunca use previsao de colapso dele como fato.'
+  },
+  {
+    id: 'barsi',
+    nome: 'Luiz Barsi Filho',
+    vida: 'n. 1939',
+    titulo: 'O Maior Investidor Pessoa Fisica da B3',
+    origem: 'Metodo publico BESST, difundido em entrevistas e no material da Acao Educacional Barsi',
+    principios: [
+      {
+        nome: 'Carteira Previdenciaria',
+        essencia: 'Nao invista para vender. Invista para receber. A acao e a maquina; o dividendo e o salario.',
+        fonte: 'Entrevistas publicas de Barsi e material da Acao Educacional Barsi'
+      },
+      {
+        nome: 'Metodo BESST',
+        essencia: 'Bancos, Energia, Saneamento, Seguros e Telecomunicacoes: setores perenes, regulados e com demanda inelastica.',
+        fonte: 'Metodo publico atribuido a Barsi, citado por ele em entrevistas'
+      }
+    ],
+    ganchoViral: 'Barsi construiu bilhoes comprando o que o mercado chama de acao chata e sem graca.',
+    usarQuando: ['dividendos', 'renda passiva', 'aposentadoria', 'previdencia', 'longo prazo', 'tributacao de dividendos']
+  },
+  {
+    id: 'stuhlberger',
+    nome: 'Luis Stuhlberger',
+    vida: 'n. 1954',
+    titulo: 'O Maior Track Record Macro do Brasil',
+    origem: 'Gestor do Fundo Verde (Verde Asset Management), iniciado em 1997',
+    principios: [
+      {
+        nome: 'Gestao macro com assimetria',
+        essencia: 'Posicione-se onde o risco de perda e limitado e o de ganho e desproporcional. O resto e ruido.',
+        fonte: 'Cartas mensais da Verde Asset e entrevistas publicas'
+      },
+      {
+        nome: 'Ceticismo com o Brasil facil',
+        essencia: 'A tese otimista sobre o Brasil precisa passar pelo teste da conta fiscal antes de virar posicao.',
+        fonte: 'Cartas da Verde Asset'
+      }
+    ],
+    ganchoViral: 'O gestor mais respeitado do Brasil olha uma variavel antes de qualquer acao: a divida publica.',
+    usarQuando: ['macro', 'fiscal', 'juros', 'divida', 'cambio', 'multimercado'],
+    checarAoVivo: 'Posicionamento atual da Verde - buscar a carta mensal mais recente antes de afirmar qualquer posicao.'
+  }
+];
+
+/* -------------------------------------------------------------------------
+   2. RADAR DE CONCORRENCIA - criadores brasileiros a monitorar
+   Campo "validar" = a ferramenta busca na web antes de afirmar qualquer coisa.
+   ------------------------------------------------------------------------- */
+const INFLUENCIADORES = [
+  {
+    nome: 'Thiago Nigro', marca: 'O Primo Rico',
+    obra: 'Do Mil ao Milhao (2018)',
+    posicionamento: 'Empreendedor-investidor. Tripe: gastar bem, investir melhor, ganhar mais.',
+    padraoConteudo: 'Alta producao, storytelling de patrimonio proprio, convidados de peso, forte push de produto/comunidade.',
+    ondeEleGanha: 'Escala de producao e prova social de patrimonio.',
+    ondeVoceGanha: 'Ele fala como empreendedor que investe. Voce fala como quem sentou do outro lado da mesa em Itau, Santander e XP e viu a carteira real do cliente de alta renda.',
+    validar: false
+  },
+  {
+    nome: 'Eduardo Feldberg', marca: 'Primo Pobre',
+    posicionamento: 'Contraponto humoristico ao Primo Rico; critica de guru e de produto caro.',
+    padraoConteudo: 'Humor, ironia, desmonte de promessa milagrosa, cortes curtos.',
+    ondeEleGanha: 'Humor e ceticismo popular.',
+    ondeVoceGanha: 'Ele destroi a ma pratica mas raramente entrega a alternativa tecnica. Voce destroi E entrega o caminho com numero e fonte.',
+    validar: false
+  },
+  {
+    nome: 'Charles Wicz', marca: 'Economista Sincero',
+    posicionamento: 'Analise economica critica, tom contrarian.',
+    padraoConteudo: 'Video longo analitico, leitura de dado macro, tom de denuncia.',
+    ondeVoceGanha: 'Ele analisa macro. Voce traduz macro em decisao concreta de carteira e de credito para quem tem patrimonio.',
+    validar: true
+  },
+  {
+    nome: 'Nathalia Arcuri', marca: 'Me Poupe!',
+    obra: 'Me Poupe! (2018)',
+    posicionamento: 'Educacao financeira de massa, linguagem popular e energetica.',
+    padraoConteudo: 'Altissima energia, cortes rapidos, didatica de base.',
+    ondeElaGanha: 'Alcance de massa e didatica de entrada.',
+    ondeVoceGanha: 'O publico dela e iniciante. O seu tem patrimonio e problema de sucessao, tributacao e credito - dor que a base nao tem.',
+    validar: false
+  },
+  {
+    nome: 'Tiago Guitian Reis', marca: 'Suno Research',
+    posicionamento: 'Value investing e dividendos com rigor de casa de analise.',
+    padraoConteudo: 'Analitico, fundamentalista, tom sobrio.',
+    ondeVoceGanha: 'Ele fala de ativo. Voce fala da estrutura completa: ativo + credito + protecao + sucessao.',
+    validar: false
+  },
+  {
+    nome: 'Bruno Perini', marca: 'Voce Mais Rico',
+    posicionamento: 'Independencia financeira com base tecnica, perfil engenheiro.',
+    padraoConteudo: 'Didatico, planilha, simulacao, tom calmo.',
+    ondeVoceGanha: 'Ele simula. Voce executa - tem certificacao e esteira de produto para implementar.',
+    validar: false
+  },
+  {
+    nome: 'Raul Sena', marca: 'Investidor Sardinha',
+    posicionamento: 'Anti-guru, linguagem direta e provocativa.',
+    padraoConteudo: 'Provocacao, cortes agressivos, opiniao forte.',
+    ondeVoceGanha: 'Ele provoca. Voce provoca com credencial e dado auditavel atras.',
+    validar: false
+  },
+  {
+    nome: 'Gustavo Cerbasi', marca: 'Cerbasi',
+    obra: 'Casais Inteligentes Enriquecem Juntos (2004)',
+    posicionamento: 'Planejamento financeiro familiar e de vida.',
+    padraoConteudo: 'Sobrio, consultivo, foco em planejamento e familia.',
+    ondeVoceGanha: 'Ele planeja. Voce planeja e estrutura sucessao com produto real.',
+    validar: false
+  },
+  { nome: 'Leandro Ruschel', marca: 'Canal do Leandro Ruschel', posicionamento: 'Analise tecnica e macro.', validar: true },
+  { nome: 'Hermann Greb', marca: '-', posicionamento: '', validar: true }
+];
+
+/* -------------------------------------------------------------------------
+   3. ESTEIRA DE PRODUTOS BANKING - motor de CTA
+   prioridade 1 = maior receita (foco declarado)
+   ------------------------------------------------------------------------- */
+const PRODUTOS = [
+  {
+    id: 'cgi',
+    nome: 'Credito com Garantia de Imovel (Home Equity)',
+    prioridade: 1,
+    dor: 'Tem patrimonio imobilizado em imovel e paga juro caro em cheque especial, cartao ou emprestimo pessoal. Ou precisa de capital e nao quer vender ativo bom.',
+    gatilho: 'Voce esta sentado em cima de um ativo de alto valor e tomando o credito mais caro do mercado.',
+    publico: 'PF alta renda com imovel quitado; PJ com socio que tem imovel; investidor que quer alavancar sem vender carteira.',
+    ancoraTecnica: 'Modalidade com uma das menores taxas do mercado PF e prazo longo, por ser garantida por alienacao fiduciaria do imovel.',
+    ancoraMestre: 'kiyosaki',
+    ancoraMestreMotivo: 'Divida boa x divida ruim: trocar divida cara de consumo por credito barato garantido e o exemplo mais limpo do conceito.',
+    ctaCurto: 'Se voce tem imovel quitado e divida cara, voce nao tem problema de dinheiro - tem problema de estrutura. Chama que eu te mostro a conta.',
+    ctaLongo: 'Antes de vender qualquer ativo da sua carteira, faz um exercicio: soma o que voce paga de juros hoje e compara com o custo de um credito garantido pelo seu imovel. Se a diferenca for maior que a rentabilidade da sua carteira, a conta se paga sozinha. Esse calculo eu faco com voce numa sessao.',
+    objecoes: [
+      ['Vou perder meu imovel?', 'A alienacao fiduciaria so e executada em inadimplencia. O desenho correto comeca pela capacidade de pagamento, nao pelo valor maximo liberado.'],
+      ['E muita burocracia', 'A analise e de credito e de imovel. O prazo existe, mas o custo do dinheiro caro que voce paga hoje corre todo dia.']
+    ],
+    dadosParaChecar: ['Volume de concessao de home equity mais recente (ABECIP)', 'Taxa media da modalidade (BCB)', 'Taxa media de emprestimo pessoal e rotativo para comparacao (BCB)']
+  },
+  {
+    id: 'consorcio',
+    nome: 'Consorcio',
+    prioridade: 1,
+    dor: 'Quer comprar imovel, veiculo ou expandir empresa sem destruir a carteira com juros de financiamento.',
+    gatilho: 'Financiamento voce paga o bem duas vezes. Consorcio voce troca juros por tempo e disciplina.',
+    publico: 'Quem tem horizonte e nao tem pressa; investidor que quer usar carta como ferramenta de alavancagem planejada; PJ para maquina e frota.',
+    ancoraTecnica: 'Nao ha incidencia de juros: ha taxa de administracao e fundo comum. A comparacao honesta e Custo Efetivo Total contra CET do financiamento.',
+    ancoraMestre: 'bogle',
+    ancoraMestreMotivo: 'Custo e o inimigo: a diferenca entre CET de consorcio e CET de financiamento composta por decadas.',
+    ctaCurto: 'Se voce nao tem pressa, pagar juros de financiamento e uma escolha - nao uma necessidade. Te mostro a comparacao de CET.',
+    ctaLongo: 'Consorcio nao e melhor que financiamento sempre. Ele e melhor quando voce tem tempo. Se voce precisa da chave amanha, financia. Se voce tem 3, 5 anos de horizonte, a diferenca de custo efetivo total fica no seu bolso e nao no do banco. Eu monto essa comparacao numero por numero.',
+    objecoes: [
+      ['E demorado', 'Sim. Esse e exatamente o preco que voce paga em vez de juros. A pergunta certa e se voce tem o tempo.'],
+      ['E se eu precisar antes?', 'Existe lance. E a estrategia de lance faz parte do planejamento, nao e sorte.']
+    ],
+    dadosParaChecar: ['Dados do setor de consorcio (ABAC)', 'Taxa media de financiamento imobiliario e de veiculo (BCB)']
+  },
+  {
+    id: 'seguros',
+    nome: 'Seguros e Protecao Patrimonial',
+    prioridade: 1,
+    dor: 'Construiu patrimonio e nao protegeu. Um evento unico (morte, invalidez, doenca grave, sinistro) transfere o problema inteiro para a familia.',
+    gatilho: 'Voce passou dez anos montando carteira e zero minuto protegendo ela contra o unico evento que zera tudo.',
+    publico: 'Provedor principal da familia; socio de empresa; quem tem dependente ou divida de longo prazo.',
+    ancoraTecnica: 'Seguro nao e investimento: e transferencia de risco. O criterio e custo do premio contra o tamanho do buraco que o evento abre.',
+    ancoraMestre: 'graham',
+    ancoraMestreMotivo: 'Margem de seguranca: seguro e a margem de seguranca aplicada a vida, nao ao balanco.',
+    ctaCurto: 'Seu patrimonio tem plano A. Sua familia tem plano B? Se a resposta demorou, a gente precisa conversar.',
+    ctaLongo: 'Existe uma pergunta que eu faco em toda primeira reuniao e que trava o cliente: se voce parar de gerar renda amanha, por quantos meses a sua familia mantem o padrao atual? Quem responde menos de vinte e quatro meses tem um problema de protecao, nao de investimento. E protecao custa uma fracao do que a maioria imagina.',
+    objecoes: [
+      ['Seguro e dinheiro jogado fora', 'Assim como o freio do carro, ate o dia em que nao e.'],
+      ['Meu INSS cobre', 'Compare o teto do beneficio com o seu padrao de vida atual. A diferenca e o tamanho do seu risco descoberto.']
+    ],
+    dadosParaChecar: ['Teto de beneficio do INSS vigente', 'Dados de mercado segurador (SUSEP / CNseg)']
+  },
+  {
+    id: 'consultoria',
+    nome: 'Consultoria de Investimentos Alta Renda',
+    prioridade: 2,
+    dor: 'Tem patrimonio relevante espalhado em varias instituicoes, sem estrategia unica, pagando taxa que nao enxerga.',
+    gatilho: 'Voce nao tem carteira. Voce tem uma colecao de produtos que alguem te vendeu em momentos diferentes.',
+    publico: 'PF com patrimonio financeiro relevante; cliente de private mal atendido; quem recebeu heranca ou vendeu empresa.',
+    ancoraTecnica: 'Diagnostico de alocacao, custo total real, aderencia ao objetivo e eficiencia tributaria.',
+    ancoraMestre: 'bogle',
+    ancoraMestreMotivo: 'Custo e o inimigo: o primeiro ganho de uma consultoria e quase sempre reduzir o custo invisivel.',
+    ctaCurto: 'Se voce nao sabe dizer quanto paga de taxa por ano em reais, voce nao tem consultor - tem vendedor.',
+    ctaLongo: 'Faz um teste comigo agora: abre o seu extrato e tenta achar, em reais, quanto voce pagou de taxa nos ultimos doze meses. Se voce nao conseguir achar em cinco minutos, esse e o problema. Nao e rentabilidade. E que voce nunca teve alguem do seu lado da mesa.',
+    objecoes: [
+      ['Meu gerente ja cuida disso', 'O gerente tem meta de produto. Pergunte a ele qual a meta dele neste trimestre.'],
+      ['Meu patrimonio e pequeno', 'Entao o custo percentual pesa ainda mais. Escala nao protege quem paga caro.']
+    ],
+    dadosParaChecar: ['Selic e CDI vigentes', 'IPCA acumulado 12 meses', 'Regras de tributacao vigentes']
+  },
+  {
+    id: 'sucessao',
+    nome: 'Planejamento Sucessorio',
+    prioridade: 2,
+    dor: 'Patrimonio vai passar por inventario: custo, tempo e conflito familiar. Ninguem planejou.',
+    gatilho: 'Inventario e o ultimo produto que a sua familia vai comprar de voce - e o mais caro.',
+    publico: 'Familia empresaria; multiplos imoveis; segundo casamento; filhos de relacionamentos diferentes.',
+    ancoraTecnica: 'ITCMD, custo e prazo de inventario, holding familiar, doacao em vida com usufruto, seguro de vida como liquidez sucessoria.',
+    ancoraMestre: 'munger',
+    ancoraMestreMotivo: 'Inversao: em vez de perguntar como transferir bem, pergunte tudo que faz uma familia brigar e perder patrimonio - e desative um por um.',
+    ctaCurto: 'A sua familia vai herdar patrimonio ou vai herdar processo? Isso se decide agora, nao depois.',
+    ctaLongo: 'Tem uma conta que quase ninguem faz: quanto custa, em dinheiro e em tempo, transferir o seu patrimonio do jeito que ele esta hoje. Some ITCMD, custas, honorarios e o tempo em que aquilo fica travado. Depois compare com o custo de estruturar isso em vida. Na maioria dos casos que eu vi, a diferenca paga a estrutura muitas vezes.',
+    objecoes: [
+      ['E cedo para isso', 'Sucessao nao e sobre idade. E sobre patrimonio existir.'],
+      ['Minha familia se entende', 'Toda familia se entende ate o dia do inventario com prazo e imposto correndo.']
+    ],
+    dadosParaChecar: ['Aliquota de ITCMD do estado do cliente', 'Regras vigentes de tributacao de heranca e doacao']
+  },
+  {
+    id: 'capitalgiro',
+    nome: 'Capital de Giro PJ',
+    prioridade: 2,
+    dor: 'Empresa saudavel com descasamento de caixa, financiando operacao com o credito mais caro que existe.',
+    gatilho: 'Sua empresa nao tem problema de lucro. Tem problema de ciclo de caixa - e esta pagando rotativo por isso.',
+    publico: 'PJ com faturamento recorrente; comercio e servico com prazo de recebimento longo.',
+    ancoraTecnica: 'Ciclo financeiro, custo do capital contra margem operacional, garantias que reduzem taxa.',
+    ancoraMestre: 'kiyosaki',
+    ancoraMestreMotivo: 'Divida que sustenta operacao geradora de caixa e divida boa - desde que o custo caiba na margem.',
+    ctaCurto: 'Se o seu capital de giro esta no cartao ou no rotativo, o seu lucro esta indo embora por um cano que voce nem ve.',
+    ctaLongo: 'Empresario, faz esse calculo: pega o seu prazo medio de recebimento, subtrai o de pagamento e multiplica pelo seu faturamento diario. Esse numero e quanto de dinheiro seu esta parado na rua. Se voce esta cobrindo isso com credito caro, a sua margem esta financiando o banco. Da para reestruturar - inclusive com garantia real, o que derruba a taxa.',
+    objecoes: [
+      ['Nao quero divida', 'Voce ja tem. So esta na modalidade mais cara.'],
+      ['Meu banco nao aprova', 'Aprovacao e funcao de garantia e de apresentacao. As duas coisas se trabalham.']
+    ],
+    dadosParaChecar: ['Taxa media de capital de giro PJ (BCB)', 'Taxa media de rotativo e cartao PJ (BCB)']
+  },
+  {
+    id: 'financiamento',
+    nome: 'Financiamento Imobiliario',
+    prioridade: 3,
+    dor: 'Quer comprar imovel e nao sabe comparar CET, sistema de amortizacao e portabilidade.',
+    gatilho: 'A diferenca entre SAC e Price no mesmo imovel pode ser o preco de um carro.',
+    publico: 'Comprador de primeiro ou segundo imovel; investidor imobiliario.',
+    ancoraTecnica: 'SAC x Price, CET real, portabilidade de divida, uso de FGTS.',
+    ancoraMestre: 'bogle',
+    ancoraMestreMotivo: 'Custo e o inimigo: a escolha de sistema e de taxa e o maior determinante do custo total.',
+    ctaCurto: 'Voce nao compra imovel: voce compra o CET do contrato. Te mostro a diferenca.',
+    ctaLongo: 'Duas pessoas compram o mesmo apartamento no mesmo dia e pagam valores totais muito diferentes. A diferenca nao esta no imovel - esta no sistema de amortizacao, na taxa e em quem negociou. Se voce ja tem financiamento, portabilidade e a conta mais rapida que existe.',
+    objecoes: [['Ja fechei meu financiamento', 'Portabilidade existe justamente para isso.']],
+    dadosParaChecar: ['Taxa media de financiamento imobiliario (BCB)', 'Regras vigentes de uso do FGTS']
+  },
+  {
+    id: 'saude',
+    nome: 'Convenio Medico e Saude',
+    prioridade: 3,
+    dor: 'Custo de saude sobe muito acima da inflacao geral e ninguem provisiona isso no plano de longo prazo.',
+    gatilho: 'A inflacao medica nao e a inflacao do IPCA. E ela que vai comer sua aposentadoria.',
+    publico: 'Familia; PJ que quer beneficio para reter time; pessoa acima de 50 anos.',
+    ancoraTecnica: 'Variacao de custo medico-hospitalar contra IPCA; peso do plano no orcamento da aposentadoria.',
+    ancoraMestre: 'graham',
+    ancoraMestreMotivo: 'Margem de seguranca aplicada ao maior passivo silencioso da terceira idade.',
+    ctaCurto: 'Voce planejou a aposentadoria com IPCA. Saude nao segue o IPCA. Refaz a conta comigo.',
+    ctaLongo: 'Quando alguem me mostra um plano de aposentadoria, eu procuro uma linha que quase nunca esta la: o custo de saude aos 70, 75, 80 anos. Esse custo nao acompanha a inflacao geral - ele corre mais rapido. Um plano que ignora isso nao esta conservador, esta incompleto.',
+    objecoes: [['Uso o SUS', 'Otimo como rede. O ponto e ter escolha quando o tempo de resposta importa.']],
+    dadosParaChecar: ['Indice de reajuste de planos de saude (ANS)', 'IPCA acumulado 12 meses para comparacao']
+  },
+  {
+    id: 'cartoes',
+    nome: 'Cartoes e Estrutura de Beneficio',
+    prioridade: 3,
+    dor: 'Usa cartao como credito e nao como ferramenta; paga anuidade sem extrair beneficio; entra no rotativo.',
+    gatilho: 'O rotativo do cartao e o credito mais caro do sistema financeiro brasileiro - e o mais usado.',
+    publico: 'Alta renda que viaja; quem tem gasto recorrente alto; PJ com despesa de equipe.',
+    ancoraTecnica: 'Taxa do rotativo contra qualquer outra modalidade; beneficio real contra anuidade.',
+    ancoraMestre: 'kiyosaki',
+    ancoraMestreMotivo: 'Divida ruim em estado puro: consumo financiado na modalidade mais cara disponivel.',
+    ctaCurto: 'Cartao e ferramenta de fluxo, nao fonte de credito. Quem inverte isso paga a taxa mais cara do sistema.',
+    ctaLongo: 'Cartao bom nao e o que tem o maior limite. E o que resolve fluxo de caixa e devolve beneficio maior que a anuidade. E se voce entrou no rotativo alguma vez nos ultimos doze meses, a prioridade nao e trocar de cartao - e trocar essa divida por uma modalidade decente.',
+    objecoes: [['Pago tudo em dia', 'Entao voce e exatamente o perfil que deveria estar extraindo beneficio, e nao pagando anuidade a toa.']],
+    dadosParaChecar: ['Taxa media do rotativo do cartao de credito (BCB)']
+  }
+];
+
+/* -------------------------------------------------------------------------
+   4. FORMULAS DE GANCHO (primeiros 3 segundos)
+   ------------------------------------------------------------------------- */
+const GANCHOS = [
+  { id: 'contradicao', nome: 'Contradicao de Autoridade', molde: 'Todo mundo esta falando que [CONSENSO]. Os dados do [FONTE] dizem exatamente o contrario.' },
+  { id: 'perda', nome: 'Perda Iminente', molde: 'Se voce tem [ATIVO/SITUACAO], voce tem ate [PRAZO] para entender isso. Depois disso a conta muda.' },
+  { id: 'numero', nome: 'Numero Chocante', molde: '[NUMERO REAL] . Esse e o valor que [CONSEQUENCIA]. E quase ninguem esta olhando para isso.' },
+  { id: 'confissao', nome: 'Confissao de Bastidor', molde: 'Dez anos atendendo alta renda em banco me ensinaram uma coisa que nenhum gerente vai te falar: [VERDADE].' },
+  { id: 'erro', nome: 'Erro do Espectador', molde: 'Voce esta fazendo [ACAO COMUM] achando que e seguro. E o mais caro que existe hoje.' },
+  { id: 'mestre', nome: 'Ancoragem no Mestre', molde: '[MESTRE] avisou sobre isso em [ANO/OBRA]. O Brasil de hoje esta vivendo o exemplo.' },
+  { id: 'pergunta', nome: 'Pergunta Impossivel', molde: 'Quanto voce pagou de taxa em reais nos ultimos 12 meses? Se voce nao sabe, esse video e para voce.' },
+  { id: 'inversao', nome: 'Inversao Contraintuitiva', molde: 'Todo mundo quer [OBJETIVO]. O caminho mais rapido e fazer o oposto: [ANTITESE].' }
+];
+
+/* -------------------------------------------------------------------------
+   5. COMPLIANCE - blindagem do registro CEA/ANCORD
+   ------------------------------------------------------------------------- */
+const COMPLIANCE = {
+  regrasParaIA: [
+    'NUNCA recomendar compra ou venda de ativo especifico com nome e codigo.',
+    'NUNCA prometer, projetar ou sugerir rentabilidade futura.',
+    'NUNCA usar expressoes como "garantido", "sem risco", "vai subir", "oportunidade unica".',
+    'Falar de CLASSES de ativo e de CONCEITOS, nao de recomendacao personalizada.',
+    'Todo CTA e convite a diagnostico/consultoria - jamais oferta de ativo.',
+    'Rentabilidade passada citada precisa vir com o aviso de que nao representa garantia futura.'
+  ],
+  disclaimerCurto: 'Conteudo educacional. Nao e recomendacao de investimento. Rentabilidade passada nao garante resultado futuro.',
+  disclaimerLongo: 'Este conteudo tem carater exclusivamente educacional e informativo e nao constitui recomendacao, oferta ou solicitacao de compra ou venda de qualquer ativo ou produto financeiro. As analises apresentadas nao consideram objetivos de investimento, situacao financeira ou necessidades especificas de qualquer pessoa. Rentabilidade passada nao representa garantia de rentabilidade futura. Antes de investir, avalie seu perfil e leia a documentacao dos produtos. Consulte um profissional certificado para orientacao adequada ao seu caso.'
+};
+
+/* -------------------------------------------------------------------------
+   6. FORMATOS DE VIDEO
+   ------------------------------------------------------------------------- */
+const FORMATOS = {
+  short: {
+    nome: 'Short / Reel / TikTok',
+    duracao: '45 a 60 segundos',
+    palavras: 'aprox. 120 a 160 palavras',
+    estrutura: 'Gancho (0-3s) > Tensao (3-15s) > Dado que prova (15-35s) > Virada (35-50s) > CTA (50-60s)',
+    regraRetencao: 'Corte seco a cada 2-4 segundos. Zero introducao. Zero "fala galera". Primeira palavra ja e o gancho.'
+  },
+  longo: {
+    nome: 'YouTube Longo',
+    duracao: '8 a 14 minutos',
+    palavras: 'aprox. 1200 a 2000 palavras',
+    estrutura: 'Cold open (0-30s) > Promessa (30-60s) > Contexto/dado (1-4min) > Ancoragem no mestre (4-6min) > Aplicacao pratica (6-10min) > CTA consultivo (10-12min) > Fechamento com proximo passo',
+    regraRetencao: 'Loop aberto no cold open que so fecha no minuto 9. B-roll a cada 20s. Mudanca de enquadramento a cada 45s.'
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.KB = { MESTRES, INFLUENCIADORES, PRODUTOS, GANCHOS, COMPLIANCE, FORMATOS };
+}
+
+
+/* ===== config.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Configuracao e Persistencia
+   ========================================================================= */
+
+const CHAVE_CFG = 'radar_cfg_v1';
+const CHAVE_HIST = 'radar_hist_v1';
+
+const CFG_PADRAO = {
+  // --- OpenRouter ---
+  apiKey: '',
+  modelo: 'anthropic/claude-sonnet-4.5',
+  modeloRadar: 'anthropic/claude-sonnet-4.5',
+  buscaWeb: true,
+  maxResultadosBusca: 8,
+  temperatura: 0.7,
+
+  // --- Identidade do apresentador ---
+  marca: '',
+  credenciais: 'CEA e ANCORD',
+  formacao: 'Business Intelligence',
+  experiencia: 'mais de uma decada no mercado financeiro',
+  instituicoes: 'Itau, Santander e corretoras parceiras da XP',
+  publico: 'clientes de alta renda',
+
+  // --- Preferencias de producao ---
+  formatoPadrao: 'ambos',
+  produtoPreferido: '',
+
+  // --- Extras opcionais ---
+  brapiToken: ''
+};
+
+/* Modelos sugeridos. A lista viva vem da API em /models; estes sao os
+   defaults seguros caso a busca falhe. */
+const MODELOS_SUGERIDOS = [
+  { id: 'anthropic/claude-sonnet-4.5', rotulo: 'Claude Sonnet 4.5 - equilibrio (recomendado)' },
+  { id: 'anthropic/claude-opus-4.1',   rotulo: 'Claude Opus 4.1 - maxima qualidade de roteiro' },
+  { id: 'openai/gpt-4o',               rotulo: 'GPT-4o - rapido' },
+  { id: 'google/gemini-2.5-pro',       rotulo: 'Gemini 2.5 Pro - contexto longo' },
+  { id: 'deepseek/deepseek-chat',      rotulo: 'DeepSeek - baixo custo' }
+];
+
+function lerCfg() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_CFG);
+    return bruto ? Object.assign({}, CFG_PADRAO, JSON.parse(bruto)) : Object.assign({}, CFG_PADRAO);
+  } catch (e) {
+    return Object.assign({}, CFG_PADRAO);
+  }
+}
+
+function salvarCfg(cfg) {
+  try {
+    localStorage.setItem(CHAVE_CFG, JSON.stringify(cfg));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function lerHistorico() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_HIST);
+    return bruto ? JSON.parse(bruto) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function salvarNoHistorico(item) {
+  try {
+    const h = lerHistorico();
+    h.unshift(Object.assign({ salvoEm: new Date().toISOString(), id: 'p' + Date.now() }, item));
+    localStorage.setItem(CHAVE_HIST, JSON.stringify(h.slice(0, 60)));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function removerDoHistorico(id) {
+  try {
+    localStorage.setItem(CHAVE_HIST, JSON.stringify(lerHistorico().filter(i => i.id !== id)));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.CFG = {
+    CFG_PADRAO, MODELOS_SUGERIDOS,
+    lerCfg, salvarCfg, lerHistorico, salvarNoHistorico, removerDoHistorico
+  };
+}
+
+
+/* ===== data.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Camada de Dados Reais
+   -------------------------------------------------------------------------
+   Fontes primarias, todas publicas e com CORS liberado para o navegador:
+     - Banco Central / SGS      https://api.bcb.gov.br/dados/serie/...
+     - Banco Central / Focus    https://olinda.bcb.gov.br/olinda/servico/Expectativas
+     - IBGE / SIDRA             https://servicodados.ibge.gov.br/api/v3/agregados
+   Nenhum numero deste arquivo e digitado a mao. Tudo vem da API, com data.
+   ========================================================================= */
+
+const SGS = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs';
+const FOCUS = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais';
+
+/* Series validadas manualmente contra o portal do BCB.
+   linkFonte permite ao usuario auditar qualquer numero em um clique. */
+const SERIES = [
+  { cod: 432,   chave: 'selic',     rotulo: 'Selic (meta Copom)',        unidade: '% a.a.', tipo: 'diaria' },
+  { cod: 4389,  chave: 'cdi',       rotulo: 'CDI',                       unidade: '% a.a.', tipo: 'diaria' },
+  { cod: 13522, chave: 'ipca12m',   rotulo: 'IPCA acumulado 12 meses',   unidade: '%',      tipo: 'mensal' },
+  { cod: 433,   chave: 'ipcaMes',   rotulo: 'IPCA no mes',               unidade: '%',      tipo: 'mensal' },
+  { cod: 1,     chave: 'dolar',     rotulo: 'Dolar PTAX (venda)',        unidade: 'R$',     tipo: 'diaria' },
+  { cod: 21619, chave: 'euro',      rotulo: 'Euro PTAX (venda)',         unidade: 'R$',     tipo: 'diaria' },
+  { cod: 189,   chave: 'igpm',      rotulo: 'IGP-M no mes',              unidade: '%',      tipo: 'mensal' },
+  { cod: 195,   chave: 'poupanca',  rotulo: 'Poupanca (rendimento)',     unidade: '%',      tipo: 'periodo' },
+
+  /* Taxas de credito PF. Rotulos conferidos no Portal de Dados Abertos do BCB.
+     Sao o material bruto mais forte para conteudo de credito com garantia,
+     consorcio e reestruturacao de divida: mostram o custo real que o cliente
+     paga hoje sem perceber. */
+  { cod: 20740, chave: 'pfTotal',   rotulo: 'Juros PF - total',              unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 20742, chave: 'pfPessoal', rotulo: 'Juros PF - credito pessoal',    unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 20741, chave: 'pfCheque',  rotulo: 'Juros PF - cheque especial',    unidade: '% a.a.', tipo: 'mensal', grupo: 'credito' },
+  { cod: 25464, chave: 'pfPessoalMes', rotulo: 'Credito pessoal ao mes',     unidade: '%',      tipo: 'mensal', grupo: 'credito' }
+];
+
+const linkSerie = (cod) =>
+  `https://www3.bcb.gov.br/sgspub/consultarvalores/consultarValoresSeries.do?method=consultarValores&optSelecionaSerie=${cod}`;
+
+async function buscarJSON(url, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* ---- Series do SGS -------------------------------------------------- */
+async function buscarSerie(s) {
+  const dados = await buscarJSON(`${SGS}.${s.cod}/dados/ultimos/1?formato=json`);
+  const ultimo = Array.isArray(dados) ? dados[dados.length - 1] : null;
+  if (!ultimo) throw new Error('serie vazia');
+  return {
+    chave: s.chave,
+    rotulo: s.rotulo,
+    unidade: s.unidade,
+    valor: parseFloat(ultimo.valor),
+    valorBruto: ultimo.valor,
+    data: ultimo.data,
+    codigo: s.cod,
+    grupo: s.grupo || 'macro',
+    fonte: 'Banco Central do Brasil - SGS',
+    linkFonte: linkSerie(s.cod),
+    ok: true
+  };
+}
+
+/* ---- Focus: expectativa de mercado ---------------------------------- */
+async function buscarFocus(indicador, ano) {
+  const filtro = encodeURIComponent(`Indicador eq '${indicador}' and DataReferencia eq '${ano}' and baseCalculo eq 0`);
+  const url = `${FOCUS}?$top=1&$filter=${filtro}&$orderby=Data desc&$format=json`;
+  const j = await buscarJSON(url);
+  const v = j && j.value && j.value[0];
+  if (!v) throw new Error('focus vazio');
+  return {
+    indicador,
+    ano,
+    mediana: v.Mediana,
+    media: v.Media,
+    minimo: v.Minimo,
+    maximo: v.Maximo,
+    respondentes: v.numeroRespondentes,
+    data: v.Data,
+    fonte: 'Banco Central - Relatorio Focus',
+    linkFonte: 'https://www.bcb.gov.br/publicacoes/focus',
+    ok: true
+  };
+}
+
+/* ---- Coleta completa ------------------------------------------------- */
+async function coletarPanorama() {
+  const anoAtual = new Date().getFullYear();
+
+  const resultados = await Promise.allSettled([
+    ...SERIES.map(buscarSerie),
+    buscarFocus('Selic', anoAtual),
+    buscarFocus('IPCA', anoAtual),
+    buscarFocus('PIB Total', anoAtual),
+    buscarFocus('Câmbio', anoAtual)
+  ]);
+
+  const indicadores = {};
+  const expectativas = {};
+  const falhas = [];
+
+  resultados.forEach((r) => {
+    if (r.status === 'fulfilled') {
+      const v = r.value;
+      if (v.chave) indicadores[v.chave] = v;
+      else expectativas[v.indicador] = v;
+    } else {
+      falhas.push(String(r.reason && r.reason.message ? r.reason.message : r.reason));
+    }
+  });
+
+  return {
+    indicadores,
+    expectativas,
+    falhas,
+    coletadoEm: new Date().toISOString(),
+    // Juro real ex-ante aproximado: (1+selic)/(1+ipca esperado) - 1
+    juroReal: calcularJuroReal(indicadores.selic, expectativas.IPCA)
+  };
+}
+
+function calcularJuroReal(selic, ipcaEsperado) {
+  if (!selic || !ipcaEsperado || typeof ipcaEsperado.mediana !== 'number') return null;
+  const jr = ((1 + selic.valor / 100) / (1 + ipcaEsperado.mediana / 100) - 1) * 100;
+  return {
+    valor: Number(jr.toFixed(2)),
+    metodo: 'Juro real ex-ante = (1 + Selic meta) / (1 + IPCA esperado Focus) - 1',
+    componentes: `Selic ${selic.valor}% a.a. (${selic.data}) / IPCA esperado ${ipcaEsperado.mediana}% (Focus ${ipcaEsperado.data})`
+  };
+}
+
+/* ---- Formatacao para o bloco de "verdade de base" enviado a IA -------- */
+function panoramaParaTexto(p) {
+  if (!p) return 'Sem dados coletados.';
+  const linhas = ['DADOS MACRO REAIS (fonte primaria, coletados agora):'];
+
+  Object.values(p.indicadores).forEach((i) => {
+    const valorFmt = i.unidade === 'R$' ? `R$ ${i.valor.toFixed(4)}` : `${i.valor}${i.unidade}`;
+    linhas.push(`- ${i.rotulo}: ${valorFmt} (data do dado: ${i.data} | Fonte: ${i.fonte}, serie ${i.codigo})`);
+  });
+
+  Object.values(p.expectativas).forEach((e) => {
+    linhas.push(`- Expectativa de mercado ${e.indicador} ${e.ano} (mediana Focus): ${e.mediana} | ${e.respondentes} respondentes | coleta ${e.data} | Fonte: ${e.fonte}`);
+  });
+
+  if (p.juroReal) {
+    linhas.push(`- Juro real ex-ante estimado: ${p.juroReal.valor}% a.a. (${p.juroReal.metodo}; ${p.juroReal.componentes})`);
+  }
+
+  if (p.falhas.length) {
+    linhas.push(`\nATENCAO: ${p.falhas.length} indicador(es) nao puderam ser coletados nesta sessao. NAO invente valor para eles - omita ou marque como nao verificado.`);
+  }
+
+  return linhas.join('\n');
+}
+
+/* ---- Fontes externas de tendencia (deep links pre-preenchidos) --------
+   Estas plataformas nao expoem API publica gratuita compativel com
+   navegador. Em vez de fingir integracao, a ferramenta abre a consulta
+   certa em um clique e aceita colagem do resultado.                      */
+const FONTES_TENDENCIA = [
+  { nome: 'Google Trends BR (agora)',  url: 'https://trends.google.com.br/trending?geo=BR&hours=24', tipo: 'Tendencia em tempo real', gratis: true },
+  { nome: 'Google Trends - explorar',  url: 'https://trends.google.com.br/trends/explore?date=now%207-d&geo=BR&q=investimentos,selic,d%C3%B3lar,imposto%20de%20renda', tipo: 'Comparativo de termos', gratis: true },
+  { nome: 'Google News - Economia BR', url: 'https://news.google.com/search?q=mercado%20financeiro%20quando%3A2d&hl=pt-BR&gl=BR&ceid=BR%3Apt-419', tipo: 'Noticia quente', gratis: true },
+  { nome: 'Exploding Topics - Finance',url: 'https://explodingtopics.com/finance', tipo: 'Tema emergente', gratis: 'parcial' },
+  { nome: 'Glimpse',                   url: 'https://meetglimpse.com/', tipo: 'Tendencia emergente', gratis: 'parcial' },
+  { nome: 'AnswerThePublic',           url: 'https://answerthepublic.com/', tipo: 'Perguntas do publico', gratis: 'parcial' },
+  { nome: 'Pinterest Trends BR',       url: 'https://trends.pinterest.com/?country=BR', tipo: 'Tendencia visual', gratis: true },
+  { nome: 'BuzzSumo',                  url: 'https://buzzsumo.com/', tipo: 'Conteudo mais compartilhado', gratis: false },
+  { nome: 'Semrush',                   url: 'https://www.semrush.com/', tipo: 'Volume de busca / SEO', gratis: false },
+  { nome: 'Ahrefs',                    url: 'https://ahrefs.com/', tipo: 'Backlink / keyword', gratis: false },
+  { nome: 'B3 - Noticias',             url: 'https://www.b3.com.br/pt_br/noticias/', tipo: 'Fonte oficial', gratis: true },
+  { nome: 'BCB - Notas e comunicados', url: 'https://www.bcb.gov.br/detalhenoticia', tipo: 'Fonte oficial', gratis: true },
+  { nome: 'IBGE - Releases',           url: 'https://agenciadenoticias.ibge.gov.br/agencia-sala-de-imprensa.html', tipo: 'Fonte oficial', gratis: true },
+  { nome: 'CVM - Noticias',            url: 'https://www.gov.br/cvm/pt-br/assuntos/noticias', tipo: 'Regulatorio', gratis: true }
+];
+
+if (typeof window !== 'undefined') {
+  window.DADOS = {
+    SERIES, FONTES_TENDENCIA,
+    coletarPanorama, panoramaParaTexto, buscarSerie, buscarFocus, linkSerie
+  };
+}
+
+
+/* ===== prompts.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Engenharia de Prompt
+   -------------------------------------------------------------------------
+   Este arquivo e o cerebro estrategico. Ele monta:
+     1. A identidade fixa (quem fala)
+     2. As regras inviolaveis (anti-alucinacao + compliance)
+     3. A verdade de base (dados reais injetados do BCB/IBGE)
+     4. O formato de saida (JSON estrito para a interface renderizar)
+   ========================================================================= */
+
+/* ---------- 1. IDENTIDADE ------------------------------------------------ */
+function blocoIdentidade(cfg) {
+  return `# QUEM VOCE E
+Voce e o Estrategista-Chefe de Conteudo e Roteirista Premium de um Especialista em Investimentos brasileiro.
+
+PERFIL DO APRESENTADOR (a voz do roteiro e a dele, em primeira pessoa):
+- Certificacoes: ${cfg.credenciais || 'CEA e ANCORD'}
+- Formacao: ${cfg.formacao || 'Business Intelligence'}
+- Experiencia: ${cfg.experiencia || 'mais de uma decada no mercado financeiro'}
+- Bagagem institucional: ${cfg.instituicoes || 'Itau, Santander e corretoras parceiras da XP'}
+- Publico atendido: ${cfg.publico || 'clientes de alta renda'}
+- Marca / canal: ${cfg.marca || '(marca ainda nao definida - use "eu" e evite citar nome de canal)'}
+
+ATIVO NARRATIVO MAIS FORTE DELE: ele sentou do OUTRO LADO DA MESA. Ele viu a carteira real,
+a planilha real e a decisao real de cliente de alta renda dentro de banco grande. Nenhum
+influenciador que so estudou tem isso. Use esse angulo de bastidor sempre que couber -
+sem citar nome de cliente, valor especifico de cliente ou informacao sigilosa.
+
+TOM: profissional, assertivo, analitico e ancorado em dado - porem coloquial, direto e fluido.
+Frase curta. Verbo forte. Zero jargao gratuito. Se usar termo tecnico, traduz na frase seguinte.
+NUNCA soar como palestrante corporativo. NUNCA usar "fala galera", "pessoal" ou saudacao generica.`;
+}
+
+/* ---------- 2. REGRAS INVIOLAVEIS --------------------------------------- */
+function blocoRegras() {
+  const c = window.KB.COMPLIANCE;
+  return `# REGRAS INVIOLAVEIS
+
+## A) ZERO ALUCINACAO - a regra que vale mais que todas
+1. Todo numero, percentual, valor, data ou estatistica precisa vir de (a) o bloco DADOS REAIS
+   abaixo, ou (b) uma fonte que voce efetivamente encontrou na busca web desta requisicao.
+2. Se voce NAO tem a fonte, escreva literalmente [NAO VERIFICADO] no lugar do numero e
+   registre isso no array "checagem". E MELHOR ENTREGAR O ROTEIRO COM UMA LACUNA MARCADA
+   DO QUE COM UM NUMERO INVENTADO. Numero inventado destroi a credibilidade e o registro
+   profissional do apresentador. Isso e inaceitavel.
+3. Citacao de investidor (Graham, Buffett, Lynch, Barsi etc.) so pode ser usada se voce tem
+   certeza da obra/origem. Na duvida, PARAFRASEIE O CONCEITO sem aspas e sem atribuir frase
+   textual. Jamais invente uma frase e coloque na boca de alguem real.
+4. Nunca afirme posicao atual, carteira atual ou opiniao recente de pessoa real sem fonte
+   datada. "Buffett comprou X esta semana" so entra com link e data.
+5. Toda afirmacao factual relevante entra no array "fontes" com URL real e data. Se voce nao
+   consegue preencher a URL, a afirmacao nao pode estar no roteiro.
+
+## B) COMPLIANCE - protege o registro CEA/ANCORD do apresentador
+${c.regrasParaIA.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+## C) ANTIPADROES DE ROTEIRO (nao faca)
+- Nao comece com saudacao, apresentacao pessoal ou "hoje eu vou falar sobre".
+- Nao use promessa vazia ("isso vai mudar sua vida").
+- Nao encha linguica: se a frase nao entrega informacao, gancho ou emocao, ela sai.
+- Nao escreva CTA em formato de anuncio. CTA e raciocinio consultivo que termina em convite.
+- Nao repita o mesmo dado tres vezes para preencher tempo.`;
+}
+
+/* ---------- 3. MARCACOES DE TELEPROMPTER -------------------------------- */
+const MARCACOES = `# MARCACOES DE DIRECAO (obrigatorias dentro do texto do roteiro)
+Insira, no meio do texto corrido, entre colchetes maiusculos, para guiar a performance:
+[PAUSA DRAMATICA] [TOM DE ALERTA] [APONTAR PARA A TELA] [SORRISO CONFIANTE]
+[BAIXAR O TOM] [ACELERAR] [OLHAR DIRETO NA CAMERA] [GESTO DE CONTAGEM]
+[TOM DE CONFISSAO] [PAUSA CURTA] [ENFASE NO NUMERO]
+Regra: uma marcacao a cada 2 a 4 frases. Elas NAO sao lidas em voz alta.
+O texto entre marcacoes deve ser texto CORRIDO e natural, pronto para leitura fluida
+em teleprompter - sem topicos, sem bullets, sem numeracao dentro da fala.`;
+
+/* ---------- 4. PROMPT: RADAR DO DIA ------------------------------------- */
+function promptRadar(cfg, panoramaTexto, extras) {
+  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const foco = window.KB.PRODUTOS.filter(p => p.prioridade === 1).map(p => p.nome).join('; ');
+
+  return `${blocoIdentidade(cfg)}
+
+${blocoRegras()}
+
+# DADOS REAIS JA COLETADOS (verdade de base - pode usar livremente, ja estao verificados)
+${panoramaTexto}
+
+${extras && extras.trim() ? `# DADOS COLADOS PELO USUARIO (Trends/BuzzSumo/outros - trate como pista, valide antes de afirmar)\n${extras.trim()}\n` : ''}
+# SUA TAREFA AGORA
+Hoje e ${hoje}. Faca uma VARREDURA na web do que esta genuinamente quente NAS ULTIMAS 72 HORAS
+no mercado financeiro brasileiro e no que afeta o bolso do investidor brasileiro.
+
+Priorize temas que:
+- Estao em alta de busca/noticia AGORA (nao tema atemporal);
+- Geram controversia, indignacao ou medo legitimo (alta viralizacao);
+- Conectam com dor de quem tem patrimonio (nao publico iniciante);
+- Abrem ponte natural para: ${foco} (produtos de maior receita), alem de consultoria,
+  planejamento sucessorio, capital de giro PJ, financiamento, saude e cartoes.
+
+Retorne de 6 a 8 pautas. Para cada uma, o angulo tem que ser CONTRAINTUITIVO: pegue a
+manchete obvia e vire do avesso. Se todo mundo vai dizer "X e ruim", ache o dado que mostra
+para quem X e otimo - ou o contrario.
+
+# FORMATO DE SAIDA - JSON PURO, SEM TEXTO ANTES OU DEPOIS, SEM CERCA DE CODIGO
+{
+  "geradoEm": "${new Date().toISOString()}",
+  "pautas": [
+    {
+      "id": "slug-curto",
+      "titulo": "a manchete do tema em ate 12 palavras",
+      "oQueAconteceu": "2 frases factuais do que de fato ocorreu",
+      "porQueEstaQuente": "1 frase sobre o motivo de estar em alta agora",
+      "anguloContraintuitivo": "o gancho polemico que ninguem esta usando - 1 a 2 frases",
+      "temperaturaViral": 0,
+      "justificativaTemperatura": "por que essa nota",
+      "dorDoPublico": "a dor concreta de quem tem patrimonio nisso",
+      "produtoSugerido": "id do produto da esteira (cgi|consorcio|seguros|consultoria|sucessao|capitalgiro|financiamento|saude|cartoes)",
+      "mestreSugerido": "id do mestre (graham|buffett|lynch|bogle|munger|fisher|dalio|templeton|kiyosaki|barsi|stuhlberger)",
+      "formatoIdeal": "short | longo | ambos",
+      "janelaDeOportunidade": "quantos dias esse tema ainda rende",
+      "fontes": [{ "titulo": "", "url": "", "data": "", "veiculo": "" }]
+    }
+  ],
+  "leituraDeCenario": "3 linhas do estrategista sobre o clima geral do mercado hoje",
+  "alertasDeVerificacao": ["qualquer coisa que voce NAO conseguiu confirmar"]
+}
+
+temperaturaViral: inteiro de 0 a 100. Seja honesto e criterioso - se o tema e morno, de nota
+baixa. Nota alta so para tema com controversia real e volume de busca real.
+Ordene "pautas" da maior para a menor temperatura.
+CADA pauta precisa de pelo menos 1 fonte com URL real encontrada na busca. Sem fonte, corte a pauta.`;
+}
+
+/* ---------- 5. PROMPT: PACOTE COMPLETO ---------------------------------- */
+function promptPacote(cfg, panoramaTexto, pauta, opcoes) {
+  const kb = window.KB;
+  const mestre = kb.MESTRES.find(m => m.id === (opcoes.mestreId || pauta.mestreSugerido)) || kb.MESTRES[0];
+  const produto = kb.PRODUTOS.find(p => p.id === (opcoes.produtoId || pauta.produtoSugerido)) || kb.PRODUTOS[0];
+  const formato = opcoes.formato || 'ambos';
+
+  const dossieMestre = `# MESTRE PARA ANCORAR A TESE: ${mestre.nome} (${mestre.titulo})
+Origem verificada: ${mestre.origem}
+Principios disponiveis:
+${mestre.principios.map(p => `- ${p.nome}: ${p.essencia} [Fonte: ${p.fonte}]`).join('\n')}
+Gancho pronto: ${mestre.ganchoViral}
+${mestre.alerta ? `ATENCAO: ${mestre.alerta}` : ''}
+${mestre.checarAoVivo ? `CHECAR AO VIVO ANTES DE CITAR NUMERO: ${mestre.checarAoVivo}` : ''}`;
+
+  const dossieProduto = `# PRODUTO DE BANKING PARA O CTA: ${produto.nome}
+Dor que ele resolve: ${produto.dor}
+Gatilho narrativo: ${produto.gatilho}
+Publico: ${produto.publico}
+Ancora tecnica correta: ${produto.ancoraTecnica}
+CTA curto de referencia: "${produto.ctaCurto}"
+CTA longo de referencia: "${produto.ctaLongo}"
+Objecoes a antecipar:
+${produto.objecoes.map(o => `- "${o[0]}" -> ${o[1]}`).join('\n')}
+Dados que voce DEVE tentar confirmar na busca antes de citar:
+${(produto.dadosParaChecar || []).map(d => `- ${d}`).join('\n')}`;
+
+  const specShort = kb.FORMATOS.short;
+  const specLongo = kb.FORMATOS.longo;
+
+  return `${blocoIdentidade(cfg)}
+
+${blocoRegras()}
+
+${MARCACOES}
+
+# DADOS REAIS JA COLETADOS (verdade de base verificada)
+${panoramaTexto}
+
+${dossieMestre}
+
+${dossieProduto}
+
+# A PAUTA ESCOLHIDA
+Titulo: ${pauta.titulo}
+O que aconteceu: ${pauta.oQueAconteceu || ''}
+Angulo contraintuitivo definido: ${pauta.anguloContraintuitivo || ''}
+Dor do publico: ${pauta.dorDoPublico || ''}
+Fontes ja levantadas: ${(pauta.fontes || []).map(f => `${f.titulo} (${f.url}, ${f.data})`).join(' | ') || 'nenhuma - busque agora'}
+
+# SUA TAREFA
+Use a busca web para CONFIRMAR e ATUALIZAR os fatos desta pauta agora, e produza o pacote
+completo de conteudo. Formato solicitado: ${formato === 'ambos' ? 'SHORT e LONGO (os dois)' : formato.toUpperCase()}.
+
+Especificacao do SHORT: ${specShort.duracao}, ${specShort.palavras}.
+  Estrutura: ${specShort.estrutura}
+  Retencao: ${specShort.regraRetencao}
+Especificacao do LONGO: ${specLongo.duracao}, ${specLongo.palavras}.
+  Estrutura: ${specLongo.estrutura}
+  Retencao: ${specLongo.regraRetencao}
+
+O roteiro precisa: construir o problema -> ancorar na filosofia do mestre -> provar com dado
+real e datado -> mostrar a solucao -> deslizar para o CTA consultivo sem parecer venda.
+
+# FORMATO DE SAIDA - JSON PURO, SEM TEXTO ANTES OU DEPOIS, SEM CERCA DE CODIGO
+{
+  "tema": "${(pauta.titulo || '').replace(/"/g, "'")}",
+  "radarInstitucional": {
+    "resumo": ["linha 1 do impacto real", "linha 2", "linha 3"],
+    "impactoNoBolso": "quem ganha e quem perde com isso, em 2 frases",
+    "concorrencia": [
+      { "criador": "Thiago Nigro", "comoAbordaria": "", "limitacao": "" },
+      { "criador": "Primo Pobre", "comoAbordaria": "", "limitacao": "" },
+      { "criador": "Economista Sincero", "comoAbordaria": "", "limitacao": "" }
+    ],
+    "nossoDiferencial": "o angulo que so quem atendeu alta renda em banco consegue dar"
+  },
+  "mestre": {
+    "nome": "${mestre.nome}",
+    "principioUsado": "",
+    "comoAncora": "como o principio se aplica a ESTA pauta especificamente",
+    "fonteDoPrincipio": ""
+  },
+  "roteiroShort": {
+    "gancho3s": "a primeira frase, que segura nos 3 primeiros segundos",
+    "texto": "TEXTO CORRIDO COMPLETO com as marcacoes [ASSIM] embutidas, pronto para teleprompter",
+    "palavras": 0,
+    "duracaoEstimadaSeg": 0
+  },
+  "roteiroLongo": {
+    "coldOpen": "os primeiros 30 segundos, texto corrido com marcacoes",
+    "loopAberto": "a pergunta que fica pendurada e so fecha no fim",
+    "texto": "TEXTO CORRIDO COMPLETO do video longo, com marcacoes, pronto para teleprompter",
+    "palavras": 0,
+    "duracaoEstimadaMin": 0
+  },
+  "cta": {
+    "produto": "${produto.nome}",
+    "ondeEntra": "em que segundo/minuto o CTA aparece e por que ali",
+    "textoNoShort": "",
+    "textoNoLongo": "",
+    "objecaoAntecipada": "",
+    "porQueEsseProduto": "a logica consultiva que liga a dor da pauta a esse produto"
+  },
+  "audiovisual": {
+    "formatoRecomendado": "",
+    "enquadramentos": ["ex: plano medio fechado, camera na altura dos olhos, 0-15s"],
+    "cortesSecos": ["em que segundo cortar e por que"],
+    "brolls": ["imagem/gravacao sugerida e onde entra"],
+    "textoNaTela": ["legenda de apoio que aparece na edicao"],
+    "erroDeRetencaoAEvitar": ""
+  },
+  "distribuicao": {
+    "titulosYoutube": ["3 opcoes de titulo com alto CTR, ate 60 caracteres"],
+    "legendaInstagramTikTok": "copy persuasivo, linguagem natural, com quebras de linha e CTA",
+    "descricaoYoutube": "descricao completa com palavras-chave nos primeiros 150 caracteres",
+    "capitulos": ["00:00 - ", "01:30 - "],
+    "hashtags": ["#exemplo"],
+    "tagsOcultasYoutube": ["tag1", "tag2"],
+    "palavrasChaveCaudaLonga": ["frase de busca real que alguem digitaria"],
+    "melhorHorarioPostagem": ""
+  },
+  "thumbnail": {
+    "promptEN": "prompt descritivo em INGLES para Midjourney/DALL-E, alto CTR",
+    "textoNaCapa": "3 a 5 palavras em portugues que vao escritas na thumb",
+    "paleta": "",
+    "expressaoFacial": ""
+  },
+  "fontes": [
+    { "afirmacao": "qual afirmacao do roteiro isso sustenta", "veiculo": "", "url": "", "data": "" }
+  ],
+  "checagem": [
+    { "dado": "cada numero citado no roteiro", "status": "VERIFICADO | NAO VERIFICADO", "onde": "fonte ou motivo" }
+  ],
+  "disclaimer": "${window.KB.COMPLIANCE.disclaimerCurto}"
+}
+
+LEMBRETE FINAL: o campo "texto" de cada roteiro e o produto mais importante. Ele vai direto
+para o teleprompter. Escreva como fala humana real, com ritmo, respiracao e as marcacoes no
+lugar certo. Nada de topico, nada de lista, nada de titulo dentro da fala.`;
+}
+
+/* ---------- 6. PROMPT: REESCRITA / VARIACAO ----------------------------- */
+function promptVariacao(textoOriginal, instrucao) {
+  return `Voce e roteirista de video curto de financas. Reescreva o roteiro abaixo seguindo a
+instrucao, mantendo TODOS os numeros e fatos exatamente como estao (nao invente, nao altere
+nenhum dado) e mantendo as marcacoes de direcao entre colchetes.
+
+INSTRUCAO: ${instrucao}
+
+ROTEIRO ORIGINAL:
+${textoOriginal}
+
+Responda APENAS com o novo roteiro em texto corrido, sem comentario nenhum.`;
+}
+
+if (typeof window !== 'undefined') {
+  window.PROMPTS = { promptRadar, promptPacote, promptVariacao, blocoIdentidade, blocoRegras, MARCACOES };
+}
+
+
+/* ===== openrouter.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Cliente OpenRouter
+   -------------------------------------------------------------------------
+   Endpoint: POST https://openrouter.ai/api/v1/chat/completions
+   Busca web: plugins: [{ id: 'web' }] -> devolve annotations com url_citation
+   Documentacao: https://openrouter.ai/docs
+   ========================================================================= */
+
+const OR_BASE = 'https://openrouter.ai/api/v1';
+
+class ErroOpenRouter extends Error {
+  constructor(mensagem, status, corpo) {
+    super(mensagem);
+    this.name = 'ErroOpenRouter';
+    this.status = status;
+    this.corpo = corpo;
+  }
+}
+
+function cabecalhos(apiKey) {
+  return {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': location.origin === 'null' ? 'https://radar-institucional.local' : location.origin,
+    'X-Title': 'Radar Institucional'
+  };
+}
+
+/* Diagnostico de falha de rede, com o caso file:// tratado a parte. */
+function mensagemDeRede() {
+  if (location.protocol === 'file:') {
+    return 'Nao consegui falar com a OpenRouter. Voce abriu o arquivo direto do disco '
+      + '(file://), e a OpenRouter pode recusar chamadas sem endereco de origem. '
+      + 'Rode pelo servidor local: abra o terminal na pasta e execute '
+      + '"python3 -m http.server 8080", depois acesse http://localhost:8080. '
+      + 'Isso resolve na maioria dos casos.';
+  }
+  return 'Nao consegui falar com a OpenRouter. Verifique sua conexao com a internet '
+    + 'e se algum bloqueador de anuncios ou firewall esta barrando openrouter.ai.';
+}
+
+/* Traduz erro de API em mensagem acionavel em portugues. */
+function traduzErro(status, corpo) {
+  const msg = (corpo && corpo.error && corpo.error.message) || '';
+  if (status === 401) return 'Chave da OpenRouter invalida ou ausente. Confira em Configuracoes.';
+  if (status === 402) return 'Creditos insuficientes na OpenRouter. Adicione saldo em openrouter.ai/credits.';
+  if (status === 429) return 'Limite de requisicoes atingido. Aguarde alguns segundos e tente de novo.';
+  if (status === 403) return `Acesso negado pelo modelo escolhido. ${msg}`;
+  if (status >= 500) return `Instabilidade na OpenRouter (${status}). Tente novamente.`;
+  return msg || `Falha na requisicao (HTTP ${status}).`;
+}
+
+/* -------------------------------------------------------------------------
+   Chamada principal. Suporta streaming com callback de token.
+   ------------------------------------------------------------------------- */
+async function chamar(cfg, mensagens, opcoes = {}) {
+  if (!cfg.apiKey) {
+    throw new ErroOpenRouter('Nenhuma chave da OpenRouter configurada. Abra Configuracoes e cole sua chave.', 0, null);
+  }
+
+  const corpo = {
+    model: opcoes.modelo || cfg.modelo,
+    messages: mensagens,
+    temperature: typeof opcoes.temperatura === 'number' ? opcoes.temperatura : cfg.temperatura,
+    stream: !!opcoes.aoReceberToken
+  };
+
+  if (opcoes.maxTokens) corpo.max_tokens = opcoes.maxTokens;
+
+  // Busca web: e o que torna o resultado verificavel. Ligado por padrao.
+  if (opcoes.buscaWeb !== false && cfg.buscaWeb) {
+    corpo.plugins = [{
+      id: 'web',
+      max_results: cfg.maxResultadosBusca || 8,
+      search_prompt: 'Resultados de busca atuais. Use apenas fatos que aparecem aqui e sempre registre a URL e a data de cada um:'
+    }];
+  }
+
+  let resposta;
+  try {
+    resposta = await fetch(`${OR_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: cabecalhos(cfg.apiKey),
+      body: JSON.stringify(corpo),
+      signal: opcoes.signal
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    // Um TypeError aqui quase sempre e a rede caindo antes da resposta.
+    // Aberto por file://, a origem vai como "null" e o servidor pode recusar
+    // no CORS - o navegador nao deixa a pagina ver o motivo, so o erro generico.
+    // Entao o diagnostico tem que vir daqui.
+    throw new ErroOpenRouter(mensagemDeRede(), 0, null);
+  }
+
+  if (!resposta.ok) {
+    let j = null;
+    try { j = await resposta.json(); } catch (e) { /* corpo nao-JSON */ }
+    throw new ErroOpenRouter(traduzErro(resposta.status, j), resposta.status, j);
+  }
+
+  return corpo.stream
+    ? await lerStream(resposta, opcoes.aoReceberToken)
+    : await lerCompleto(resposta);
+}
+
+async function lerCompleto(resposta) {
+  const j = await resposta.json();
+  const msg = j.choices && j.choices[0] && j.choices[0].message;
+  return {
+    texto: (msg && msg.content) || '',
+    citacoes: extrairCitacoes(msg),
+    uso: j.usage || null,
+    modelo: j.model || null
+  };
+}
+
+async function lerStream(resposta, aoReceberToken) {
+  const leitor = resposta.body.getReader();
+  const dec = new TextDecoder();
+  let buffer = '';
+  let texto = '';
+  let citacoes = [];
+  let uso = null;
+  let modelo = null;
+
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    buffer += dec.decode(value, { stream: true });
+
+    const linhas = buffer.split('\n');
+    buffer = linhas.pop() || '';
+
+    for (const linha of linhas) {
+      const l = linha.trim();
+      if (!l || l.startsWith(':')) continue;      // comentario SSE (keep-alive)
+      if (!l.startsWith('data:')) continue;
+      const dados = l.slice(5).trim();
+      if (dados === '[DONE]') continue;
+
+      try {
+        const j = JSON.parse(dados);
+        if (j.model) modelo = j.model;
+        if (j.usage) uso = j.usage;
+        const delta = j.choices && j.choices[0] && j.choices[0].delta;
+        if (delta && delta.content) {
+          texto += delta.content;
+          if (aoReceberToken) aoReceberToken(delta.content, texto);
+        }
+        const m = j.choices && j.choices[0] && j.choices[0].message;
+        if (m) {
+          const c = extrairCitacoes(m);
+          if (c.length) citacoes = c;
+        }
+        if (delta && delta.annotations) {
+          citacoes = citacoes.concat(normalizarAnotacoes(delta.annotations));
+        }
+      } catch (e) {
+        // fragmento SSE incompleto - proxima iteracao completa
+      }
+    }
+  }
+
+  return { texto, citacoes: dedupCitacoes(citacoes), uso, modelo };
+}
+
+function extrairCitacoes(msg) {
+  if (!msg || !msg.annotations) return [];
+  return dedupCitacoes(normalizarAnotacoes(msg.annotations));
+}
+
+function normalizarAnotacoes(anotacoes) {
+  return (anotacoes || [])
+    .filter(a => a && a.type === 'url_citation' && a.url_citation)
+    .map(a => ({
+      url: a.url_citation.url,
+      titulo: a.url_citation.title || a.url_citation.url,
+      trecho: a.url_citation.content || ''
+    }));
+}
+
+function dedupCitacoes(lista) {
+  const vistos = new Set();
+  return lista.filter(c => {
+    if (!c.url || vistos.has(c.url)) return false;
+    vistos.add(c.url);
+    return true;
+  });
+}
+
+/* -------------------------------------------------------------------------
+   Parse tolerante de JSON. Modelos as vezes envolvem em cerca de codigo
+   ou escrevem uma frase antes. Aqui a gente resgata o objeto mesmo assim.
+   ------------------------------------------------------------------------- */
+function extrairJSON(texto) {
+  if (!texto) return null;
+  let t = texto.trim();
+
+  // Remove cerca de codigo ```json ... ```
+  const cerca = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (cerca) t = cerca[1].trim();
+
+  try { return JSON.parse(t); } catch (e) { /* tenta recorte */ }
+
+  // Recorta do primeiro { ate o ultimo } equilibrado
+  const ini = t.indexOf('{');
+  const fim = t.lastIndexOf('}');
+  if (ini !== -1 && fim > ini) {
+    const recorte = t.slice(ini, fim + 1);
+    try { return JSON.parse(recorte); } catch (e) { /* segue */ }
+
+    // Ultima tentativa: remove virgulas penduradas antes de } ou ]
+    try { return JSON.parse(recorte.replace(/,\s*([}\]])/g, '$1')); } catch (e) { /* desiste */ }
+  }
+  return null;
+}
+
+/* Lista de modelos disponiveis (opcional, para o seletor). */
+async function listarModelos(cfg) {
+  try {
+    const r = await fetch(`${OR_BASE}/models`, { headers: cabecalhos(cfg.apiKey) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j.data || [])
+      .map(m => ({ id: m.id, rotulo: `${m.name || m.id}`, contexto: m.context_length }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Teste rapido de credencial. */
+async function testarChave(cfg) {
+  try {
+    const r = await fetch(`${OR_BASE}/key`, { headers: cabecalhos(cfg.apiKey) });
+    if (!r.ok) {
+      let j = null;
+      try { j = await r.json(); } catch (e) {}
+      return { ok: false, mensagem: traduzErro(r.status, j) };
+    }
+    const j = await r.json();
+    const d = j.data || {};
+    const limite = d.limit === null || d.limit === undefined ? 'sem limite definido' : `limite ${d.limit}`;
+    return { ok: true, mensagem: `Chave valida. Uso: ${d.usage ?? 0} | ${limite}.` };
+  } catch (e) {
+    return { ok: false, mensagem: mensagemDeRede() };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.OR = { chamar, extrairJSON, listarModelos, testarChave, ErroOpenRouter };
+}
+
+
+/* ===== teleprompter.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Teleprompter
+   -------------------------------------------------------------------------
+   Rolagem continua em subpixel (nao usa scrollBy inteiro, que trava e
+   engasga em velocidade baixa). Marcacoes [ASSIM] ficam destacadas em
+   ouro para o apresentador ver a direcao sem ler em voz alta.
+   ========================================================================= */
+
+const TP = {
+  el: null, texto: null,
+  rodando: false,
+  velocidade: 16,     // pixels por segundo
+  posicao: 0,         // acumulador fracionario
+  ultimoFrame: 0,
+  raf: null,
+  roteiros: { short: '', longo: '' },
+
+  iniciar() {
+    this.el = document.getElementById('teleprompter');
+    this.texto = document.getElementById('tpTexto');
+
+    const vel = document.getElementById('tpVel');
+    const tam = document.getElementById('tpTam');
+
+    document.getElementById('tpPlay').onclick = () => this.alternar();
+    document.getElementById('tpReiniciar').onclick = () => this.reiniciar();
+    document.getElementById('tpFechar').onclick = () => this.fechar();
+
+    vel.oninput = (e) => {
+      this.velocidade = +e.target.value;
+      document.getElementById('tpVelVal').textContent = e.target.value;
+    };
+
+    tam.oninput = (e) => {
+      this.el.style.setProperty('--tp-tam', e.target.value + 'px');
+      document.getElementById('tpTamVal').textContent = e.target.value;
+    };
+
+    document.getElementById('tpEspelho').onchange = (e) => {
+      this.el.classList.toggle('espelho', e.target.checked);
+    };
+
+    document.getElementById('tpFonte').onchange = (e) => {
+      this.carregarTexto(e.target.value);
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (!this.el || !this.el.classList.contains('on')) return;
+      if (e.code === 'Space') { e.preventDefault(); this.alternar(); }
+      else if (e.code === 'Escape') { this.fechar(); }
+      else if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        vel.value = Math.min(60, +vel.value + 2);
+        vel.dispatchEvent(new Event('input'));
+      } else if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        vel.value = Math.max(1, +vel.value - 2);
+        vel.dispatchEvent(new Event('input'));
+      }
+    });
+
+    // Rolagem manual do usuario ressincroniza o acumulador
+    this.texto.addEventListener('scroll', () => {
+      if (!this.rodando) this.posicao = this.texto.scrollTop;
+    });
+  },
+
+  definirRoteiros(short, longo) {
+    this.roteiros.short = short || '';
+    this.roteiros.longo = longo || '';
+
+    const sel = document.getElementById('tpFonte');
+    sel.innerHTML = '';
+    if (this.roteiros.short) sel.add(new Option('Roteiro Short', 'short'));
+    if (this.roteiros.longo) sel.add(new Option('Roteiro Longo', 'longo'));
+  },
+
+  carregarTexto(qual) {
+    const bruto = this.roteiros[qual] || '';
+    this.texto.innerHTML = bruto
+      .replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+      .replace(/\[([A-ZÀ-Ú\s]+)\]/g, '<span class="marca">$1</span>')
+      .replace(/\n/g, '<br>');
+    this.reiniciar();
+  },
+
+  abrir(qual) {
+    this.el.classList.add('on');
+    const sel = document.getElementById('tpFonte');
+    const alvo = qual && this.roteiros[qual] ? qual : (sel.value || 'short');
+    sel.value = alvo;
+    this.carregarTexto(alvo);
+  },
+
+  fechar() {
+    this.pausar();
+    this.el.classList.remove('on');
+  },
+
+  alternar() { this.rodando ? this.pausar() : this.tocar(); },
+
+  tocar() {
+    this.rodando = true;
+    this.ultimoFrame = performance.now();
+    this.posicao = this.texto.scrollTop;
+    document.getElementById('tpPlay').textContent = '❚❚ Pausar';
+    this.animar();
+  },
+
+  pausar() {
+    this.rodando = false;
+    if (this.raf) cancelAnimationFrame(this.raf);
+    const b = document.getElementById('tpPlay');
+    if (b) b.textContent = '▶ Iniciar';
+  },
+
+  animar() {
+    if (!this.rodando) return;
+    this.raf = requestAnimationFrame((agora) => {
+      const dt = (agora - this.ultimoFrame) / 1000;
+      this.ultimoFrame = agora;
+
+      this.posicao += this.velocidade * dt;
+      this.texto.scrollTop = this.posicao;
+
+      const fim = this.texto.scrollHeight - this.texto.clientHeight;
+      if (this.posicao >= fim) { this.pausar(); return; }
+
+      this.animar();
+    });
+  },
+
+  reiniciar() {
+    this.pausar();
+    this.posicao = 0;
+    if (this.texto) this.texto.scrollTop = 0;
+  }
+};
+
+if (typeof window !== 'undefined') window.TP = TP;
+
+
+/* ===== app.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Orquestrador
+   ========================================================================= */
+
+const APP = {
+  cfg: null,
+  panorama: null,
+  panoramaTexto: '',
+  pautas: [],
+  pacote: null,
+  pautaAtual: null
+};
+
+/* ---------- utilitarios ------------------------------------------------- */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function toast(msg, tipo = 'info', ms = 4200) {
+  const el = document.createElement('div');
+  el.className = `toast ${tipo}`;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(8px)';
+    el.style.transition = 'all .2s';
+    setTimeout(() => el.remove(), 220);
+  }, ms);
+}
+
+async function copiar(txt, oQue = 'Conteúdo') {
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast(`${oQue} copiado.`, 'ok', 2200);
+  } catch (e) {
+    // Fallback para contexto sem permissao de clipboard (file://, http)
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast(`${oQue} copiado.`, 'ok', 2200); }
+    catch (e2) { toast('Não consegui copiar. Selecione o texto manualmente.', 'err'); }
+    ta.remove();
+  }
+}
+
+/* Destaca marcacoes [ASSIM] preservando o escape de HTML. */
+function realcarMarcacoes(txt) {
+  return esc(txt).replace(/\[([A-ZÀ-ÚÇ\s]+)\]/g, '<span class="marca">[$1]</span>');
+}
+
+const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+
+/* =========================================================================
+   NAVEGACAO
+   ========================================================================= */
+function irPara(tela) {
+  $$('.tela').forEach(t => t.classList.remove('ativa'));
+  $$('.aba').forEach(a => a.classList.remove('ativa'));
+  const t = $(`#tela-${tela}`);
+  const a = $(`.aba[data-tela="${tela}"]`);
+  if (t) t.classList.add('ativa');
+  if (a) a.classList.add('ativa');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =========================================================================
+   PAINEL MACRO
+   ========================================================================= */
+async function carregarMacro() {
+  const faixa = $('#faixaMacro');
+  faixa.innerHTML = `<div class="macro"><div class="rot">Carregando</div><div class="val" style="font-size:14px;color:var(--txt-3)">Banco Central…</div></div>`;
+
+  try {
+    APP.panorama = await window.DADOS.coletarPanorama();
+    APP.panoramaTexto = window.DADOS.panoramaParaTexto(APP.panorama);
+    renderMacro();
+    const n = Object.keys(APP.panorama.indicadores).length;
+    if (APP.panorama.falhas.length) {
+      toast(`${n} indicadores carregados. ${APP.panorama.falhas.length} falharam — serão omitidos, não inventados.`, 'info', 5200);
+    }
+  } catch (e) {
+    faixa.innerHTML = `<div class="macro erro"><div class="rot">Falha</div><div class="val">Sem conexão com o Banco Central</div></div>`;
+    toast('Não consegui buscar os dados do Banco Central. Verifique a conexão.', 'err');
+  }
+}
+
+function renderMacro() {
+  const p = APP.panorama;
+  if (!p) return;
+  const cartoes = [];
+
+  const ordem = ['selic', 'cdi', 'ipca12m', 'dolar', 'euro', 'ipcaMes', 'igpm', 'poupanca',
+                 'pfTotal', 'pfPessoal', 'pfCheque', 'pfPessoalMes'];
+  ordem.forEach(chave => {
+    const i = p.indicadores[chave];
+    if (!i) return;
+    const valor = i.unidade === 'R$'
+      ? `R$ ${i.valor.toFixed(4).replace('.', ',')}`
+      : `${String(i.valor).replace('.', ',')}${i.unidade.includes('%') ? '%' : ''}`;
+    cartoes.push(`
+      <div class="macro${i.grupo === 'credito' ? ' custo' : ''}">
+        <div class="rot">${esc(i.rotulo)}</div>
+        <div class="val">${esc(valor)}</div>
+        <div class="meta">${esc(i.data)} · <a href="${esc(i.linkFonte)}" target="_blank" rel="noopener">BCB ${i.codigo}</a></div>
+      </div>`);
+  });
+
+  if (p.juroReal) {
+    cartoes.push(`
+      <div class="macro destaque" title="${esc(p.juroReal.metodo)}">
+        <div class="rot">Juro real ex-ante</div>
+        <div class="val">${String(p.juroReal.valor).replace('.', ',')}%</div>
+        <div class="meta">Selic ÷ IPCA esperado (Focus)</div>
+      </div>`);
+  }
+
+  Object.values(p.expectativas).forEach(e => {
+    cartoes.push(`
+      <div class="macro">
+        <div class="rot">Focus: ${esc(e.indicador)} ${esc(e.ano)}</div>
+        <div class="val">${String(e.mediana).replace('.', ',')}</div>
+        <div class="meta">mediana · ${esc(e.respondentes)} casas · ${esc(e.data)}</div>
+      </div>`);
+  });
+
+  $('#faixaMacro').innerHTML = cartoes.join('');
+}
+
+/* =========================================================================
+   VARREDURA DO DIA
+   ========================================================================= */
+async function rodarVarredura() {
+  if (!APP.cfg.apiKey) {
+    toast('Configure sua chave da OpenRouter primeiro.', 'err');
+    abrirConfig();
+    return;
+  }
+  if (!APP.panorama) await carregarMacro();
+
+  const area = $('#areaPautas');
+  area.innerHTML = `
+    <div class="carregando-box">
+      <div class="spinner"></div>
+      <div class="carregando-txt">Varrendo o mercado…</div>
+      <div class="carregando-sub">Buscando notícia das últimas 72h, cruzando com dados do Banco Central e classificando por potencial viral.</div>
+      <div class="stream" id="streamRadar"></div>
+    </div>`;
+
+  const stream = $('#streamRadar');
+  const prompt = window.PROMPTS.promptRadar(APP.cfg, APP.panoramaTexto, $('#dadosColados').value);
+
+  try {
+    const r = await window.OR.chamar(
+      APP.cfg,
+      [{ role: 'user', content: prompt }],
+      {
+        modelo: APP.cfg.modeloRadar,
+        aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
+      }
+    );
+
+    const j = window.OR.extrairJSON(r.texto);
+    if (!j || !Array.isArray(j.pautas) || !j.pautas.length) {
+      throw new Error('O modelo não devolveu pautas em formato válido. Tente de novo ou troque o modelo em Configurações.');
+    }
+
+    APP.pautas = j.pautas;
+    renderPautas(j, r.citacoes);
+    toast(`${j.pautas.length} pautas encontradas.`, 'ok');
+
+  } catch (e) {
+    area.innerHTML = `
+      <div class="aviso alerta">
+        <span class="aviso-i">▲</span>
+        <div><b>Falha na varredura.</b><br>${esc(e.message)}</div>
+      </div>
+      <div class="vazio"><button class="btn btn-ouro" onclick="rodarVarredura()">Tentar de novo</button></div>`;
+  }
+}
+
+function renderPautas(j, citacoes) {
+  const kb = window.KB;
+  let html = '';
+
+  if (j.leituraDeCenario) {
+    html += `<div class="cartao" style="margin-bottom:18px;border-left:3px solid var(--ouro)">
+      <div class="rotulo">Leitura de cenário</div>
+      <div style="font-size:14.5px;line-height:1.7">${esc(j.leituraDeCenario)}</div>
+    </div>`;
+  }
+
+  if (arr(j.alertasDeVerificacao).length) {
+    html += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+      <b>Não foi possível confirmar:</b>
+      <ul style="margin:7px 0 0 17px;font-size:12.5px">${arr(j.alertasDeVerificacao).map(a => `<li>${esc(a)}</li>`).join('')}</ul>
+      <div style="margin-top:7px;font-size:12px;opacity:.85">Estes pontos ficaram de fora ou vão marcados como não verificados no roteiro. Nada foi preenchido por suposição.</div>
+    </div></div>`;
+  }
+
+  html += '<div class="grade g-auto">';
+  j.pautas.forEach((p, idx) => {
+    const t = Number(p.temperaturaViral) || 0;
+    const cls = t >= 75 ? 'q' : t >= 50 ? 'm' : 'f';
+    const prod = kb.PRODUTOS.find(x => x.id === p.produtoSugerido);
+    const mestre = kb.MESTRES.find(x => x.id === p.mestreSugerido);
+
+    html += `
+      <article class="pauta" data-idx="${idx}">
+        <div class="pauta-topo">
+          <div class="termo ${cls}">${t}</div>
+          <div style="flex:1;min-width:0">
+            <h3>${esc(p.titulo)}</h3>
+            ${p.janelaDeOportunidade ? `<div class="quando">Janela: ${esc(p.janelaDeOportunidade)}</div>` : ''}
+          </div>
+        </div>
+        ${p.oQueAconteceu ? `<div class="dor" style="margin-bottom:9px">${esc(p.oQueAconteceu)}</div>` : ''}
+        <div class="angulo"><b>Ângulo contraintuitivo</b>${esc(p.anguloContraintuitivo)}</div>
+        ${p.dorDoPublico ? `<div class="dor"><b style="color:var(--txt)">Dor:</b> ${esc(p.dorDoPublico)}</div>` : ''}
+        <div class="pauta-rodape">
+          ${prod ? `<span class="tag tag-produto">${esc(prod.nome.split('(')[0].trim())}</span>` : ''}
+          ${mestre ? `<span class="tag tag-mestre">${esc(mestre.nome)}</span>` : ''}
+          ${p.formatoIdeal ? `<span class="tag tag-formato">${esc(p.formatoIdeal)}</span>` : ''}
+          <span class="tag tag-fonte">${arr(p.fontes).length} fonte(s)</span>
+        </div>
+      </article>`;
+  });
+  html += '</div>';
+
+  if (citacoes && citacoes.length) {
+    html += `<div class="cartao" style="margin-top:20px">
+      <div class="rotulo">Fontes consultadas nesta varredura (${citacoes.length})</div>
+      ${citacoes.map(c => `<div class="fonte"><span class="fonte-i">↗</span><div><b>${esc(c.titulo)}</b><br><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a></div></div>`).join('')}
+    </div>`;
+  }
+
+  $('#areaPautas').innerHTML = html;
+
+  $$('.pauta').forEach(el => {
+    el.onclick = () => gerarPacote(APP.pautas[+el.dataset.idx]);
+  });
+}
+
+/* =========================================================================
+   GERACAO DO PACOTE
+   ========================================================================= */
+async function gerarPacote(pauta) {
+  if (!pauta) return;
+  APP.pautaAtual = pauta;
+  irPara('pacote');
+
+  $('#tituloPacote').textContent = pauta.titulo;
+  $('#subPacote').textContent = 'Gerando pacote completo…';
+  $('#acoesPacote').style.display = 'none';
+  $('#areaPacote').innerHTML = `
+    <div class="carregando-box">
+      <div class="spinner"></div>
+      <div class="carregando-txt">Escrevendo o pacote…</div>
+      <div class="carregando-sub">Confirmando os fatos na web, ancorando na filosofia do mestre e montando roteiro, CTA, direção e SEO.</div>
+      <div class="stream" id="streamPacote"></div>
+    </div>`;
+
+  const stream = $('#streamPacote');
+  const prompt = window.PROMPTS.promptPacote(APP.cfg, APP.panoramaTexto, pauta, {
+    formato: APP.cfg.formatoPadrao,
+    produtoId: APP.cfg.produtoPreferido || pauta.produtoSugerido,
+    mestreId: pauta.mestreSugerido
+  });
+
+  try {
+    const r = await window.OR.chamar(
+      APP.cfg,
+      [{ role: 'user', content: prompt }],
+      {
+        modelo: APP.cfg.modelo,
+        maxTokens: 16000,
+        aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
+      }
+    );
+
+    const j = window.OR.extrairJSON(r.texto);
+    if (!j) throw new Error('O modelo não devolveu JSON válido. Tente de novo ou use um modelo mais forte em Configurações.');
+
+    j._citacoes = r.citacoes || [];
+    j._geradoEm = new Date().toISOString();
+    APP.pacote = j;
+
+    renderPacote(j);
+    window.TP.definirRoteiros(
+      j.roteiroShort && j.roteiroShort.texto,
+      j.roteiroLongo && j.roteiroLongo.texto
+    );
+    $('#acoesPacote').style.display = 'flex';
+    toast('Pacote pronto.', 'ok');
+
+  } catch (e) {
+    $('#areaPacote').innerHTML = `
+      <div class="aviso alerta"><span class="aviso-i">▲</span><div><b>Falha ao gerar.</b><br>${esc(e.message)}</div></div>
+      <div class="vazio"><button class="btn btn-ouro" id="btnRetentar">Tentar de novo</button></div>`;
+    const b = $('#btnRetentar');
+    if (b) b.onclick = () => gerarPacote(pauta);
+  }
+}
+
+/* ---------- render de um bloco sanfonado --------------------------------- */
+function bloco(num, titulo, corpo, aberto = true) {
+  return `<section class="bloco ${aberto ? '' : 'fechado'}">
+    <div class="bloco-cab"><div class="bloco-num">${num}</div><h3>${esc(titulo)}</h3><span class="seta">▼</span></div>
+    <div class="bloco-corpo">${corpo}</div>
+  </section>`;
+}
+
+function renderPacote(j) {
+  $('#subPacote').textContent = `Gerado em ${new Date(j._geradoEm).toLocaleString('pt-BR')}`;
+  let h = '';
+
+  /* --- verificacao no topo: o que importa antes de gravar --- */
+  const naoVerificados = arr(j.checagem).filter(c => String(c.status || '').toUpperCase().includes('NAO') || String(c.status || '').toUpperCase().includes('NÃO'));
+  if (naoVerificados.length) {
+    h += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+      <b>${naoVerificados.length} dado(s) não confirmado(s) — revise antes de gravar:</b>
+      <ul style="margin:7px 0 0 17px;font-size:12.5px">${naoVerificados.map(c => `<li>${esc(c.dado)} <span style="opacity:.75">— ${esc(c.onde)}</span></li>`).join('')}</ul>
+    </div></div>`;
+  } else if (arr(j.checagem).length) {
+    h += `<div class="aviso info"><span class="aviso-i">✓</span><div><b>Todos os ${arr(j.checagem).length} dados do roteiro têm fonte.</b> Confira a aba de checagem antes de gravar.</div></div>`;
+  }
+
+  /* --- 1. Radar Institucional --- */
+  const ri = j.radarInstitucional || {};
+  h += bloco(1, 'Radar Institucional — Análise de Cenário', `
+    ${arr(ri.resumo).length ? `<div class="campo"><div class="rotulo">Impacto real</div><ol class="lista-num">${arr(ri.resumo).map(l => `<li>${esc(l)}</li>`).join('')}</ol></div>` : ''}
+    ${ri.impactoNoBolso ? `<div class="campo"><div class="rotulo">Quem ganha, quem perde</div><div style="font-size:14px;line-height:1.7">${esc(ri.impactoNoBolso)}</div></div>` : ''}
+    ${arr(ri.concorrencia).length ? `<div class="campo"><div class="rotulo">Como a concorrência abordaria</div><ul class="lista-limpa">${arr(ri.concorrencia).map(c => `<li><b style="color:var(--ouro)">${esc(c.criador)}</b><br>${esc(c.comoAbordaria)}${c.limitacao ? `<br><span style="color:var(--txt-3);font-size:12px">Limitação: ${esc(c.limitacao)}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
+    ${ri.nossoDiferencial ? `<div class="campo"><div class="rotulo">Nosso diferencial</div><div class="angulo" style="margin:0">${esc(ri.nossoDiferencial)}</div></div>` : ''}
+  `);
+
+  /* --- 2. Ancoragem --- */
+  if (j.mestre) {
+    h += bloco(2, `Ancoragem — ${j.mestre.nome || ''}`, `
+      <div class="campo"><div class="rotulo">Princípio usado</div><div style="font-size:15px;font-weight:650;color:var(--ouro)">${esc(j.mestre.principioUsado)}</div></div>
+      <div class="campo"><div class="rotulo">Como ancora nesta pauta</div><div style="font-size:14px;line-height:1.7">${esc(j.mestre.comoAncora)}</div></div>
+      ${j.mestre.fonteDoPrincipio ? `<div class="campo"><div class="rotulo">Origem</div><div style="font-size:12.5px;color:var(--txt-3);font-style:italic">${esc(j.mestre.fonteDoPrincipio)}</div></div>` : ''}
+    `);
+  }
+
+  /* --- 3. Roteiro Short --- */
+  if (j.roteiroShort && j.roteiroShort.texto) {
+    const s = j.roteiroShort;
+    h += bloco(3, `Roteiro Short — ${s.duracaoEstimadaSeg || '±50'}s`, `
+      ${s.gancho3s ? `<div class="gancho"><div class="rotulo">Gancho — 3 primeiros segundos</div>${esc(s.gancho3s)}</div>` : ''}
+      <div class="campo">
+        <div class="rotulo">Texto para teleprompter
+          <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.roteiroShort.texto,'Roteiro short')">Copiar</button>
+          <button class="btn btn-sm btn-fantasma" onclick="window.TP.abrir('short')">Teleprompter</button>
+        </div>
+        <div class="roteiro">${realcarMarcacoes(s.texto)}</div>
+        <div class="dica">${esc(s.palavras || '?')} palavras · leitura estimada ${esc(s.duracaoEstimadaSeg || '?')}s</div>
+      </div>`);
+  }
+
+  /* --- 4. Roteiro Longo --- */
+  if (j.roteiroLongo && j.roteiroLongo.texto) {
+    const l = j.roteiroLongo;
+    h += bloco(4, `Roteiro Longo — ${l.duracaoEstimadaMin || '±10'} min`, `
+      ${l.coldOpen ? `<div class="gancho"><div class="rotulo">Cold open — 30 primeiros segundos</div>${esc(l.coldOpen)}</div>` : ''}
+      ${l.loopAberto ? `<div class="campo"><div class="rotulo">Loop aberto (fecha no fim)</div><div class="angulo" style="margin:0">${esc(l.loopAberto)}</div></div>` : ''}
+      <div class="campo">
+        <div class="rotulo">Texto para teleprompter
+          <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.roteiroLongo.texto,'Roteiro longo')">Copiar</button>
+          <button class="btn btn-sm btn-fantasma" onclick="window.TP.abrir('longo')">Teleprompter</button>
+        </div>
+        <div class="roteiro">${realcarMarcacoes(l.texto)}</div>
+        <div class="dica">${esc(l.palavras || '?')} palavras · ${esc(l.duracaoEstimadaMin || '?')} min</div>
+      </div>`, false);
+  }
+
+  /* --- 5. CTA --- */
+  if (j.cta) {
+    const c = j.cta;
+    h += bloco(5, `CTA Estratégico — ${c.produto || ''}`, `
+      ${c.porQueEsseProduto ? `<div class="campo"><div class="rotulo">Lógica consultiva</div><div style="font-size:14px;line-height:1.7">${esc(c.porQueEsseProduto)}</div></div>` : ''}
+      ${c.ondeEntra ? `<div class="campo"><div class="rotulo">Onde entra</div><div style="font-size:13.5px">${esc(c.ondeEntra)}</div></div>` : ''}
+      ${c.textoNoShort ? `<div class="campo"><div class="rotulo">No short</div><div class="roteiro" style="font-size:14.5px;max-height:none">${realcarMarcacoes(c.textoNoShort)}</div></div>` : ''}
+      ${c.textoNoLongo ? `<div class="campo"><div class="rotulo">No longo</div><div class="roteiro" style="font-size:14.5px;max-height:none">${realcarMarcacoes(c.textoNoLongo)}</div></div>` : ''}
+      ${c.objecaoAntecipada ? `<div class="campo"><div class="rotulo">Objeção antecipada</div><div class="angulo" style="margin:0">${esc(c.objecaoAntecipada)}</div></div>` : ''}
+    `);
+  }
+
+  /* --- 6. Audiovisual --- */
+  if (j.audiovisual) {
+    const a = j.audiovisual;
+    h += bloco(6, 'Direção Audiovisual e Retenção', `
+      ${a.formatoRecomendado ? `<div class="campo"><div class="rotulo">Formato</div><div style="font-size:14px">${esc(a.formatoRecomendado)}</div></div>` : ''}
+      ${arr(a.enquadramentos).length ? `<div class="campo"><div class="rotulo">Enquadramentos</div><ul class="lista-limpa">${arr(a.enquadramentos).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${arr(a.cortesSecos).length ? `<div class="campo"><div class="rotulo">Cortes secos</div><ul class="lista-limpa">${arr(a.cortesSecos).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${arr(a.brolls).length ? `<div class="campo"><div class="rotulo">B-rolls</div><ul class="lista-limpa">${arr(a.brolls).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${arr(a.textoNaTela).length ? `<div class="campo"><div class="rotulo">Texto na tela</div><div class="chips">${arr(a.textoNaTela).map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div></div>` : ''}
+      ${a.erroDeRetencaoAEvitar ? `<div class="campo"><div class="aviso alerta" style="margin:0"><span class="aviso-i">▲</span><div><b>Erro de retenção a evitar:</b> ${esc(a.erroDeRetencaoAEvitar)}</div></div></div>` : ''}
+    `, false);
+  }
+
+  /* --- 7. Distribuicao / SEO --- */
+  if (j.distribuicao) {
+    const d = j.distribuicao;
+    h += bloco(7, 'Distribuição e SEO', `
+      ${arr(d.titulosYoutube).length ? `<div class="campo"><div class="rotulo">Títulos (clique para copiar)</div><ul class="lista-limpa">${arr(d.titulosYoutube).map(t => `<li style="cursor:pointer" onclick="copiar(this.textContent.trim(),'Título')">${esc(t)}</li>`).join('')}</ul></div>` : ''}
+      ${d.legendaInstagramTikTok ? `<div class="campo"><div class="rotulo">Legenda Instagram / TikTok <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.distribuicao.legendaInstagramTikTok,'Legenda')">Copiar</button></div><div class="roteiro" style="font-size:14px;max-height:300px">${esc(d.legendaInstagramTikTok)}</div></div>` : ''}
+      ${d.descricaoYoutube ? `<div class="campo"><div class="rotulo">Descrição YouTube <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.distribuicao.descricaoYoutube,'Descrição')">Copiar</button></div><div class="roteiro" style="font-size:13.5px;max-height:250px">${esc(d.descricaoYoutube)}</div></div>` : ''}
+      ${arr(d.capitulos).length ? `<div class="campo"><div class="rotulo">Capítulos</div><ul class="lista-limpa">${arr(d.capitulos).map(c => `<li style="font-family:var(--mono);font-size:12.5px">${esc(c)}</li>`).join('')}</ul></div>` : ''}
+      ${arr(d.hashtags).length ? `<div class="campo"><div class="rotulo">Hashtags <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.distribuicao.hashtags.join(' '),'Hashtags')">Copiar</button></div><div class="chips">${arr(d.hashtags).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div></div>` : ''}
+      ${arr(d.tagsOcultasYoutube).length ? `<div class="campo"><div class="rotulo">Tags do YouTube <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.distribuicao.tagsOcultasYoutube.join(', '),'Tags')">Copiar</button></div><div class="chips">${arr(d.tagsOcultasYoutube).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+        <div class="dica">Tags não aparecem para o espectador, mas contam para a busca. Use as que descrevem o vídeo de verdade — encher de termo sem relação é penalizado pelo YouTube e derruba a entrega.</div></div>` : ''}
+      ${arr(d.palavrasChaveCaudaLonga).length ? `<div class="campo"><div class="rotulo">Cauda longa</div><div class="chips">${arr(d.palavrasChaveCaudaLonga).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div></div>` : ''}
+      ${d.melhorHorarioPostagem ? `<div class="campo"><div class="rotulo">Melhor horário</div><div style="font-size:13.5px">${esc(d.melhorHorarioPostagem)}</div></div>` : ''}
+    `, false);
+  }
+
+  /* --- 8. Thumbnail --- */
+  if (j.thumbnail) {
+    const t = j.thumbnail;
+    h += bloco(8, 'Máquina de Thumbnails', `
+      ${t.promptEN ? `<div class="campo"><div class="rotulo">Prompt para Midjourney / DALL·E <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.thumbnail.promptEN,'Prompt')">Copiar</button></div><div class="prompt-en">${esc(t.promptEN)}</div></div>` : ''}
+      ${t.textoNaCapa ? `<div class="campo"><div class="rotulo">Texto na capa</div><div style="font-size:26px;font-weight:800;letter-spacing:-.8px;color:var(--ouro)">${esc(t.textoNaCapa)}</div></div>` : ''}
+      <div class="linha-form duas" style="margin:0">
+        ${t.paleta ? `<div><div class="rotulo">Paleta</div><div style="font-size:13.5px">${esc(t.paleta)}</div></div>` : ''}
+        ${t.expressaoFacial ? `<div><div class="rotulo">Expressão facial</div><div style="font-size:13.5px">${esc(t.expressaoFacial)}</div></div>` : ''}
+      </div>
+    `, false);
+  }
+
+  /* --- 9. Fontes e checagem --- */
+  const temFontes = arr(j.fontes).length || arr(j._citacoes).length || arr(j.checagem).length;
+  if (temFontes) {
+    h += bloco(9, 'Fontes e Checagem', `
+      ${arr(j.checagem).length ? `<div class="campo"><div class="rotulo">Checagem dado a dado</div>${arr(j.checagem).map(c => {
+        const nao = String(c.status || '').toUpperCase().includes('NAO') || String(c.status || '').toUpperCase().includes('NÃO');
+        return `<div class="check ${nao ? 'nao' : 'ok'}"><span class="check-i">${nao ? '✕' : '✓'}</span><div><b>${esc(c.dado)}</b><br><span style="opacity:.85">${esc(c.onde)}</span></div></div>`;
+      }).join('')}</div>` : ''}
+      ${arr(j.fontes).length ? `<div class="campo"><div class="rotulo">Fontes das afirmações</div>${arr(j.fontes).map(f => `<div class="fonte"><span class="fonte-i">↗</span><div><b>${esc(f.afirmacao)}</b><br>${esc(f.veiculo)} ${f.data ? `· ${esc(f.data)}` : ''}<br>${f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.url)}</a>` : '<span style="color:var(--vermelho)">sem URL</span>'}</div></div>`).join('')}</div>` : ''}
+      ${arr(j._citacoes).length ? `<div class="campo"><div class="rotulo">Páginas lidas pela busca (${j._citacoes.length})</div>${j._citacoes.map(c => `<div class="fonte"><span class="fonte-i">↗</span><div><b>${esc(c.titulo)}</b><br><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a></div></div>`).join('')}</div>` : ''}
+    `, false);
+  }
+
+  h += `<div class="aviso legal"><span class="aviso-i">§</span><div>${esc(window.KB.COMPLIANCE.disclaimerLongo)}</div></div>`;
+
+  $('#areaPacote').innerHTML = h;
+
+  $$('.bloco-cab').forEach(cab => {
+    cab.onclick = () => cab.parentElement.classList.toggle('fechado');
+  });
+}
+
+/* =========================================================================
+   EXPORTACAO
+   ========================================================================= */
+function pacoteParaMarkdown(j) {
+  if (!j) return '';
+  const L = [];
+  const secao = (t) => L.push(`\n## ${t}\n`);
+
+  L.push(`# ${j.tema || 'Pacote de Conteúdo'}`);
+  L.push(`\n_Gerado em ${new Date(j._geradoEm).toLocaleString('pt-BR')} — Radar Institucional_\n`);
+
+  const ri = j.radarInstitucional || {};
+  secao('1. Radar Institucional');
+  arr(ri.resumo).forEach((l, i) => L.push(`${i + 1}. ${l}`));
+  if (ri.impactoNoBolso) L.push(`\n**Quem ganha, quem perde:** ${ri.impactoNoBolso}`);
+  if (arr(ri.concorrencia).length) {
+    L.push('\n**Concorrência:**');
+    arr(ri.concorrencia).forEach(c => L.push(`- **${c.criador}**: ${c.comoAbordaria}${c.limitacao ? ` _(limitação: ${c.limitacao})_` : ''}`));
+  }
+  if (ri.nossoDiferencial) L.push(`\n**Nosso diferencial:** ${ri.nossoDiferencial}`);
+
+  if (j.mestre) {
+    secao(`2. Ancoragem — ${j.mestre.nome}`);
+    L.push(`**Princípio:** ${j.mestre.principioUsado}`);
+    L.push(`\n${j.mestre.comoAncora}`);
+    if (j.mestre.fonteDoPrincipio) L.push(`\n_Fonte: ${j.mestre.fonteDoPrincipio}_`);
+  }
+
+  if (j.roteiroShort && j.roteiroShort.texto) {
+    secao('3. Roteiro Short');
+    if (j.roteiroShort.gancho3s) L.push(`**Gancho (3s):** ${j.roteiroShort.gancho3s}\n`);
+    L.push(j.roteiroShort.texto);
+  }
+
+  if (j.roteiroLongo && j.roteiroLongo.texto) {
+    secao('4. Roteiro Longo');
+    if (j.roteiroLongo.coldOpen) L.push(`**Cold open:** ${j.roteiroLongo.coldOpen}\n`);
+    if (j.roteiroLongo.loopAberto) L.push(`**Loop aberto:** ${j.roteiroLongo.loopAberto}\n`);
+    L.push(j.roteiroLongo.texto);
+  }
+
+  if (j.cta) {
+    secao(`5. CTA — ${j.cta.produto || ''}`);
+    if (j.cta.porQueEsseProduto) L.push(j.cta.porQueEsseProduto);
+    if (j.cta.textoNoShort) L.push(`\n**No short:** ${j.cta.textoNoShort}`);
+    if (j.cta.textoNoLongo) L.push(`\n**No longo:** ${j.cta.textoNoLongo}`);
+    if (j.cta.objecaoAntecipada) L.push(`\n**Objeção antecipada:** ${j.cta.objecaoAntecipada}`);
+  }
+
+  if (j.audiovisual) {
+    secao('6. Direção Audiovisual');
+    const a = j.audiovisual;
+    if (a.formatoRecomendado) L.push(`**Formato:** ${a.formatoRecomendado}\n`);
+    [['Enquadramentos', a.enquadramentos], ['Cortes secos', a.cortesSecos], ['B-rolls', a.brolls], ['Texto na tela', a.textoNaTela]]
+      .forEach(([t, v]) => { if (arr(v).length) { L.push(`\n**${t}:**`); arr(v).forEach(x => L.push(`- ${x}`)); } });
+    if (a.erroDeRetencaoAEvitar) L.push(`\n**Evitar:** ${a.erroDeRetencaoAEvitar}`);
+  }
+
+  if (j.distribuicao) {
+    secao('7. Distribuição e SEO');
+    const d = j.distribuicao;
+    if (arr(d.titulosYoutube).length) { L.push('**Títulos:**'); arr(d.titulosYoutube).forEach(t => L.push(`- ${t}`)); }
+    if (d.legendaInstagramTikTok) L.push(`\n**Legenda:**\n\n${d.legendaInstagramTikTok}`);
+    if (d.descricaoYoutube) L.push(`\n**Descrição YouTube:**\n\n${d.descricaoYoutube}`);
+    if (arr(d.capitulos).length) { L.push('\n**Capítulos:**'); arr(d.capitulos).forEach(c => L.push(`- ${c}`)); }
+    if (arr(d.hashtags).length) L.push(`\n**Hashtags:** ${arr(d.hashtags).join(' ')}`);
+    if (arr(d.tagsOcultasYoutube).length) L.push(`\n**Tags YouTube:** ${arr(d.tagsOcultasYoutube).join(', ')}`);
+    if (arr(d.palavrasChaveCaudaLonga).length) L.push(`\n**Cauda longa:** ${arr(d.palavrasChaveCaudaLonga).join(' | ')}`);
+  }
+
+  if (j.thumbnail) {
+    secao('8. Thumbnail');
+    if (j.thumbnail.promptEN) L.push('```\n' + j.thumbnail.promptEN + '\n```');
+    if (j.thumbnail.textoNaCapa) L.push(`\n**Texto na capa:** ${j.thumbnail.textoNaCapa}`);
+  }
+
+  if (arr(j.checagem).length) {
+    secao('9. Checagem');
+    arr(j.checagem).forEach(c => L.push(`- [${String(c.status).toUpperCase().includes('NA') || String(c.status).toUpperCase().includes('NÃ') ? ' ' : 'x'}] **${c.dado}** — ${c.onde}`));
+  }
+  if (arr(j.fontes).length) {
+    L.push('\n**Fontes:**');
+    arr(j.fontes).forEach(f => L.push(`- ${f.afirmacao} — ${f.veiculo} ${f.data || ''} ${f.url || ''}`));
+  }
+
+  L.push(`\n---\n\n_${window.KB.COMPLIANCE.disclaimerLongo}_`);
+  return L.join('\n');
+}
+
+function baixar(nome, conteudo, tipo = 'text/markdown') {
+  const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1200);
+}
+
+function nomeArquivo(j) {
+  const base = (j.tema || 'pacote').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 55);
+  return `${new Date().toISOString().slice(0, 10)}-${base || 'pacote'}.md`;
+}
+
+/* =========================================================================
+   TELAS ESTATICAS
+   ========================================================================= */
+function renderMestres() {
+  $('#gradeMestres').innerHTML = window.KB.MESTRES.map(m => `
+    <article class="perfil">
+      <h3>${esc(m.nome)}</h3>
+      <div class="sub">${esc(m.titulo)} · ${esc(m.vida)}</div>
+      <div class="origem">${esc(m.origem)}</div>
+      ${m.principios.map(p => `<div class="princ"><b>${esc(p.nome)}</b><p>${esc(p.essencia)}</p><cite>${esc(p.fonte)}</cite></div>`).join('')}
+      <div class="angulo" style="margin-bottom:0"><b>Gancho pronto</b>${esc(m.ganchoViral)}</div>
+      ${m.alerta ? `<div class="aviso alerta" style="margin:11px 0 0"><span class="aviso-i">▲</span><div>${esc(m.alerta)}</div></div>` : ''}
+      ${m.checarAoVivo ? `<div class="aviso info" style="margin:11px 0 0"><span class="aviso-i">◆</span><div><b>Checar antes de citar número:</b> ${esc(m.checarAoVivo)}</div></div>` : ''}
+    </article>`).join('');
+}
+
+function renderConcorrencia() {
+  $('#gradeConcorrencia').innerHTML = window.KB.INFLUENCIADORES.map(i => `
+    <article class="perfil">
+      <h3>${esc(i.nome)} ${i.validar ? '<span class="selo-validar">a validar</span>' : ''}</h3>
+      <div class="sub">${esc(i.marca || '')}</div>
+      ${i.obra ? `<div class="origem">${esc(i.obra)}</div>` : ''}
+      ${i.posicionamento ? `<div class="princ"><b>Posicionamento</b><p>${esc(i.posicionamento)}</p></div>` : ''}
+      ${i.padraoConteudo ? `<div class="princ"><b>Padrão de conteúdo</b><p>${esc(i.padraoConteudo)}</p></div>` : ''}
+      ${(i.ondeEleGanha || i.ondeElaGanha) ? `<div class="princ"><b>Onde essa pessoa ganha</b><p>${esc(i.ondeEleGanha || i.ondeElaGanha)}</p></div>` : ''}
+      ${i.ondeVoceGanha ? `<div class="angulo" style="margin-bottom:0"><b>Onde você ganha</b>${esc(i.ondeVoceGanha)}</div>` : ''}
+      ${i.validar ? `<div class="aviso alerta" style="margin:11px 0 0"><span class="aviso-i">▲</span><div>Perfil não confirmado pelo sistema. A varredura busca dados reais antes de usar.</div></div>` : ''}
+    </article>`).join('');
+}
+
+function renderProdutos() {
+  const sel = (n) => n === 1 ? '<span class="tag tag-produto">Receita alta</span>' : n === 2 ? '<span class="tag tag-formato">Receita média</span>' : '<span class="tag tag-fonte">Complementar</span>';
+  $('#gradeProdutos').innerHTML = window.KB.PRODUTOS
+    .slice().sort((a, b) => a.prioridade - b.prioridade)
+    .map(p => `
+    <article class="perfil">
+      <h3>${esc(p.nome)}</h3>
+      <div style="margin:6px 0 12px">${sel(p.prioridade)}</div>
+      <div class="princ"><b>Dor que resolve</b><p>${esc(p.dor)}</p></div>
+      <div class="angulo"><b>Gatilho narrativo</b>${esc(p.gatilho)}</div>
+      <div class="princ"><b>Público</b><p>${esc(p.publico)}</p></div>
+      <div class="princ"><b>Âncora técnica</b><p>${esc(p.ancoraTecnica)}</p></div>
+      <div class="princ"><b>CTA curto</b><p style="font-style:italic">"${esc(p.ctaCurto)}"</p></div>
+      <div class="princ"><b>CTA longo</b><p style="font-style:italic">"${esc(p.ctaLongo)}"</p></div>
+      ${arr(p.objecoes).length ? `<div class="campo" style="margin-top:12px"><div class="rotulo">Objeções antecipadas</div><ul class="lista-limpa">${p.objecoes.map(o => `<li><b style="color:var(--vermelho)">"${esc(o[0])}"</b><br>${esc(o[1])}</li>`).join('')}</ul></div>` : ''}
+      ${arr(p.dadosParaChecar).length ? `<div class="aviso info" style="margin:11px 0 0"><span class="aviso-i">◆</span><div><b>Confirmar antes de citar:</b> ${p.dadosParaChecar.map(esc).join(' · ')}</div></div>` : ''}
+    </article>`).join('');
+}
+
+function renderFontes() {
+  $('#gradeFontes').innerHTML = window.DADOS.FONTES_TENDENCIA.map(f => `
+    <a class="fonte-link" href="${esc(f.url)}" target="_blank" rel="noopener">
+      <div style="flex:1;min-width:0">
+        <div class="nome">${esc(f.nome)}</div>
+        <div class="tipo">${esc(f.tipo)}${f.gratis === false ? ' · pago' : f.gratis === 'parcial' ? ' · freemium' : ' · grátis'}</div>
+      </div>
+      <span style="color:var(--txt-3)">↗</span>
+    </a>`).join('');
+
+  $('#gradeSeries').innerHTML = window.DADOS.SERIES.map(s => `
+    <a class="fonte-link" href="${esc(window.DADOS.linkSerie(s.cod))}" target="_blank" rel="noopener">
+      <div style="flex:1;min-width:0">
+        <div class="nome">${esc(s.rotulo)}</div>
+        <div class="tipo">BCB · série ${s.cod} · ${esc(s.tipo)}</div>
+      </div>
+      <span style="color:var(--txt-3)">↗</span>
+    </a>`).join('');
+}
+
+function renderHistorico() {
+  const h = window.CFG.lerHistorico();
+  const area = $('#areaHistorico');
+  if (!h.length) {
+    area.innerHTML = `<div class="vazio"><div class="vazio-i">▤</div><h3>Nada salvo ainda</h3><p>Gere um pacote e clique em <b>Salvar</b> para guardá-lo aqui.</p></div>`;
+    return;
+  }
+  area.innerHTML = h.map(item => `
+    <div class="hist">
+      <div class="info">
+        <h4>${esc(item.tema || 'Sem título')}</h4>
+        <span>${new Date(item.salvoEm).toLocaleString('pt-BR')}</span>
+      </div>
+      <button class="btn btn-sm btn-fantasma" data-abrir="${esc(item.id)}">Abrir</button>
+      <button class="btn btn-sm btn-fantasma" data-baixar="${esc(item.id)}">.md</button>
+      <button class="btn btn-sm btn-fantasma" data-remover="${esc(item.id)}">Excluir</button>
+    </div>`).join('');
+
+  area.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => {
+    const item = window.CFG.lerHistorico().find(x => x.id === b.dataset.abrir);
+    if (!item) return;
+    APP.pacote = item;
+    irPara('pacote');
+    $('#tituloPacote').textContent = item.tema || 'Pacote salvo';
+    renderPacote(item);
+    window.TP.definirRoteiros(item.roteiroShort && item.roteiroShort.texto, item.roteiroLongo && item.roteiroLongo.texto);
+    $('#acoesPacote').style.display = 'flex';
+  });
+  area.querySelectorAll('[data-baixar]').forEach(b => b.onclick = () => {
+    const item = window.CFG.lerHistorico().find(x => x.id === b.dataset.baixar);
+    if (item) baixar(nomeArquivo(item), pacoteParaMarkdown(item));
+  });
+  area.querySelectorAll('[data-remover]').forEach(b => b.onclick = () => {
+    window.CFG.removerDoHistorico(b.dataset.remover);
+    renderHistorico();
+    toast('Removido.', 'ok', 1800);
+  });
+}
+
+/* =========================================================================
+   CONFIGURACOES
+   ========================================================================= */
+function abrirConfig() {
+  const c = APP.cfg;
+  $('#cfgApiKey').value = c.apiKey;
+  $('#cfgTemp').value = c.temperatura;
+  $('#cfgTempVal').textContent = c.temperatura;
+  $('#cfgMaxBusca').value = c.maxResultadosBusca;
+  $('#cfgBuscaWeb').checked = c.buscaWeb;
+  ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
+    const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) el.value = c[k] || '';
+  });
+  $('#cfgFormato').value = c.formatoPadrao;
+
+  const opcoes = window.CFG.MODELOS_SUGERIDOS.map(m => `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join('');
+  ['#cfgModelo', '#cfgModeloRadar'].forEach(sel => {
+    const el = $(sel);
+    el.innerHTML = opcoes;
+    const valor = sel === '#cfgModelo' ? c.modelo : c.modeloRadar;
+    if (![...el.options].some(o => o.value === valor)) el.add(new Option(valor, valor), 0);
+    el.value = valor;
+  });
+
+  $('#cfgProduto').innerHTML = '<option value="">A IA escolhe pela dor da pauta</option>' +
+    window.KB.PRODUTOS.map(p => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join('');
+  $('#cfgProduto').value = c.produtoPreferido || '';
+
+  $('#resultadoChave').textContent = '';
+  $('#modalConfig').classList.add('on');
+}
+
+function salvarConfig() {
+  const c = APP.cfg;
+  c.apiKey = $('#cfgApiKey').value.trim();
+  c.modelo = $('#cfgModelo').value;
+  c.modeloRadar = $('#cfgModeloRadar').value;
+  c.temperatura = parseFloat($('#cfgTemp').value);
+  c.maxResultadosBusca = parseInt($('#cfgMaxBusca').value, 10) || 8;
+  c.buscaWeb = $('#cfgBuscaWeb').checked;
+  ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
+    const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) c[k] = el.value.trim();
+  });
+  c.formatoPadrao = $('#cfgFormato').value;
+  c.produtoPreferido = $('#cfgProduto').value;
+
+  window.CFG.salvarCfg(c);
+  atualizarStatus();
+  $('#modalConfig').classList.remove('on');
+  toast('Configurações salvas.', 'ok');
+}
+
+function atualizarStatus() {
+  const p = $('#statusApi');
+  const temChave = !!APP.cfg.apiKey;
+  p.innerHTML = `<span class="ponto ${temChave ? 'on' : 'off'}"></span><span>${temChave ? 'Conectado' : 'Sem chave'}</span>`;
+  $('#logoMarca').textContent = APP.cfg.marca || 'Central de Conteúdo';
+}
+
+/* =========================================================================
+   INICIALIZACAO
+   ========================================================================= */
+function iniciar() {
+  APP.cfg = window.CFG.lerCfg();
+  window.TP.iniciar();
+
+  $$('.aba').forEach(a => a.onclick = () => {
+    irPara(a.dataset.tela);
+    if (a.dataset.tela === 'historico') renderHistorico();
+  });
+
+  $('#btnVarrer').onclick = rodarVarredura;
+  const b2 = $('#btnVarrer2');
+  if (b2) b2.onclick = rodarVarredura;
+  $('#btnAtualizarMacro').onclick = carregarMacro;
+
+  $('#btnConfig').onclick = abrirConfig;
+  $('#btnFecharConfig').onclick = () => $('#modalConfig').classList.remove('on');
+  $('#btnSalvarConfig').onclick = salvarConfig;
+  $('#modalConfig').onclick = (e) => { if (e.target.id === 'modalConfig') $('#modalConfig').classList.remove('on'); };
+
+  $('#cfgTemp').oninput = (e) => $('#cfgTempVal').textContent = e.target.value;
+
+  $('#btnTestarChave').onclick = async () => {
+    const el = $('#resultadoChave');
+    el.textContent = 'testando…';
+    el.style.color = 'var(--txt-3)';
+    const r = await window.OR.testarChave(Object.assign({}, APP.cfg, { apiKey: $('#cfgApiKey').value.trim() }));
+    el.textContent = r.mensagem;
+    el.style.color = r.ok ? 'var(--verde)' : 'var(--vermelho)';
+  };
+
+  $('#btnLimparDados').onclick = () => {
+    if (!confirm('Isso apaga sua chave, suas configurações e todo o histórico salvo neste navegador. Confirma?')) return;
+    localStorage.clear();
+    location.reload();
+  };
+
+  $('#btnCopiarTudo').onclick = () => copiar(pacoteParaMarkdown(APP.pacote), 'Pacote inteiro');
+  $('#btnBaixar').onclick = () => baixar(nomeArquivo(APP.pacote), pacoteParaMarkdown(APP.pacote));
+  $('#btnSalvar').onclick = () => {
+    window.CFG.salvarNoHistorico(APP.pacote);
+    toast('Pacote salvo no histórico.', 'ok');
+  };
+  $('#btnTeleprompter').onclick = () => window.TP.abrir();
+
+  $('#btnExportarTudo').onclick = () => {
+    const h = window.CFG.lerHistorico();
+    if (!h.length) return toast('Nada para exportar.', 'err');
+    baixar(`radar-institucional-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(h, null, 2), 'application/json');
+  };
+
+  renderMestres();
+  renderConcorrencia();
+  renderProdutos();
+  renderFontes();
+  renderHistorico();
+  atualizarStatus();
+  carregarMacro();
+
+  if (!APP.cfg.apiKey) {
+    setTimeout(() => {
+      toast('Cole sua chave da OpenRouter em Configurações para ativar a varredura.', 'info', 7000);
+    }, 1100);
+  }
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* offline opcional */ });
+  }
+}
+
+/* Handlers inline no HTML gerado precisam destes nomes no escopo global. */
+window.APP = APP;
+window.copiar = copiar;
+window.rodarVarredura = rodarVarredura;
+
+document.addEventListener('DOMContentLoaded', iniciar);
+
+</script>
+</body>
+</html>
