@@ -1,0 +1,21 @@
+{
+  "name": "Radar Institucional — Central de Conteúdo Financeiro",
+  "short_name": "Radar Institucional",
+  "description": "Varredura diária do mercado, roteiro para teleprompter, CTA de banking e SEO — com dado real e fonte rastreável.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080B11",
+  "theme_color": "#080B11",
+  "lang": "pt-BR",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='104' fill='%23080B11'/%3E%3Ctext x='256' y='330' font-family='Inter,Arial,sans-serif' font-size='210' font-weight='800' fill='%23E5B75C' text-anchor='middle'%3ERI%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

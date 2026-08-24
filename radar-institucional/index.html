@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radar Institucional — Central de Conteúdo Financeiro</title>
+<meta name="description" content="Varredura diária do mercado, roteiro pronto para teleprompter, CTA de banking e SEO — com dado real e fonte rastreável.">
+<meta name="theme-color" content="#080B11">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ================= TOPO ================= -->
+<header class="topo">
+  <div class="topo-in">
+    <div class="logo">
+      <div class="logo-marca">RI</div>
+      <div class="logo-txt">
+        <strong>Radar Institucional</strong>
+        <span id="logoMarca">Central de Conteúdo</span>
+      </div>
+    </div>
+
+    <nav class="abas" id="abas">
+      <button class="aba ativa" data-tela="radar">Radar do Dia</button>
+      <button class="aba" data-tela="pacote">Pacote</button>
+      <button class="aba" data-tela="mestres">Mestres</button>
+      <button class="aba" data-tela="concorrencia">Concorrência</button>
+      <button class="aba" data-tela="produtos">Esteira</button>
+      <button class="aba" data-tela="fontes">Fontes</button>
+      <button class="aba" data-tela="historico">Histórico</button>
+    </nav>
+
+    <div class="topo-dir">
+      <span class="pilula" id="statusApi"><span class="ponto off"></span><span>Sem chave</span></span>
+      <button class="btn btn-sm btn-fantasma" id="btnConfig">Configurações</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= TELA: RADAR ================= -->
+<main class="tela ativa" id="tela-radar">
+
+  <div class="faixa-macro" id="faixaMacro"></div>
+
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Radar do Dia</h2>
+      <p id="subRadar">Varredura do que está quente agora no mercado — com fonte e data em cada pauta.</p>
+    </div>
+    <div class="acoes">
+      <button class="btn btn-fantasma" id="btnAtualizarMacro">Atualizar macro</button>
+      <button class="btn btn-ouro btn-lg" id="btnVarrer">Rodar varredura do dia</button>
+    </div>
+  </div>
+
+  <div class="cartao" style="margin-bottom:18px">
+    <div class="rotulo">Injeção manual de dados <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--txt-3)">— opcional</span></div>
+    <textarea id="dadosColados" placeholder="Cole aqui o que você viu no Google Trends, BuzzSumo, Exploding Topics, um print de notícia, um trecho de relatório… A varredura vai tratar isso como pista e validar antes de usar."></textarea>
+    <div class="dica">Deixe vazio para a ferramenta buscar tudo sozinha. Nada colado aqui é aceito como verdade sem confirmação em fonte.</div>
+  </div>
+
+  <div id="areaPautas">
+    <div class="vazio">
+      <div class="vazio-i">◎</div>
+      <h3>Nenhuma varredura rodada hoje</h3>
+      <p>Clique em <b>Rodar varredura do dia</b>. A ferramenta busca na web o que está quente nas últimas 72 horas, cruza com os dados do Banco Central e devolve as pautas ordenadas por potencial de viralização.</p>
+      <button class="btn btn-ouro btn-lg" id="btnVarrer2">Rodar varredura do dia</button>
+    </div>
+  </div>
+</main>
+
+<!-- ================= TELA: PACOTE ================= -->
+<main class="tela" id="tela-pacote">
+  <div class="cabecalho-secao">
+    <div>
+      <h2 id="tituloPacote">Pacote de Conteúdo</h2>
+      <p id="subPacote">Escolha uma pauta no Radar para gerar o pacote completo.</p>
+    </div>
+    <div class="acoes" id="acoesPacote" style="display:none">
+      <button class="btn btn-fantasma" id="btnCopiarTudo">Copiar tudo</button>
+      <button class="btn btn-fantasma" id="btnBaixar">Baixar .md</button>
+      <button class="btn btn-fantasma" id="btnSalvar">Salvar</button>
+      <button class="btn btn-ouro" id="btnTeleprompter">Abrir Teleprompter</button>
+    </div>
+  </div>
+  <div id="areaPacote">
+    <div class="vazio">
+      <div class="vazio-i">▤</div>
+      <h3>Nenhum pacote gerado</h3>
+      <p>Rode a varredura no Radar do Dia e clique em uma pauta. Você recebe: análise de cenário, roteiro de short, roteiro longo, CTA consultivo, direção audiovisual, SEO completo e prompt de thumbnail.</p>
+    </div>
+  </div>
+</main>
+
+<!-- ================= TELA: MESTRES ================= -->
+<main class="tela" id="tela-mestres">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Biblioteca dos Mestres</h2>
+      <p>Princípios com origem rastreável. Nada aqui é frase de efeito sem fonte.</p>
+    </div>
+  </div>
+  <div class="grade g-2" id="gradeMestres"></div>
+</main>
+
+<!-- ================= TELA: CONCORRÊNCIA ================= -->
+<main class="tela" id="tela-concorrencia">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Radar de Concorrência</h2>
+      <p>Como cada criador abordaria a pauta — e onde está a sua brecha.</p>
+    </div>
+  </div>
+  <div class="aviso info">
+    <span class="aviso-i">◆</span>
+    <div>Perfis marcados como <b>a validar</b> não são afirmados pelo sistema. A ferramenta busca na web antes de usar qualquer informação sobre eles — o mesmo padrão anti-alucinação aplicado aos dados de mercado.</div>
+  </div>
+  <div class="grade g-2" id="gradeConcorrencia"></div>
+</main>
+
+<!-- ================= TELA: PRODUTOS ================= -->
+<main class="tela" id="tela-produtos">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Esteira de Produtos</h2>
+      <p>Cada produto com a dor que resolve, o gatilho narrativo, o CTA pronto e as objeções antecipadas.</p>
+    </div>
+  </div>
+  <div class="grade g-2" id="gradeProdutos"></div>
+</main>
+
+<!-- ================= TELA: FONTES ================= -->
+<main class="tela" id="tela-fontes">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Fontes de Tendência</h2>
+      <p>Consultas pré-montadas. Abra, veja o que está subindo e cole no campo de injeção manual do Radar.</p>
+    </div>
+  </div>
+  <div class="aviso info">
+    <span class="aviso-i">◆</span>
+    <div>Google Trends, BuzzSumo, Semrush e Ahrefs não expõem API pública gratuita que funcione direto do navegador. Em vez de fingir integração, a ferramenta abre a consulta certa em um clique — e a varredura por IA cobre o restante com busca web real e citação de URL.</div>
+  </div>
+  <div class="grade g-auto" id="gradeFontes"></div>
+
+  <h3 style="margin:26px 0 14px;font-size:17px;font-weight:700">Indicadores ao vivo — fonte primária</h3>
+  <div class="grade g-auto" id="gradeSeries"></div>
+</main>
+
+<!-- ================= TELA: HISTÓRICO ================= -->
+<main class="tela" id="tela-historico">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Histórico</h2>
+      <p>Seus pacotes salvos. Ficam neste navegador.</p>
+    </div>
+    <div class="acoes"><button class="btn btn-fantasma" id="btnExportarTudo">Exportar tudo (.json)</button></div>
+  </div>
+  <div id="areaHistorico"></div>
+</main>
+
+<!-- ================= MODAL: CONFIGURAÇÕES ================= -->
+<div class="modal" id="modalConfig">
+  <div class="modal-cx">
+    <div class="modal-cab">
+      <h3>Configurações</h3>
+      <button class="btn btn-sm btn-fantasma" id="btnFecharConfig">Fechar</button>
+    </div>
+    <div class="modal-corpo">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Conexão OpenRouter</h4>
+      <div class="linha-form">
+        <div>
+          <label class="rot" for="cfgApiKey">Chave da API</label>
+          <input type="password" id="cfgApiKey" placeholder="sk-or-v1-...">
+          <div class="dica">Pegue em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--azul)">openrouter.ai/keys</a>. Fica salva só no seu navegador (localStorage) e vai direto para a OpenRouter — nenhum servidor intermediário. Como é uma ferramenta local, não use esta chave em página pública e prefira uma chave com limite de gasto definido.</div>
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgModelo">Modelo para o pacote</label>
+          <select id="cfgModelo"></select>
+          <div class="dica">Modelo mais forte = roteiro melhor.</div>
+        </div>
+        <div>
+          <label class="rot" for="cfgModeloRadar">Modelo para a varredura</label>
+          <select id="cfgModeloRadar"></select>
+          <div class="dica">Pode ser mais barato: aqui o peso é a busca.</div>
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgTemp">Temperatura — <span id="cfgTempVal">0.7</span></label>
+          <input type="range" id="cfgTemp" min="0" max="1.2" step="0.05" style="width:100%;accent-color:var(--ouro)">
+          <div class="dica">Baixo = mais previsível. Alto = mais criativo.</div>
+        </div>
+        <div>
+          <label class="rot" for="cfgMaxBusca">Resultados de busca por consulta</label>
+          <input type="number" id="cfgMaxBusca" min="3" max="20">
+          <div class="dica">Mais resultados = mais fontes, custo maior.</div>
+        </div>
+      </div>
+      <div class="linha-form">
+        <label class="switch">
+          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
+          <span style="font-size:13.5px;font-weight:600">Busca web ativada <span style="color:var(--txt-3);font-weight:400">— é o que torna os dados verificáveis</span></span>
+        </label>
+      </div>
+      <button class="btn btn-fantasma btn-sm" id="btnTestarChave">Testar chave</button>
+      <span id="resultadoChave" style="margin-left:11px;font-size:12.5px"></span>
+
+      <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Sua identidade no roteiro</h4>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgMarca">Marca / canal</label>
+          <input type="text" id="cfgMarca" placeholder="ainda não definido">
+        </div>
+        <div>
+          <label class="rot" for="cfgCredenciais">Certificações</label>
+          <input type="text" id="cfgCredenciais">
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgInstituicoes">Bagagem institucional</label>
+          <input type="text" id="cfgInstituicoes">
+        </div>
+        <div>
+          <label class="rot" for="cfgPublico">Público atendido</label>
+          <input type="text" id="cfgPublico">
+        </div>
+      </div>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgFormacao">Formação</label>
+          <input type="text" id="cfgFormacao">
+        </div>
+        <div>
+          <label class="rot" for="cfgExperiencia">Tempo de mercado</label>
+          <input type="text" id="cfgExperiencia">
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
+
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Produção</h4>
+      <div class="linha-form duas">
+        <div>
+          <label class="rot" for="cfgFormato">Formato padrão</label>
+          <select id="cfgFormato">
+            <option value="ambos">Short + Longo</option>
+            <option value="short">Só Short</option>
+            <option value="longo">Só Longo</option>
+          </select>
+        </div>
+        <div>
+          <label class="rot" for="cfgProduto">Produto preferido no CTA</label>
+          <select id="cfgProduto"></select>
+          <div class="dica">Vazio = a IA escolhe pela dor da pauta.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:22px">
+        <button class="btn btn-ouro" id="btnSalvarConfig">Salvar configurações</button>
+        <button class="btn btn-fantasma" id="btnLimparDados">Limpar tudo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= TELEPROMPTER ================= -->
+<div class="tp" id="teleprompter">
+  <div class="tp-guia"></div>
+  <div class="tp-txt" id="tpTexto"></div>
+  <div class="tp-barra">
+    <button class="btn btn-ouro btn-sm" id="tpPlay">▶ Iniciar</button>
+    <button class="btn btn-sm btn-fantasma" id="tpReiniciar">↻ Início</button>
+    <div class="grupo">
+      <label>Velocidade</label>
+      <input type="range" id="tpVel" min="1" max="60" value="16">
+      <span class="tp-val" id="tpVelVal">16</span>
+    </div>
+    <div class="grupo">
+      <label>Fonte</label>
+      <input type="range" id="tpTam" min="22" max="88" value="42">
+      <span class="tp-val" id="tpTamVal">42</span>
+    </div>
+    <div class="grupo">
+      <label class="switch" style="gap:7px">
+        <input type="checkbox" id="tpEspelho"><span class="switch-tr"></span>
+        <span style="font-size:11.5px;color:var(--txt-2);font-weight:600">Espelhar</span>
+      </label>
+    </div>
+    <select id="tpFonte" style="width:auto;padding:6px 11px;font-size:12.5px">
+      <option value="short">Roteiro Short</option>
+      <option value="longo">Roteiro Longo</option>
+    </select>
+    <span style="font-size:11px;color:var(--txt-3);margin-left:auto">Espaço = play/pause · ↑↓ = velocidade · Esc = sair</span>
+    <button class="btn btn-sm btn-fantasma" id="tpFechar">Fechar</button>
+  </div>
+</div>
+
+<div class="toast-area" id="toasts"></div>
+
+<script src="js/knowledge.js"></script>
+<script src="js/config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/prompts.js"></script>
+<script src="js/openrouter.js"></script>
+<script src="js/teleprompter.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
