@@ -25,6 +25,7 @@ from urllib.parse import urlparse, parse_qs, quote
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 import ssl
+import subprocess
 
 PORTA_PADRAO = 8080
 UA = 'Mozilla/5.0 (compatible; RadarInstitucional/1.0)'
@@ -115,63 +116,49 @@ def url_news(consulta, idioma='pt'):
 # --------------------------------------------------------------------------
 
 # Estado do SSL, descoberto na primeira falha e reaproveitado depois.
-_ssl_estado = {'modo': 'padrao', 'aviso': ''}
+_fallback = {'curl': False}
 
-def _contexto(modo):
-    if modo == 'padrao':
-        return ssl.create_default_context()
-    if modo == 'certifi':
-        import certifi
-        return ssl.create_default_context(cafile=certifi.where())
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+def baixar(url, timeout=10):
+    """Busca um feed. Tenta urllib; se falhar, cai para o curl do sistema.
 
-def baixar(url, timeout=18):
-    """Busca um feed, com cadeia de fallback para certificado.
-
-    Python instalado do python.org no macOS nao usa o chaveiro do sistema e
-    falha em TODA conexao https ate rodar "Install Certificates.command".
-    Isso derruba a coleta inteira de uma vez. Aqui a gente detecta, tenta
-    contornar e - se so der com verificacao desligada - registra o aviso para
-    a interface mostrar, em vez de silenciar.
+    Motivo do curl: Python instalado do python.org no macOS nao usa o chaveiro
+    do sistema e falha em TODA conexao https ate rodar
+    "Install Certificates.command" - o que derruba a coleta inteira de uma vez.
+    O curl do macOS usa o chaveiro e funciona sempre. Em vez de exigir que o
+    usuario conserte o Python, a gente usa a ferramenta que ja funciona.
     """
-    req = Request(url, headers={
+    cabecalhos = {
         'User-Agent': UA,
         'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
         'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-    })
+    }
 
-    modos = [_ssl_estado['modo']] + [m for m in ('padrao', 'certifi', 'inseguro')
-                                     if m != _ssl_estado['modo']]
-    ultimoErro = None
-    for modo in modos:
-        try:
-            with urlopen(req, timeout=timeout, context=_contexto(modo)) as r:
-                bruto = r.read()
-            if modo != _ssl_estado['modo']:
-                _ssl_estado['modo'] = modo
-                if modo == 'certifi':
-                    _ssl_estado['aviso'] = ('O Python deste computador nao encontrou os certificados do '
-                                            'sistema; a coleta esta usando o pacote certifi.')
-                elif modo == 'inseguro':
-                    _ssl_estado['aviso'] = ('ATENCAO: o Python deste computador nao tem certificados '
-                                            'instalados, e a coleta esta rodando SEM verificar o certificado '
-                                            'dos sites. Funciona, mas o ideal e corrigir: no macOS, abra a '
-                                            'pasta Applications/Python 3.x e rode "Install Certificates.command". '
-                                            'Depois reinicie o servidor.')
-            break
-        except ImportError:
-            continue                      # certifi nao instalado, tenta o proximo
-        except URLError as e:
-            razao = getattr(e, 'reason', e)
-            if isinstance(razao, ssl.SSLError) or 'CERTIFICATE' in str(razao).upper():
-                ultimoErro = e
-                continue                  # problema de certificado: proximo modo
-            raise
-    else:
-        raise ultimoErro or URLError('falha desconhecida')
+    # 1) urllib com verificacao normal
+    try:
+        req = Request(url, headers=cabecalhos)
+        with urlopen(req, timeout=timeout, context=ssl.create_default_context()) as r:
+            return _decodificar(r.read())
+    except Exception as e:
+        erroUrllib = e
+
+    # 2) curl do sistema
+    try:
+        saida = subprocess.run(
+            ['curl', '-sS', '--fail', '--location', '--max-time', str(timeout),
+             '-A', UA, '-H', 'Accept: application/rss+xml, application/xml, */*', url],
+            capture_output=True, timeout=timeout + 5)
+        if saida.returncode == 0 and saida.stdout:
+            _fallback['curl'] = True
+            return _decodificar(saida.stdout)
+        detalheCurl = (saida.stderr or b'').decode('utf-8', 'ignore')[:120]
+    except FileNotFoundError:
+        detalheCurl = 'curl nao encontrado neste sistema'
+    except Exception as e:
+        detalheCurl = f'{type(e).__name__}: {e}'[:120]
+
+    raise RuntimeError(f'urllib: {type(erroUrllib).__name__}: {erroUrllib} | curl: {detalheCurl}')
+
+def _decodificar(bruto):
     for cod in ('utf-8', 'latin-1'):
         try:
             return bruto.decode(cod)
@@ -552,7 +539,7 @@ def coletar(forcar=False):
         except Exception as e:
             return tipo, rot, idi, None, f'{type(e).__name__}: {e}'[:180], round(_t.time() - t0, 2)
 
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    with ThreadPoolExecutor(max_workers=18) as pool:
         for tipo, rot, idi, xml, erro, seg in pool.map(puxar, tarefas):
             if erro:
                 relatorio.append({'fonte': rot, 'tipo': tipo, 'ok': False, 'itens': 0,
@@ -594,8 +581,11 @@ def coletar(forcar=False):
         'fontesFalhas': len(relatorio) - len(oks),
         'relatorio': sorted(relatorio, key=lambda r: (r['ok'], -r['itens'])),
         'falhas': [f"{r['fonte']}: {r['erro']}" for r in relatorio if not r['ok']],
-        'avisoSSL': _ssl_estado['aviso'],
-        'modoSSL': _ssl_estado['modo'],
+        'avisoSSL': ('O Python deste computador nao consegue validar certificados, entao a coleta '
+                     'esta usando o curl do sistema. Funciona normalmente. Para corrigir a origem: '
+                     'abra Applications/Python 3.x e rode "Install Certificates.command".')
+                    if _fallback['curl'] else '',
+        'modoSSL': 'curl' if _fallback['curl'] else 'padrao',
         'trends': trends[:24],
         'assuntos': grupos,
         'frentes': sorted({n['frente'] for n in unicas}),

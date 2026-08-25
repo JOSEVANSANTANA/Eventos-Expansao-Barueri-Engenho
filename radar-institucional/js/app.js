@@ -165,7 +165,7 @@ async function rodarVarredura() {
   let noticiasTexto = '';
   if (APP.temServidor) {
     const r0 = $('#carregandoRadar');
-    if (r0) r0.textContent = 'Colhendo manchetes reais (Google News, Trends e veículos)…';
+    if (r0) r0.textContent = 'Colhendo manchetes reais de 47 fontes (Brasil e exterior)…';
     try {
       APP.colheita = await window.DADOS.coletarNoticias();
       noticiasTexto = window.DADOS.noticiasParaTexto(APP.colheita);
@@ -232,8 +232,9 @@ function renderPautas(j, citacoes, resultado) {
     const c = APP.colheita;
     html += `<div class="aviso info"><span class="aviso-i">✓</span><div>
       <b>${c.totalManchetes} manchetes reais colhidas</b> de ${c.fontesConsultadas} fontes
-      em ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')} — Google News, Google Trends
-      e veículos brasileiros. As pautas abaixo saíram desse material, não da memória do modelo.
+      em ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')} — Google News Brasil e internacional,
+      Google Trends, e veículos como Folha, G1, Estadão, InfoMoney, New York Times, CNBC, WSJ e
+      Federal Reserve. As pautas abaixo saíram desse material, não da memória do modelo.
       ${resultado && resultado.buscaUsada === false
         ? '<div style="margin-top:6px;opacity:.85">A busca paga da OpenRouter não rodou, mas o coletor local cobriu o lugar dela.</div>'
         : ''}
@@ -452,7 +453,7 @@ async function colherManchetes(alvo) {
   const el = $(alvo);
   if (el) el.innerHTML = `<div class="carregando-box"><div class="spinner"></div>
     <div class="carregando-txt">Colhendo manchetes…</div>
-    <div class="carregando-sub">Google News, Google Trends e veículos brasileiros.</div></div>`;
+    <div class="carregando-sub">47 fontes: Google News BR e internacional, Trends, Folha, G1, Estadão, NYT, CNBC, WSJ, Investing, Fed.</div></div>`;
   try {
     APP.colheita = await window.DADOS.coletarNoticias(90000, true);
     renderTermometro(alvo);

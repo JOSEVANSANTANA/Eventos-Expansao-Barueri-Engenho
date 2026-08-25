@@ -12,7 +12,10 @@ const CFG_PADRAO = {
   // gratuito do momento, com cascata de reserva atras.
   modelo: 'auto',
   modeloRadar: 'auto',
-  buscaWeb: true,
+  // Desligada por padrao. A busca da OpenRouter faz busca semantica e devolve
+  // perfil de LinkedIn e pagina institucional no lugar de noticia. Quem traz
+  // noticia aqui e o coletor local, que le feed de veiculo de verdade.
+  buscaWeb: false,
   maxResultadosBusca: 8,
   temperatura: 0.7,
 
