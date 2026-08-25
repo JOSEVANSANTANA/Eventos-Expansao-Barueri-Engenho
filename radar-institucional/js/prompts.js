@@ -67,7 +67,26 @@ ${c.regrasParaIA.map((r, i) => `${i + 1}. ${r}`).join('\n')}
    de dados injetado. Entregar ainda assim e possivel - inventar nao e. As
    regras abaixo trocam "verifique na web" por "so existe o que esta aqui".
    ------------------------------------------------------------------------- */
-function blocoSemBusca() {
+function blocoSemBusca(temNoticias) {
+  if (temNoticias) {
+    return `# SOBRE AS FONTES DESTA EXECUCAO
+
+A busca web da OpenRouter nao rodou, MAS voce recebeu abaixo um bloco de
+MANCHETES REAIS colhidas agora por um coletor proprio, direto do Google News,
+do Google Trends e de veiculos brasileiros. Elas sao verdadeiras, datadas e
+tem URL. Regras:
+
+1. Use ESSAS manchetes como sua materia-prima de atualidade. Elas sao a
+   novidade do dia - trate-as como tal.
+2. E PROIBIDO citar qualquer noticia, evento ou declaracao que NAO esteja
+   entre elas ou no bloco de dados do Banco Central. Sua memoria de treino
+   esta desatualizada e nao serve como fonte.
+3. Numero so pode sair do bloco do Banco Central ou de uma manchete que o
+   contenha explicitamente. Nao deduza, nao arredonde, nao complete.
+4. No array "fontes", use as URLs reais das manchetes que voce usou.
+5. Citacao de investidor deve ser parafrase de conceito consagrado, sem aspas.`;
+  }
+
   return `# ATENCAO: BUSCA WEB INDISPONIVEL NESTA EXECUCAO
 
 Voce NAO tem acesso a internet agora. Isso muda as regras de forma absoluta:
@@ -111,7 +130,11 @@ em teleprompter - sem topicos, sem bullets, sem numeracao dentro da fala.`;
 
 /* ---------- 4. PROMPT: RADAR DO DIA ------------------------------------- */
 function promptRadar(cfg, panoramaTexto, extras, opcoes) {
-  const semBusca = !!(opcoes && opcoes.semBusca);
+  const o = opcoes || {};
+  const semBusca = !!o.semBusca;
+  const noticiasTexto = o.noticiasTexto || '';
+  const temNoticias = !!noticiasTexto.trim();
+  const jaUsados = (o.jaUsados || []).filter(Boolean);
   const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const foco = window.KB.PRODUTOS.filter(p => p.prioridade === 1).map(p => p.nome).join('; ');
 
@@ -119,9 +142,18 @@ function promptRadar(cfg, panoramaTexto, extras, opcoes) {
 
 ${blocoRegras()}
 
-${semBusca ? blocoSemBusca() + '\n' : ''}
+${semBusca ? blocoSemBusca(temNoticias) + '\n' : ''}
 # DADOS REAIS JA COLETADOS (verdade de base - pode usar livremente, ja estao verificados)
 ${panoramaTexto}
+
+${temNoticias ? '# ' + noticiasTexto + '\n' : ''}
+${jaUsados.length ? `# ASSUNTOS QUE VOCE JA USOU NOS ULTIMOS DIAS - NAO REPITA
+${jaUsados.map(t => `- ${t}`).join('\n')}
+
+Estes temas ja viraram conteudo. Escolha OUTROS assuntos da lista de manchetes.
+Se um deles for genuinamente incontornavel hoje, so pode voltar com um angulo
+COMPLETAMENTE diferente do anterior - e diga na pauta qual e a diferenca.
+` : ''}
 
 ${extras && extras.trim() ? `# DADOS COLADOS PELO USUARIO (Trends/BuzzSumo/outros - trate como pista, valide antes de afirmar)\n${extras.trim()}\n` : ''}
 # SUA TAREFA AGORA
@@ -140,6 +172,18 @@ Retorne de 6 a 8 pautas. Para cada uma, o angulo tem que ser CONTRAINTUITIVO: pe
 manchete obvia e vire do avesso. Se todo mundo vai dizer "X e ruim", ache o dado que mostra
 para quem X e otimo - ou o contrario.
 
+REGRA DE VARIEDADE - obrigatoria:
+- Cada pauta tem que sair de um ASSUNTO DIFERENTE. Nao entregue seis recortes do
+  mesmo tema.
+- Cubra pelo menos 4 frentes distintas entre as disponiveis (macro, inflacao, bolsa,
+  cambio, tributos, dividendos, imoveis, credito, previdencia, cripto, empresas,
+  fiscal, protecao, global).
+- Cada pauta deve apontar para um PRODUTO diferente da esteira sempre que possivel.
+  Seis pautas terminando no mesmo produto e falha de varredura.
+- Se voce recebeu a lista de assuntos com temperatura medida, ancore suas pautas
+  NELA: use o campo "termo" como ponto de partida e cite a temperatura que veio
+  medida, sem inventar outra.
+
 # FORMATO DE SAIDA - JSON PURO, SEM TEXTO ANTES OU DEPOIS, SEM CERCA DE CODIGO
 {
   "geradoEm": "${new Date().toISOString()}",
@@ -151,6 +195,8 @@ para quem X e otimo - ou o contrario.
       "porQueEstaQuente": "1 frase sobre o motivo de estar em alta agora",
       "anguloContraintuitivo": "o gancho polemico que ninguem esta usando - 1 a 2 frases",
       "temperaturaViral": 0,
+      "origemTemperatura": "MEDIDA (copiada do assunto colhido) ou ESTIMADA (voce julgou)",
+      "assuntoBase": "o campo termo do assunto colhido que originou esta pauta, se houver",
       "justificativaTemperatura": "por que essa nota",
       "dorDoPublico": "a dor concreta de quem tem patrimonio nisso",
       "produtoSugerido": "id do produto da esteira (cgi|consorcio|seguros|consultoria|sucessao|capitalgiro|financiamento|saude|cartoes)",
@@ -164,8 +210,12 @@ para quem X e otimo - ou o contrario.
   "alertasDeVerificacao": ["qualquer coisa que voce NAO conseguiu confirmar"]
 }
 
-temperaturaViral: inteiro de 0 a 100. Seja honesto e criterioso - se o tema e morno, de nota
-baixa. Nota alta so para tema com controversia real e volume de busca real.
+temperaturaViral: inteiro de 0 a 100.
+- Se a pauta veio de um assunto da lista colhida, COPIE a temperatura de la e marque
+  origemTemperatura como "MEDIDA". Nao invente outro numero: aquele foi calculado a
+  partir de cobertura real, recencia real e volume de busca real.
+- So estime (origemTemperatura "ESTIMADA") quando a pauta nao vier da lista. Nesse
+  caso seja criterioso: nota alta exige controversia real.
 Ordene "pautas" da maior para a menor temperatura.
 ${semBusca
   ? 'Como nao houve busca, o array "fontes" de cada pauta deve conter apenas os links do Banco Central dos dados usados, ou ficar vazio. NAO invente URL.'
@@ -179,6 +229,7 @@ function promptPacote(cfg, panoramaTexto, pauta, opcoes) {
   const produto = kb.PRODUTOS.find(p => p.id === (opcoes.produtoId || pauta.produtoSugerido)) || kb.PRODUTOS[0];
   const formato = opcoes.formato || 'ambos';
   const semBusca = !!opcoes.semBusca;
+  const noticiasTexto = opcoes.noticiasTexto || '';
 
   const dossieMestre = `# MESTRE PARA ANCORAR A TESE: ${mestre.nome} (${mestre.titulo})
 Origem verificada: ${mestre.origem}
@@ -207,12 +258,13 @@ ${(produto.dadosParaChecar || []).map(d => `- ${d}`).join('\n')}`;
 
 ${blocoRegras()}
 
-${semBusca ? blocoSemBusca() + '\n' : ''}
+${semBusca ? blocoSemBusca(!!noticiasTexto.trim()) + '\n' : ''}
 ${MARCACOES}
 
 # DADOS REAIS JA COLETADOS (verdade de base verificada)
 ${panoramaTexto}
 
+${noticiasTexto ? '# ' + noticiasTexto + '\n' : ''}
 ${dossieMestre}
 
 ${dossieProduto}

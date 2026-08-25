@@ -28,4 +28,4 @@ fi
   elif command -v xdg-open >/dev/null 2>&1; then xdg-open http://localhost:8080
   fi ) &
 
-python3 -m http.server 8080
+python3 servidor.py 8080

@@ -41,6 +41,72 @@ com limite de gasto definido no painel da OpenRouter.
 
 ---
 
+## O coletor de manchetes
+
+**O problema que ele resolve:** nenhum feed de notícia brasileiro libera CORS, então o
+navegador não consegue lê-los sozinho. E a busca web da OpenRouter é paga — sem saldo,
+ela não roda. O resultado era uma varredura sem notícia nenhuma, girando em torno dos
+mesmos dados do Banco Central e repetindo pauta.
+
+**A solução:** o `servidor.py` que os atalhos já sobem passou a colher notícia. Ele busca
+do lado do servidor, onde CORS não se aplica, e entrega tudo processado. Sem instalar
+nada, sem chave, sem custo — só a biblioteca padrão do Python.
+
+O que ele lê a cada coleta:
+
+| Fonte | O que traz |
+|---|---|
+| **Google News** | 14 consultas temáticas, ~100 manchetes cada, com veículo e horário |
+| **Google Trends BR** | buscas em alta agora, com volume aproximado real |
+| **Veículos diretos** | InfoMoney, Money Times, Seu Dinheiro, Exame Invest |
+
+Na prática: **cerca de 1.400 manchetes únicas de 19 fontes em 3 segundos**, cobrindo 15
+frentes — macro, inflação, bolsa, câmbio, tributos, dividendos, imóveis, crédito,
+previdência, cripto, empresas, fiscal, proteção e global. Resultado fica em cache por
+5 minutos; o botão *Colher manchetes agora* força uma coleta nova.
+
+As consultas ficam no topo do `servidor.py`, em `CONSULTAS`. **É lá que se abre ou
+fecha o leque** — cada linha é uma frente de pauta.
+
+## Termômetro de viralização
+
+A nota **não é opinião do modelo**. É calculada a partir da cobertura real, com cinco
+componentes visíveis na aba Termômetro:
+
+| Componente | Peso | O que mede |
+|---|---|---|
+| **Amplitude** | 28 | em quantos veículos diferentes o assunto bateu |
+| **Velocidade** | 26 | quão recente é a cobertura (últimas 6h contam 3×, 24h 2×, 72h 1×) |
+| **Volume** | 16 | quantas matérias no total |
+| **Tensão** | 16 | quanto atrito as manchetes carregam (léxico de conflito) |
+| **Busca** | 8 | volume no Google Trends, quando o termo aparece lá |
+
+Bônus para assunto que cruza mais de uma frente (+6) e para assunto nomeado por duas
+palavras (+6).
+
+**Como ele separa assunto de categoria.** Esse foi o problema difícil. "Crédito",
+"juros" e "mercado" aparecem em quase toda matéria de economia — são o nome da
+editoria, não pauta. A ferramenta resolve em duas passadas: primeiro mede quantos
+bigramas diferentes cada palavra encabeça; palavra que se combina com três ou mais
+coisas ("juros" puxa *alta de juros*, *corte de juros*, *juros altos*…) é categoria e
+sai da lista. O que sobra são assuntos de verdade: *dívida pública*, *imposto de renda*,
+*inadimplência*, *crédito imobiliário*, *reforma tributária*, *Braskem*.
+
+Cada pauta gerada mostra se a temperatura é **medida** (copiada do coletor) ou
+**estimada** (o modelo julgou, quando a pauta não veio da lista).
+
+## Como ela evita repetir pauta
+
+Três travas, todas no prompt:
+
+1. Os temas dos **últimos 12 pacotes salvos** vão junto com a instrução explícita de não
+   repetir. Um tema só pode voltar com ângulo declaradamente diferente.
+2. A varredura é obrigada a cobrir **pelo menos 4 frentes distintas** entre as 14.
+3. Cada pauta deve apontar para um **produto diferente** da esteira sempre que possível —
+   seis pautas terminando no mesmo produto é falha de varredura.
+
+Salvar os pacotes no Histórico não é opcional: é o que alimenta a trava.
+
 ## Escolha de modelo
 
 A OpenRouter é um roteador, e a ferramenta usa isso a favor: em vez de cravar um
@@ -152,7 +218,8 @@ Todo indicador do painel vem de API pública em fonte primária, com data e link
 | **BCB / SGS — crédito** | Juros médios PF: total, crédito pessoal (a.a. e a.m.) e cheque especial |
 | **BCB / Focus** | Expectativa de mercado para Selic, IPCA, PIB e câmbio |
 | **IBGE / SIDRA** | IPCA (fonte cruzada) |
-| **Busca web via OpenRouter** | Notícia das últimas 72h, com URL e data em cada citação |
+| **Coletor local** | ~1.400 manchetes de Google News, Google Trends e 4 veículos |
+| **Busca web via OpenRouter** | camada extra, opcional e paga, quando há saldo |
 
 O **juro real ex-ante** é calculado, não copiado: `(1 + Selic) / (1 + IPCA esperado) - 1`.
 O método aparece no tooltip do card.

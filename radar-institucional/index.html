@@ -31,11 +31,13 @@
       <button class="aba" data-tela="mestres">Mestres</button>
       <button class="aba" data-tela="concorrencia">Concorrência</button>
       <button class="aba" data-tela="produtos">Esteira</button>
+      <button class="aba" data-tela="termometro">Termômetro</button>
       <button class="aba" data-tela="fontes">Fontes</button>
       <button class="aba" data-tela="historico">Histórico</button>
     </nav>
 
     <div class="topo-dir">
+      <span class="pilula" id="statusColetor"><span class="ponto"></span><span>Coletor…</span></span>
       <span class="pilula" id="statusApi"><span class="ponto off"></span><span>Sem chave</span></span>
       <button class="btn btn-sm btn-fantasma" id="btnConfig">Configurações</button>
     </div>
@@ -63,6 +65,8 @@
     <textarea id="dadosColados" placeholder="Cole aqui o que você viu no Google Trends, BuzzSumo, Exploding Topics, um print de notícia, um trecho de relatório… A varredura vai tratar isso como pista e validar antes de usar."></textarea>
     <div class="dica">Deixe vazio para a ferramenta buscar tudo sozinha. Nada colado aqui é aceito como verdade sem confirmação em fonte.</div>
   </div>
+
+  <section id="areaTermometro"></section>
 
   <div id="areaPautas">
     <div class="vazio">
@@ -132,6 +136,18 @@
     </div>
   </div>
   <div class="grade g-2" id="gradeProdutos"></div>
+</main>
+
+<!-- ================= TELA: TERMÔMETRO ================= -->
+<main class="tela" id="tela-termometro">
+  <div class="cabecalho-secao">
+    <div>
+      <h2>Termômetro de Viralização</h2>
+      <p>Medido, não estimado. Cada nota vem de cobertura real, recência real e volume de busca real.</p>
+    </div>
+    <div class="acoes"><button class="btn btn-ouro" id="btnColher">Colher manchetes agora</button></div>
+  </div>
+  <div id="areaTermometroFull"></div>
 </main>
 
 <!-- ================= TELA: FONTES ================= -->

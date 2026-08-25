@@ -15,14 +15,14 @@ echo.
 where python >nul 2>nul
 if %errorlevel%==0 (
   start "" http://localhost:8080
-  python -m http.server 8080
+  python servidor.py 8080
   goto fim
 )
 
 where py >nul 2>nul
 if %errorlevel%==0 (
   start "" http://localhost:8080
-  py -m http.server 8080
+  py servidor.py 8080
   goto fim
 )
 

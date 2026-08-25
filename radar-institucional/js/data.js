@@ -182,9 +182,86 @@ const FONTES_TENDENCIA = [
   { nome: 'CVM - Noticias',            url: 'https://www.gov.br/cvm/pt-br/assuntos/noticias', tipo: 'Regulatorio', gratis: true }
 ];
 
+/* -------------------------------------------------------------------------
+   COLETA DE NOTICIA REAL
+   -------------------------------------------------------------------------
+   Nenhum feed de noticia brasileiro libera CORS, entao o navegador nao
+   consegue le-los sozinho. Quem busca e o servidor local (servidor.py), que
+   roda junto com a ferramenta e nao tem essa restricao. Ele devolve as
+   manchetes ja agrupadas por assunto e com o termometro calculado.
+
+   Aberto por file://, isso nao existe - e a interface avisa.
+   ------------------------------------------------------------------------- */
+
+async function servidorDisponivel() {
+  if (location.protocol === 'file:') return false;
+  try {
+    const r = await fetch('api/status', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!j.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function coletarNoticias(timeoutMs = 90000, forcar = false) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch('api/coleta' + (forcar ? '?forcar=1' : ''),
+                          { signal: ctrl.signal, cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    if (j.erro) throw new Error(j.erro);
+    return j;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* Converte a coleta no bloco de verdade que a IA recebe. Sao manchetes reais,
+   com veiculo, horas e URL - a IA nao precisa (nem pode) inventar noticia. */
+function noticiasParaTexto(col, limite = 14) {
+  if (!col || !col.assuntos || !col.assuntos.length) return '';
+
+  const linhas = [
+    'MANCHETES REAIS COLHIDAS AGORA (fonte: Google News, Google Trends e veiculos brasileiros)',
+    `Coleta de ${new Date(col.coletadoEm).toLocaleString('pt-BR')} · ${col.totalManchetes} manchetes de ${col.fontesConsultadas} fontes.`,
+    '',
+    'ASSUNTOS ORDENADOS POR TEMPERATURA MEDIDA (nao estimada - calculada a partir',
+    'de quantos veiculos cobriram, quao recente e, quanto atrito carrega e volume de busca):',
+    ''
+  ];
+
+  col.assuntos.slice(0, limite).forEach((a, i) => {
+    const c = a.componentes || {};
+    linhas.push(`${i + 1}. [${a.temperatura}/100] ${a.termo.toUpperCase()}`);
+    linhas.push(`   ${a.volume} materias em ${a.veiculos} veiculos diferentes`
+      + ` · ${a.recentes6h} nas ultimas 6h · frentes: ${(a.frentes || []).join(', ')}`);
+    linhas.push(`   componentes: amplitude ${c.amplitude} | velocidade ${c.velocidade}`
+      + ` | volume ${c.volume} | tensao ${c.tensao} | busca ${c.busca}`);
+    (a.manchetes || []).slice(0, 4).forEach((m) => {
+      linhas.push(`   - "${m.titulo}" (${m.veiculo}${m.horas !== null ? `, ha ${m.horas}h` : ''}) ${m.url || ''}`);
+    });
+    linhas.push('');
+  });
+
+  if (col.trends && col.trends.length) {
+    linhas.push('BUSCAS EM ALTA NO BRASIL AGORA (Google Trends, com volume aproximado):');
+    col.trends.slice(0, 12).forEach((t) => {
+      linhas.push(`   - ${t.termo} (${t.trafegoTexto} buscas)`);
+    });
+    linhas.push('');
+  }
+
+  return linhas.join('\n');
+}
+
 if (typeof window !== 'undefined') {
   window.DADOS = {
     SERIES, FONTES_TENDENCIA,
-    coletarPanorama, panoramaParaTexto, buscarSerie, buscarFocus, linkSerie
+    coletarPanorama, panoramaParaTexto, buscarSerie, buscarFocus, linkSerie,
+    servidorDisponivel, coletarNoticias, noticiasParaTexto
   };
 }

@@ -9,7 +9,9 @@ const APP = {
   pautas: [],
   pacote: null,
   pautaAtual: null,
-  catalogo: null
+  catalogo: null,
+  colheita: null,        // manchetes reais do coletor local
+  temServidor: false
 };
 
 /* ---------- utilitarios ------------------------------------------------- */
@@ -158,6 +160,24 @@ async function rodarVarredura() {
   const stream = $('#streamRadar');
   const colado = $('#dadosColados').value;
 
+  // Colhe manchetes reais ANTES de falar com a IA. Isso e o que faz a
+  // varredura ter noticia de verdade mesmo sem a busca paga da OpenRouter.
+  let noticiasTexto = '';
+  if (APP.temServidor) {
+    const r0 = $('#carregandoRadar');
+    if (r0) r0.textContent = 'Colhendo manchetes reais (Google News, Trends e veículos)…';
+    try {
+      APP.colheita = await window.DADOS.coletarNoticias();
+      noticiasTexto = window.DADOS.noticiasParaTexto(APP.colheita);
+      if (r0) r0.textContent = `${APP.colheita.totalManchetes} manchetes colhidas. Analisando…`;
+    } catch (e) {
+      toast('Não consegui colher as manchetes: ' + e.message, 'err', 6000);
+    }
+  }
+
+  const jaUsados = window.CFG.lerHistorico().slice(0, 12)
+    .map(h => h.tema).filter(Boolean);
+
   try {
     const r = await window.OR.chamarComCascata(APP.cfg, {
       modelo: APP.cfg.modeloRadar,
@@ -165,7 +185,9 @@ async function rodarVarredura() {
       // prompt carrega regras diferentes, então ela pede a certa na hora.
       mensagensPara: (comBusca) => ([{
         role: 'user',
-        content: window.PROMPTS.promptRadar(APP.cfg, APP.panoramaTexto, colado, { semBusca: !comBusca })
+        content: window.PROMPTS.promptRadar(APP.cfg, APP.panoramaTexto, colado, {
+          semBusca: !comBusca, noticiasTexto, jaUsados
+        })
       }]),
       aoTentar: ({ modelo, comBusca, indice, total }) => {
         stream.textContent = '';
@@ -185,6 +207,7 @@ async function rodarVarredura() {
 
     APP.pautas = j.pautas;
     renderPautas(j, r.citacoes, r);
+    renderTermometro('#areaTermometro', 6);
     toast(`${j.pautas.length} pautas via ${r.modeloUsado}.`, 'ok');
 
   } catch (e) {
@@ -203,9 +226,21 @@ function renderPautas(j, citacoes, resultado) {
 
   // Faltar busca web muda o valor do que está na tela. Precisa ficar
   // impossível de ignorar, não escondido num rodapé.
-  if (resultado && resultado.buscaUsada === false) {
+  const comColheita = !!(APP.colheita && APP.colheita.totalManchetes);
+
+  if (comColheita) {
+    const c = APP.colheita;
+    html += `<div class="aviso info"><span class="aviso-i">✓</span><div>
+      <b>${c.totalManchetes} manchetes reais colhidas</b> de ${c.fontesConsultadas} fontes
+      em ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')} — Google News, Google Trends
+      e veículos brasileiros. As pautas abaixo saíram desse material, não da memória do modelo.
+      ${resultado && resultado.buscaUsada === false
+        ? '<div style="margin-top:6px;opacity:.85">A busca paga da OpenRouter não rodou, mas o coletor local cobriu o lugar dela.</div>'
+        : ''}
+    </div></div>`;
+  } else if (resultado && resultado.buscaUsada === false) {
     html += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
-      <b>Estas pautas saíram SEM busca web.</b><br>
+      <b>Estas pautas saíram SEM busca web e SEM coletor.</b><br>
       A busca da OpenRouter é cobrada por consulta e não pôde ser executada agora
       — normalmente por falta de saldo. As pautas abaixo foram construídas apenas
       com os dados do Banco Central que você vê no painel, que são reais e datados,
@@ -252,7 +287,7 @@ function renderPautas(j, citacoes, resultado) {
     html += `
       <article class="pauta" data-idx="${idx}">
         <div class="pauta-topo">
-          <div class="termo ${cls}">${t}</div>
+          <div class="termo ${cls}" title="${String(p.origemTemperatura || '').toUpperCase().includes('MEDID') ? 'Temperatura medida pelo coletor' : 'Temperatura estimada pelo modelo'}">${t}</div>
           <div style="flex:1;min-width:0">
             <h3>${esc(p.titulo)}</h3>
             ${p.janelaDeOportunidade ? `<div class="quando">Janela: ${esc(p.janelaDeOportunidade)}</div>` : ''}
@@ -266,6 +301,9 @@ function renderPautas(j, citacoes, resultado) {
           ${mestre ? `<span class="tag tag-mestre">${esc(mestre.nome)}</span>` : ''}
           ${p.formatoIdeal ? `<span class="tag tag-formato">${esc(p.formatoIdeal)}</span>` : ''}
           <span class="tag tag-fonte">${arr(p.fontes).length} fonte(s)</span>
+          ${String(p.origemTemperatura || '').toUpperCase().includes('MEDID')
+            ? '<span class="selo-medida">temp. medida</span>'
+            : '<span class="selo-estimada">temp. estimada</span>'}
         </div>
       </article>`;
   });
@@ -283,6 +321,113 @@ function renderPautas(j, citacoes, resultado) {
   $$('.pauta').forEach(el => {
     el.onclick = () => gerarPacote(APP.pautas[+el.dataset.idx]);
   });
+}
+
+/* =========================================================================
+   TERMOMETRO DE VIRALIZACAO
+   -------------------------------------------------------------------------
+   Nota medida, nao opinada. Os cinco componentes vem do coletor:
+   amplitude (em quantos veiculos bateu), velocidade (quao recente),
+   volume (quantas materias), tensao (quanto atrito nas manchetes) e
+   busca (volume no Google Trends).
+   ========================================================================= */
+function renderTermometro(alvo, limite) {
+  const el = $(alvo);
+  if (!el) return;
+  const c = APP.colheita;
+
+  if (!c || !c.assuntos || !c.assuntos.length) {
+    el.innerHTML = APP.temServidor
+      ? `<div class="vazio"><div class="vazio-i">◷</div><h3>Nenhuma colheita ainda</h3>
+         <p>Rode a varredura do dia ou clique em <b>Colher manchetes agora</b>. O coletor
+         lê Google News, Google Trends e veículos brasileiros, e mede a temperatura de
+         cada assunto a partir da cobertura real.</p></div>`
+      : `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+         <b>O coletor não está disponível neste modo.</b><br>
+         Você abriu o arquivo direto do disco (<code>file://</code>). Nenhum feed de notícia
+         brasileiro libera acesso ao navegador, então quem busca é o servidor local.
+         <div style="margin-top:8px">Para ativar: descompacte o <b>.zip</b> e abra pelo
+         atalho <b>ABRIR-WINDOWS.bat</b> ou <b>ABRIR-MAC-LINUX.command</b>. É o mesmo clique
+         duplo, e aí a coleta funciona.</div></div></div>`;
+    return;
+  }
+
+  const nota = (t) => t >= 70 ? 'q' : t >= 45 ? 'm' : 'f';
+  const barra = (rot, val, cls) => `
+    <div class="barra ${cls || ''}">
+      <div class="rot"><span>${rot}</span><b>${val}</b></div>
+      <div class="trilho"><div class="preench" style="width:${Math.max(2, Math.min(100, val))}%"></div></div>
+    </div>`;
+
+  const itens = c.assuntos.slice(0, limite || 22).map((a, i) => {
+    const k = a.componentes || {};
+    return `
+    <article class="termo-item" data-assunto="${i}">
+      <div class="termo-cab">
+        <div class="termo-nota ${nota(a.temperatura)}"><b>${a.temperatura}</b><span>medida</span></div>
+        <div class="termo-titulo">
+          <h4>${esc(a.termo)}</h4>
+          <div class="meta">${a.volume} matérias · ${a.veiculos} veículos ·
+            ${a.recentes6h} nas últimas 6h · ${(a.frentes || []).join(', ')}</div>
+        </div>
+      </div>
+      <div class="barras">
+        ${barra('Amplitude', k.amplitude)}
+        ${barra('Velocidade', k.velocidade, 'velocidade')}
+        ${barra('Volume', k.volume)}
+        ${barra('Tensão', k.tensao, 'tensao')}
+        ${barra('Busca', k.busca, 'busca')}
+      </div>
+      <div class="termo-manchetes">
+        ${(a.manchetes || []).slice(0, 3).map(m => `
+          <a href="${esc(m.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+            ${esc(m.titulo)}
+            <span class="vei">— ${esc(m.veiculo)}${m.horas !== null ? ` · há ${m.horas}h` : ''}</span>
+          </a>`).join('')}
+      </div>
+    </article>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="cartao" style="margin-bottom:14px;padding:13px 16px;font-size:12.5px;color:var(--txt-2)">
+      <b style="color:var(--ouro)">${c.totalManchetes} manchetes</b> de ${c.fontesConsultadas} fontes ·
+      colhidas ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')} ·
+      ${(c.frentes || []).length} frentes cobertas
+      ${c.falhas && c.falhas.length ? ` · <span style="color:var(--vermelho)">${c.falhas.length} fonte(s) falharam</span>` : ''}
+    </div>
+    <div class="termo-lista">${itens}</div>`;
+
+  el.querySelectorAll('.termo-item').forEach(it => {
+    it.onclick = () => {
+      const a = c.assuntos[+it.dataset.assunto];
+      if (!a) return;
+      gerarPacote({
+        titulo: a.termo,
+        oQueAconteceu: (a.manchetes || []).slice(0, 3).map(m => m.titulo).join(' | '),
+        anguloContraintuitivo: '',
+        dorDoPublico: '',
+        temperaturaViral: a.temperatura,
+        fontes: (a.manchetes || []).map(m => ({ titulo: m.titulo, url: m.url, veiculo: m.veiculo }))
+      });
+    };
+  });
+}
+
+async function colherManchetes(alvo) {
+  if (!APP.temServidor) { renderTermometro(alvo); return; }
+  const el = $(alvo);
+  if (el) el.innerHTML = `<div class="carregando-box"><div class="spinner"></div>
+    <div class="carregando-txt">Colhendo manchetes…</div>
+    <div class="carregando-sub">Google News, Google Trends e veículos brasileiros.</div></div>`;
+  try {
+    APP.colheita = await window.DADOS.coletarNoticias(90000, true);
+    renderTermometro(alvo);
+    renderTermometro('#areaTermometro', 6);
+    toast(`${APP.colheita.totalManchetes} manchetes colhidas.`, 'ok');
+  } catch (e) {
+    if (el) el.innerHTML = `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
+      <b>Falha na coleta.</b><br>${esc(e.message)}</div></div>`;
+  }
 }
 
 /* =========================================================================
@@ -316,7 +461,8 @@ async function gerarPacote(pauta) {
           formato: APP.cfg.formatoPadrao,
           produtoId: APP.cfg.produtoPreferido || pauta.produtoSugerido,
           mestreId: pauta.mestreSugerido,
-          semBusca: !comBusca
+          semBusca: !comBusca,
+          noticiasTexto: APP.colheita ? window.DADOS.noticiasParaTexto(APP.colheita, 6) : ''
         })
       }]),
       aoTentar: ({ modelo, comBusca, indice, total }) => {
@@ -861,6 +1007,7 @@ function iniciar() {
   $$('.aba').forEach(a => a.onclick = () => {
     irPara(a.dataset.tela);
     if (a.dataset.tela === 'historico') renderHistorico();
+    if (a.dataset.tela === 'termometro') renderTermometro('#areaTermometroFull');
   });
 
   $('#btnVarrer').onclick = rodarVarredura;
@@ -904,6 +1051,17 @@ function iniciar() {
     baixar(`radar-institucional-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(h, null, 2), 'application/json');
   };
 
+  $('#btnColher').onclick = () => colherManchetes('#areaTermometroFull');
+
+  window.DADOS.servidorDisponivel().then(ok => {
+    APP.temServidor = ok;
+    renderTermometro('#areaTermometroFull');
+    const p = $('#statusColetor');
+    if (p) p.innerHTML = ok
+      ? '<span class="ponto on"></span><span>Coletor ativo</span>'
+      : '<span class="ponto off"></span><span>Sem coletor</span>';
+  });
+
   renderMestres();
   renderConcorrencia();
   renderProdutos();
@@ -927,5 +1085,6 @@ function iniciar() {
 window.APP = APP;
 window.copiar = copiar;
 window.rodarVarredura = rodarVarredura;
+window.gerarPacote = gerarPacote;
 
 document.addEventListener('DOMContentLoaded', iniciar);
