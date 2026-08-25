@@ -22,7 +22,9 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
+from urllib.error import URLError
 from urllib.request import Request, urlopen
+import ssl
 
 PORTA_PADRAO = 8080
 UA = 'Mozilla/5.0 (compatible; RadarInstitucional/1.0)'
@@ -31,9 +33,8 @@ UA = 'Mozilla/5.0 (compatible; RadarInstitucional/1.0)'
 # FONTES
 # --------------------------------------------------------------------------
 
-# Consultas no Google News. Sao elas que definem a largura do leque - cada uma
-# vira uma frente de pauta diferente. Mexer aqui muda o que a ferramenta enxerga.
-CONSULTAS = [
+# Consultas no Google News Brasil. Cada uma e uma frente de pauta.
+CONSULTAS_BR = [
     ('macro',      'Selic OR Copom OR "taxa de juros" Banco Central'),
     ('inflacao',   'IPCA OR inflação OR "custo de vida" Brasil'),
     ('bolsa',      'Ibovespa OR "bolsa de valores" OR B3 ações'),
@@ -47,20 +48,65 @@ CONSULTAS = [
     ('empresas',   'balanço OR lucro OR "resultado trimestral" empresa brasileira'),
     ('fiscal',     '"dívida pública" OR "déficit fiscal" OR "arcabouço fiscal" Brasil'),
     ('protecao',   'seguro OR consórcio OR "planejamento sucessório" OR herança'),
-    ('global',     'Federal Reserve OR "juros americanos" OR "economia global" impacto Brasil'),
+    ('varejo',     '"poder de compra" OR "salário mínimo" OR emprego OR consumo Brasil'),
+    ('regulacao',  'CVM OR Banco Central regulação mercado OR fintech Brasil'),
 ]
 
-# Veiculos com feed proprio: pegam pauta que a consulta por termo perde.
-FEEDS_DIRETOS = [
-    ('InfoMoney',   'https://www.infomoney.com.br/feed/'),
-    ('Money Times', 'https://www.moneytimes.com.br/feed/'),
-    ('Seu Dinheiro','https://www.seudinheiro.com/feed/'),
-    ('Exame Invest','https://exame.com/invest/feed/'),
+# Consultas no Google News internacional. O que move o mundo bate no Brasil
+# com um ou dois dias de atraso - e quem noticia primeiro pega a onda.
+CONSULTAS_INT = [
+    ('global',     'Federal Reserve OR FOMC OR "interest rates" decision'),
+    ('inflacaoUS', 'inflation OR CPI OR "consumer prices" United States'),
+    ('mercadoUS',  'stock market OR "S&P 500" OR Nasdaq OR "Wall Street"'),
+    ('geopolitica','oil prices OR commodities OR "trade war" OR tariffs economy'),
+    ('bancosINT',  'ECB OR "central bank" OR recession OR "global economy"'),
+    ('emergentes', 'emerging markets OR Brazil economy investors'),
 ]
 
-TRENDS_BR = 'https://trends.google.com/trending/rss?geo=BR'
+# Sites sem feed aberto, alcancados via Google News.
+VIA_GOOGLE_NEWS = [
+    ('Reuters',   'site:reuters.com markets OR economy when:2d', 'en'),
+    ('Bloomberg', 'site:bloomberg.com when:2d', 'en'),
+    ('Financial Times', 'site:ft.com when:2d', 'en'),
+    ('Valor Economico', 'site:valor.globo.com when:2d', 'pt'),
+    ('CNN Brasil', 'site:cnnbrasil.com.br economia when:2d', 'pt'),
+    ('Folha', 'site:folha.uol.com.br mercado OR economia when:2d', 'pt'),
+]
 
-def url_news(consulta):
+# Veiculos com feed proprio. Testados um a um antes de entrar.
+FEEDS_BR = [
+    ('Folha Mercado',   'https://feeds.folha.uol.com.br/mercado/rss091.xml'),
+    ('G1 Economia',     'https://g1.globo.com/rss/g1/economia/'),
+    ('Estadao Economia','https://www.estadao.com.br/arc/outboundfeeds/feeds/rss/sections/economia/?outputType=xml'),
+    ('InfoMoney',       'https://www.infomoney.com.br/feed/'),
+    ('Money Times',     'https://www.moneytimes.com.br/feed/'),
+    ('Seu Dinheiro',    'https://www.seudinheiro.com/feed/'),
+    ('Exame Invest',    'https://exame.com/invest/feed/'),
+    ('CVM',             'https://www.gov.br/cvm/pt-br/assuntos/noticias/RSS'),
+]
+
+FEEDS_INT = [
+    ('New York Times',  'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml'),
+    ('NYT Economy',     'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml'),
+    ('CNBC',            'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664'),
+    ('CNBC Economy',    'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258'),
+    ('Yahoo Finance',   'https://finance.yahoo.com/news/rssindex'),
+    ('Investing.com',   'https://www.investing.com/rss/news.rss'),
+    ('Investing Economia','https://www.investing.com/rss/news_14.rss'),
+    ('MarketWatch',     'https://feeds.content.dowjones.io/public/rss/mw_topstories'),
+    ('WSJ Markets',     'https://feeds.content.dowjones.io/public/rss/RSSMarketsMain'),
+    ('Federal Reserve', 'https://www.federalreserve.gov/feeds/press_monetary.xml'),
+]
+
+TRENDS = [
+    ('Brasil', 'https://trends.google.com/trending/rss?geo=BR'),
+    ('EUA',    'https://trends.google.com/trending/rss?geo=US'),
+]
+
+def url_news(consulta, idioma='pt'):
+    if idioma == 'en':
+        return ('https://news.google.com/rss/search?q=' + quote(consulta)
+                + '&hl=en-US&gl=US&ceid=US:en')
     return ('https://news.google.com/rss/search?q=' + quote(consulta)
             + '&hl=pt-BR&gl=BR&ceid=BR:pt-419')
 
@@ -68,10 +114,64 @@ def url_news(consulta):
 # LEITURA E PARSE
 # --------------------------------------------------------------------------
 
+# Estado do SSL, descoberto na primeira falha e reaproveitado depois.
+_ssl_estado = {'modo': 'padrao', 'aviso': ''}
+
+def _contexto(modo):
+    if modo == 'padrao':
+        return ssl.create_default_context()
+    if modo == 'certifi':
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
 def baixar(url, timeout=18):
-    req = Request(url, headers={'User-Agent': UA, 'Accept': 'application/rss+xml, application/xml, text/xml, */*'})
-    with urlopen(req, timeout=timeout) as r:
-        bruto = r.read()
+    """Busca um feed, com cadeia de fallback para certificado.
+
+    Python instalado do python.org no macOS nao usa o chaveiro do sistema e
+    falha em TODA conexao https ate rodar "Install Certificates.command".
+    Isso derruba a coleta inteira de uma vez. Aqui a gente detecta, tenta
+    contornar e - se so der com verificacao desligada - registra o aviso para
+    a interface mostrar, em vez de silenciar.
+    """
+    req = Request(url, headers={
+        'User-Agent': UA,
+        'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+    })
+
+    modos = [_ssl_estado['modo']] + [m for m in ('padrao', 'certifi', 'inseguro')
+                                     if m != _ssl_estado['modo']]
+    ultimoErro = None
+    for modo in modos:
+        try:
+            with urlopen(req, timeout=timeout, context=_contexto(modo)) as r:
+                bruto = r.read()
+            if modo != _ssl_estado['modo']:
+                _ssl_estado['modo'] = modo
+                if modo == 'certifi':
+                    _ssl_estado['aviso'] = ('O Python deste computador nao encontrou os certificados do '
+                                            'sistema; a coleta esta usando o pacote certifi.')
+                elif modo == 'inseguro':
+                    _ssl_estado['aviso'] = ('ATENCAO: o Python deste computador nao tem certificados '
+                                            'instalados, e a coleta esta rodando SEM verificar o certificado '
+                                            'dos sites. Funciona, mas o ideal e corrigir: no macOS, abra a '
+                                            'pasta Applications/Python 3.x e rode "Install Certificates.command". '
+                                            'Depois reinicie o servidor.')
+            break
+        except ImportError:
+            continue                      # certifi nao instalado, tenta o proximo
+        except URLError as e:
+            razao = getattr(e, 'reason', e)
+            if isinstance(razao, ssl.SSLError) or 'CERTIFICATE' in str(razao).upper():
+                ultimoErro = e
+                continue                  # problema de certificado: proximo modo
+            raise
+    else:
+        raise ultimoErro or URLError('falha desconhecida')
     for cod in ('utf-8', 'latin-1'):
         try:
             return bruto.decode(cod)
@@ -110,7 +210,18 @@ def dominio(url):
     except Exception:
         return ''
 
-def ler_noticias(xml, frente, veiculo_fixo=None):
+# Nomes de veiculo aparecem no titulo e viravam "assunto" (valor, financial,
+# bloomberg, paulo...). Entram como stopword para nunca serem pauta.
+VEICULOS_CONHECIDOS = set()
+
+def registrarVeiculo(nome):
+    if not nome:
+        return
+    for parte in normalizar(nome).split():
+        if len(parte) > 2:
+            VEICULOS_CONHECIDOS.add(parte)
+
+def ler_noticias(xml, frente, veiculo_fixo=None, idioma='pt'):
     saida = []
     for bloco in re.findall(r'<item[^>]*>(.*?)</item>', xml, re.S):
         titulo = limpar(_tag(bloco, 'title'))
@@ -123,6 +234,13 @@ def ler_noticias(xml, frente, veiculo_fixo=None):
             partes = titulo.rsplit(' - ', 1)
             if len(partes[1]) < 45:
                 titulo, veiculo = partes[0].strip(), partes[1].strip()
+        registrarVeiculo(veiculo)
+
+        # Fora de financas nao interessa: os feeds gerais e as consultas por
+        # site trazem policia, futebol e transito junto.
+        if not ehFinanceira(titulo):
+            continue
+
         d = quando(bloco)
         saida.append({
             'titulo': titulo,
@@ -131,6 +249,7 @@ def ler_noticias(xml, frente, veiculo_fixo=None):
             'data': d.isoformat() if d else None,
             'horas': round((datetime.now(timezone.utc) - d).total_seconds() / 3600, 1) if d else None,
             'frente': frente,
+            'idioma': idioma,
         })
     return saida
 
@@ -144,6 +263,11 @@ def ler_trends(xml):
         n = int(re.sub(r'[^\d]', '', trafego) or 0)
         manchetes = [limpar(t) for t in re.findall(
             r'<ht:news_item_title>(.*?)</ht:news_item_title>', bloco, re.S)]
+        # Trends traz de tudo: novela, loteria, futebol. So o que e financeiro
+        # tem valor aqui - o resto vira ruido no termometro.
+        contexto = termo + ' ' + ' '.join(manchetes)
+        if len(set(normalizar(contexto).split()) & LEXICO_FINANCA) < 2:
+            continue
         saida.append({'termo': termo, 'trafego': n, 'trafegoTexto': trafego,
                       'manchetes': manchetes[:3]})
     return saida
@@ -167,8 +291,52 @@ noticia noticias analise dados numero numeros semana segunda terca quarta
 quinta sexta sabado domingo manha tarde noite fechamento abertura
 2024 2025 2026 2027 2028
 banco bancos central bolsa risco riscos queda quedas alta altas sobe cai caiu subiu
+the and for with from that this what when where which will would could should
+have has had been being are was were says said say new news more most than
+about after before over under into out off down here there they them their
+market markets economy economic stock stocks share shares price prices rate rates
+report reports data year years week weeks day days time percent billion million
+top best worst why how live update updates analysis opinion read watch
+muda mudar vira virar deve devera pode podera fica ficar vagas feirao
+investors investor traders trader analysts analysts week month quarter
 resultado resultados projecao projecoes expectativa expectativas
 """.split())
+
+# Uma manchete so entra na analise se falar de dinheiro. Sem isso, as
+# consultas por site e os feeds gerais trazem policia, futebol e metro junto.
+LEXICO_FINANCA = set("""
+juros selic copom inflacao ipca igpm cambio dolar euro real moeda
+bolsa ibovespa acao acoes bovespa nasdaq indice dividendos acionista
+banco bancos bancario credito financiamento emprestimo divida endividamento
+inadimplencia consignado hipoteca imobiliario imovel imoveis aluguel
+imposto tributo tributacao tributaria fisco receita arrecadacao itcmd
+irpf declaracao isencao aliquota
+investimento investidor carteira renda fundo fundos etf tesouro cdb lci lca
+poupanca previdencia aposentadoria inss pgbl vgbl
+economia economico pib fiscal deficit superavit orcamento gasto gastos
+salario emprego desemprego consumo varejo industria comercio
+lucro prejuizo balanco receita faturamento margem ebitda
+bitcoin cripto criptomoeda blockchain stablecoin
+seguro seguradora consorcio sucessao heranca inventario holding
+fed fomc central copom bce boe pboc
+mercado mercados financeiro financeira financas
+empresa empresas companhia negocio negocios startup fintech
+petroleo commodities minerio soja ouro
+tarifa tarifas comercio importacao exportacao
+inflation interest rate rates fed federal reserve treasury bond bonds yield
+stock stocks market markets equity equities nasdaq dow jones
+bank banks banking credit debt loan mortgage lending
+tax taxes taxation fiscal deficit budget spending
+investor investors fund funds etf portfolio dividend dividends
+economy economic gdp recession growth inflation cpi ppi jobs unemployment
+earnings profit revenue margin guidance
+crypto bitcoin ethereum stablecoin
+oil gold commodity commodities tariff tariffs trade
+insurance pension retirement wealth
+""".split())
+
+def ehFinanceira(titulo):
+    return bool(set(normalizar(titulo).split()) & LEXICO_FINANCA)
 
 # Palavras que sinalizam atrito. Conteudo com atrito circula mais - e o unico
 # componente do termometro que mede tensao, nao volume.
@@ -188,7 +356,8 @@ def normalizar(txt):
 def termos(titulo):
     """Palavras significativas de um titulo, ja normalizadas."""
     return [p for p in normalizar(titulo).split()
-            if len(p) > 3 and p not in STOPWORDS and not p.isdigit()]
+            if len(p) > 3 and p not in STOPWORDS and p not in VEICULOS_CONHECIDOS
+            and not p.isdigit()]
 
 def chaves(titulo):
     """Assuntos candidatos de um titulo.
@@ -362,32 +531,50 @@ def coletar(forcar=False):
         d['idadeCache'] = round(_t.time() - _cache['em'])
         return d
 
-    tarefas = [('news', f, url_news(q)) for f, q in CONSULTAS]
-    tarefas += [('feed', nome, url) for nome, url in FEEDS_DIRETOS]
-    tarefas += [('trends', 'trends', TRENDS_BR)]
+    # (tipo, rotulo, url, idioma)
+    tarefas = []
+    tarefas += [('news', f, url_news(q, 'pt'), 'pt') for f, q in CONSULTAS_BR]
+    tarefas += [('news', f, url_news(q, 'en'), 'en') for f, q in CONSULTAS_INT]
+    tarefas += [('site', nome, url_news(q, idi), idi) for nome, q, idi in VIA_GOOGLE_NEWS]
+    tarefas += [('feed', nome, url, 'pt') for nome, url in FEEDS_BR]
+    tarefas += [('feed', nome, url, 'en') for nome, url in FEEDS_INT]
+    tarefas += [('trends', f'Trends {rot}', url, 'pt') for rot, url in TRENDS]
 
-    noticias, trends, falhas = [], [], []
+    noticias, trends = [], []
+    relatorio = []
 
     def puxar(t):
-        tipo, rot, url = t
+        tipo, rot, url, idi = t
+        t0 = _t.time()
         try:
-            return tipo, rot, baixar(url), None
+            xml = baixar(url)
+            return tipo, rot, idi, xml, None, round(_t.time() - t0, 2)
         except Exception as e:
-            return tipo, rot, None, f'{rot}: {type(e).__name__}'
+            return tipo, rot, idi, None, f'{type(e).__name__}: {e}'[:180], round(_t.time() - t0, 2)
 
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        for tipo, rot, xml, erro in pool.map(puxar, tarefas):
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        for tipo, rot, idi, xml, erro, seg in pool.map(puxar, tarefas):
             if erro:
-                falhas.append(erro)
+                relatorio.append({'fonte': rot, 'tipo': tipo, 'ok': False, 'itens': 0,
+                                  'erro': erro, 'segundos': seg})
                 continue
             if tipo == 'trends':
-                trends = ler_trends(xml)
+                achados = ler_trends(xml)
+                trends += achados
+                n = len(achados)
             elif tipo == 'news':
-                noticias += ler_noticias(xml, rot)
+                achados = ler_noticias(xml, rot, idioma=idi)
+                noticias += achados
+                n = len(achados)
             else:
-                noticias += ler_noticias(xml, 'veiculo', veiculo_fixo=rot)
+                # 'site' e 'feed' tem veiculo conhecido
+                achados = ler_noticias(xml, 'veiculo' if tipo == 'feed' else rot,
+                                       veiculo_fixo=rot, idioma=idi)
+                noticias += achados
+                n = len(achados)
+            relatorio.append({'fonte': rot, 'tipo': tipo, 'ok': True, 'itens': n,
+                              'erro': None, 'segundos': seg})
 
-    # Mesma materia chega por varias consultas: mantem uma so.
     unicas, vistos = [], set()
     for n in noticias:
         chave = normalizar(n['titulo'])[:90]
@@ -398,17 +585,23 @@ def coletar(forcar=False):
 
     grupos = agrupar(unicas, trends)
 
+    oks = [r for r in relatorio if r['ok']]
     resultado = {
         'coletadoEm': datetime.now(timezone.utc).isoformat(),
         'totalManchetes': len(unicas),
         'fontesConsultadas': len(tarefas),
-        'falhas': falhas,
-        'trends': trends[:20],
+        'fontesOk': len(oks),
+        'fontesFalhas': len(relatorio) - len(oks),
+        'relatorio': sorted(relatorio, key=lambda r: (r['ok'], -r['itens'])),
+        'falhas': [f"{r['fonte']}: {r['erro']}" for r in relatorio if not r['ok']],
+        'avisoSSL': _ssl_estado['aviso'],
+        'modoSSL': _ssl_estado['modo'],
+        'trends': trends[:24],
         'assuntos': grupos,
         'frentes': sorted({n['frente'] for n in unicas}),
+        'idiomas': sorted({n.get('idioma', 'pt') for n in unicas}),
         'doCache': False,
     }
-    import time as _t
     _cache['em'], _cache['dados'] = _t.time(), resultado
     return resultado
 
@@ -434,8 +627,27 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         caminho = urlparse(self.path).path
         if caminho == '/api/status':
-            return self._json({'ok': True, 'servidor': 'Radar Institucional',
-                               'consultas': len(CONSULTAS), 'feeds': len(FEEDS_DIRETOS)})
+            return self._json({
+                'ok': True, 'servidor': 'Radar Institucional',
+                'fontes': (len(CONSULTAS_BR) + len(CONSULTAS_INT) + len(VIA_GOOGLE_NEWS)
+                           + len(FEEDS_BR) + len(FEEDS_INT) + len(TRENDS)),
+                'consultasBR': len(CONSULTAS_BR), 'consultasINT': len(CONSULTAS_INT),
+                'veiculosBR': len(FEEDS_BR), 'veiculosINT': len(FEEDS_INT),
+            })
+        if caminho == '/api/diagnostico':
+            # Testa cada fonte isoladamente e devolve o que aconteceu com cada uma.
+            # Existe para quando a coleta volta vazia: sem isso, o usuario so ve
+            # "0 manchetes" e nao tem como saber o motivo.
+            try:
+                d = coletar(forcar=True)
+                return self._json({
+                    'modoSSL': d['modoSSL'], 'avisoSSL': d['avisoSSL'],
+                    'fontesOk': d['fontesOk'], 'fontesFalhas': d['fontesFalhas'],
+                    'totalManchetes': d['totalManchetes'],
+                    'relatorio': d['relatorio'],
+                })
+            except Exception as e:
+                return self._json({'erro': f'{type(e).__name__}: {e}'}, 500)
         if caminho == '/api/coleta':
             try:
                 q = parse_qs(urlparse(self.path).query)
@@ -459,7 +671,12 @@ def main():
     print('  ================================================')
     print()
     print(f'   Aberto em:  http://localhost:{porta}')
-    print(f'   Coletor:    {len(CONSULTAS)} consultas + {len(FEEDS_DIRETOS)} veiculos + Google Trends')
+    total = (len(CONSULTAS_BR) + len(CONSULTAS_INT) + len(VIA_GOOGLE_NEWS)
+             + len(FEEDS_BR) + len(FEEDS_INT) + len(TRENDS))
+    print(f'   Coletor:    {total} fontes')
+    print(f'               {len(CONSULTAS_BR)} consultas BR + {len(CONSULTAS_INT)} internacionais')
+    print(f'               {len(FEEDS_BR)} veiculos BR + {len(FEEDS_INT)} internacionais')
+    print(f'               {len(VIA_GOOGLE_NEWS)} via Google News + {len(TRENDS)} Google Trends')
     print()
     print('   NAO FECHE ESTA JANELA enquanto estiver usando.')
     print('   Ctrl+C encerra.')

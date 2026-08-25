@@ -43,30 +43,49 @@ com limite de gasto definido no painel da OpenRouter.
 
 ## O coletor de manchetes
 
-**O problema que ele resolve:** nenhum feed de notícia brasileiro libera CORS, então o
-navegador não consegue lê-los sozinho. E a busca web da OpenRouter é paga — sem saldo,
-ela não roda. O resultado era uma varredura sem notícia nenhuma, girando em torno dos
-mesmos dados do Banco Central e repetindo pauta.
+**O problema que ele resolve:** nenhum feed de notícia libera CORS, então o navegador não
+consegue lê-los sozinho. E a busca web da OpenRouter é paga — sem saldo, não roda.
 
-**A solução:** o `servidor.py` que os atalhos já sobem passou a colher notícia. Ele busca
-do lado do servidor, onde CORS não se aplica, e entrega tudo processado. Sem instalar
-nada, sem chave, sem custo — só a biblioteca padrão do Python.
+**A solução:** o `servidor.py` que os atalhos já sobem colhe notícia do lado do servidor,
+onde CORS não se aplica. Sem instalar nada, sem chave, sem custo — só a biblioteca padrão
+do Python.
 
-O que ele lê a cada coleta:
+### 47 fontes
 
-| Fonte | O que traz |
-|---|---|
-| **Google News** | 14 consultas temáticas, ~100 manchetes cada, com veículo e horário |
-| **Google Trends BR** | buscas em alta agora, com volume aproximado real |
-| **Veículos diretos** | InfoMoney, Money Times, Seu Dinheiro, Exame Invest |
+| Grupo | Quantas | Quais |
+|---|---|---|
+| **Consultas Google News BR** | 15 | macro, inflação, bolsa, câmbio, tributos, dividendos, imóveis, crédito, previdência, cripto, empresas, fiscal, proteção, varejo, regulação |
+| **Consultas Google News internacional** | 6 | Fed/FOMC, inflação EUA, Wall Street, geopolítica e commodities, bancos centrais, emergentes |
+| **Veículos brasileiros** | 8 | Folha Mercado, G1 Economia, Estadão Economia, InfoMoney, Money Times, Seu Dinheiro, Exame Invest, CVM |
+| **Veículos internacionais** | 10 | New York Times (Business e Economy), CNBC (Finance e Economy), Yahoo Finance, Investing.com (Geral e Economia), MarketWatch, WSJ Markets, Federal Reserve |
+| **Via Google News** | 6 | Reuters, Bloomberg, Financial Times, Valor Econômico, CNN Brasil, Folha |
+| **Google Trends** | 2 | Brasil e Estados Unidos |
 
-Na prática: **cerca de 1.400 manchetes únicas de 19 fontes em 3 segundos**, cobrindo 15
-frentes — macro, inflação, bolsa, câmbio, tributos, dividendos, imóveis, crédito,
-previdência, cripto, empresas, fiscal, proteção e global. Resultado fica em cache por
-5 minutos; o botão *Colher manchetes agora* força uma coleta nova.
+Medido: **cerca de 2.400 manchetes financeiras de 47 fontes em 14 segundos**, em português
+e inglês, cobrindo 28 frentes. Cache de 5 minutos; *Colher manchetes agora* força coleta nova.
 
-As consultas ficam no topo do `servidor.py`, em `CONSULTAS`. **É lá que se abre ou
-fecha o leque** — cada linha é uma frente de pauta.
+As listas ficam no topo do `servidor.py`. **É lá que se abre ou fecha o leque.**
+
+### O filtro de pertinência
+
+Feed geral e consulta por site trazem polícia, futebol e trânsito junto. Toda manchete
+passa por um léxico financeiro em português e inglês — se não fala de dinheiro, não entra.
+Isso derruba cerca de 20% do volume bruto e é o que impede "escada rolante do metrô" de
+virar pauta de investimento.
+
+Nomes de veículo também viram stopword automaticamente: sem isso, *valor*, *financial*,
+*bloomberg* e *paulo* (de Folha de S.Paulo) apareciam como se fossem assunto.
+
+### Quando a coleta falha
+
+Se a coleta voltar vazia, a tela mostra **fonte por fonte o que aconteceu**, com a mensagem
+de erro exata. Coleta vazia sem explicação era um bug — o usuário ficava sem saber se não
+houve notícia ou se algo quebrou.
+
+O erro mais provável no macOS é certificado: Python instalado do python.org não usa o
+chaveiro do sistema e falha em toda conexão https até rodar
+`Install Certificates.command`. O coletor detecta isso, tenta o pacote `certifi`, e em
+último caso roda sem verificação — **avisando na tela**, com a instrução de correção.
 
 ## Termômetro de viralização
 

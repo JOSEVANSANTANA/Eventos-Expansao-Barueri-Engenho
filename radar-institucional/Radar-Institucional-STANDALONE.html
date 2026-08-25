@@ -3462,12 +3462,31 @@ function renderTermometro(alvo, limite) {
   if (!el) return;
   const c = APP.colheita;
 
+  // Colheita vazia COM servidor ligado significa que algo falhou. Mostrar
+  // "nenhuma colheita" nesse caso deixa o usuário no escuro - o relatório
+  // por fonte tem que aparecer.
+  if (c && APP.temServidor && (!c.assuntos || !c.assuntos.length)) {
+    const falhas = arr(c.relatorio).filter(r => !r.ok);
+    el.innerHTML = `
+      <div class="aviso alerta"><span class="aviso-i">▲</span><div>
+        <b>A coleta voltou vazia.</b> ${c.fontesOk || 0} de ${c.fontesConsultadas || 0} fontes
+        responderam${falhas.length ? `, ${falhas.length} falharam` : ''}.
+        ${c.avisoSSL ? `<div style="margin-top:8px">${esc(c.avisoSSL)}</div>` : ''}
+      </div></div>
+      ${falhas.length ? `<div class="cartao"><div class="rotulo">O que falhou, fonte por fonte</div>
+        ${falhas.map(f => `<div class="check nao"><span class="check-i">✕</span><div>
+          <b>${esc(f.fonte)}</b><br><span style="opacity:.85;font-family:var(--mono);font-size:11.5px">${esc(f.erro)}</span>
+        </div></div>`).join('')}</div>` : ''}`;
+    return;
+  }
+
   if (!c || !c.assuntos || !c.assuntos.length) {
     el.innerHTML = APP.temServidor
       ? `<div class="vazio"><div class="vazio-i">◷</div><h3>Nenhuma colheita ainda</h3>
          <p>Rode a varredura do dia ou clique em <b>Colher manchetes agora</b>. O coletor
-         lê Google News, Google Trends e veículos brasileiros, e mede a temperatura de
-         cada assunto a partir da cobertura real.</p></div>`
+         lê 47 fontes — Google News Brasil e internacional, Google Trends, e veículos como
+         Folha, G1, Estadão, InfoMoney, New York Times, CNBC, WSJ, Investing e o Federal
+         Reserve.</p></div>`
       : `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
          <b>O coletor não está disponível neste modo.</b><br>
          Você abriu o arquivo direto do disco (<code>file://</code>). Nenhum feed de notícia
@@ -3516,12 +3535,27 @@ function renderTermometro(alvo, limite) {
 
   el.innerHTML = `
     <div class="cartao" style="margin-bottom:14px;padding:13px 16px;font-size:12.5px;color:var(--txt-2)">
-      <b style="color:var(--ouro)">${c.totalManchetes} manchetes</b> de ${c.fontesConsultadas} fontes ·
-      colhidas ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')} ·
-      ${(c.frentes || []).length} frentes cobertas
-      ${c.falhas && c.falhas.length ? ` · <span style="color:var(--vermelho)">${c.falhas.length} fonte(s) falharam</span>` : ''}
+      <b style="color:var(--ouro)">${c.totalManchetes} manchetes financeiras</b> ·
+      ${c.fontesOk || c.fontesConsultadas} de ${c.fontesConsultadas} fontes responderam ·
+      ${(c.idiomas || []).join(' + ')} ·
+      ${(c.frentes || []).length} frentes ·
+      colhidas ${new Date(c.coletadoEm).toLocaleTimeString('pt-BR')}
+      ${c.fontesFalhas ? ` · <a href="#" id="verFalhas" style="color:var(--vermelho)">${c.fontesFalhas} falharam</a>` : ''}
+      ${c.avisoSSL ? `<div class="aviso alerta" style="margin-top:10px"><span class="aviso-i">▲</span><div>${esc(c.avisoSSL)}</div></div>` : ''}
+      <div id="listaFalhas" style="display:none;margin-top:10px">
+        ${arr(c.relatorio).filter(r => !r.ok).map(f => `<div class="check nao"><span class="check-i">✕</span><div>
+          <b>${esc(f.fonte)}</b><br><span style="opacity:.85;font-family:var(--mono);font-size:11px">${esc(f.erro)}</span>
+        </div></div>`).join('')}
+      </div>
     </div>
     <div class="termo-lista">${itens}</div>`;
+
+  const vf = el.querySelector('#verFalhas');
+  if (vf) vf.onclick = (e) => {
+    e.preventDefault();
+    const l = el.querySelector('#listaFalhas');
+    l.style.display = l.style.display === 'none' ? 'block' : 'none';
+  };
 
   el.querySelectorAll('.termo-item').forEach(it => {
     it.onclick = () => {
@@ -3549,7 +3583,11 @@ async function colherManchetes(alvo) {
     APP.colheita = await window.DADOS.coletarNoticias(90000, true);
     renderTermometro(alvo);
     renderTermometro('#areaTermometro', 6);
-    toast(`${APP.colheita.totalManchetes} manchetes colhidas.`, 'ok');
+    const c2 = APP.colheita;
+    toast(c2.totalManchetes
+      ? `${c2.totalManchetes} manchetes de ${c2.fontesOk}/${c2.fontesConsultadas} fontes.`
+      : `Coleta vazia — ${c2.fontesFalhas} fontes falharam. Veja o detalhe na tela.`,
+      c2.totalManchetes ? 'ok' : 'err', 6000);
   } catch (e) {
     if (el) el.innerHTML = `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
       <b>Falha na coleta.</b><br>${esc(e.message)}</div></div>`;
