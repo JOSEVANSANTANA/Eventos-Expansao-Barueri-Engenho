@@ -458,6 +458,38 @@ textarea{resize:vertical;min-height:96px;line-height:1.65}
 .tp-fora{color:var(--ouro);font-weight:700}
 
 /* =========================================================================
+   PROVEDORES DE IA
+   ========================================================================= */
+.prov-bloco{
+  background:var(--surf-2);border:1px solid var(--linha);
+  border-radius:var(--raio-sm);padding:15px 17px;margin-bottom:12px;
+}
+.prov-cab{display:flex;align-items:baseline;gap:10px;margin-bottom:11px}
+.prov-cab b{font-size:13.5px;font-weight:700}
+.prov-cab a{margin-left:auto;font-size:11.5px;color:var(--azul);text-decoration:none}
+.prov-cab a:hover{text-decoration:underline}
+.prov-status{margin-left:11px;font-size:12px}
+.prov-status.ok{color:var(--verde)}
+.prov-status.erro{color:var(--vermelho)}
+
+.escolha-lista{display:flex;flex-direction:column;gap:10px}
+.escolha{
+  display:flex;flex-direction:column;gap:4px;text-align:left;
+  background:var(--surf-2);border:1px solid var(--linha);
+  border-radius:var(--raio-sm);padding:15px 17px;cursor:pointer;
+  font-family:inherit;transition:var(--trans);width:100%;
+}
+.escolha:hover{border-color:var(--ouro);transform:translateX(3px)}
+.escolha.preferido{border-color:var(--ouro-esc)}
+.escolha-nome{font-size:14.5px;font-weight:700;color:var(--txt)}
+.escolha-nome b{
+  font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--ouro);background:var(--brass-soft,rgba(229,183,92,.13));
+  border:1px solid rgba(229,183,92,.3);border-radius:99px;padding:2px 7px;margin-left:6px;
+}
+.escolha-modelo{font-size:12px;color:var(--txt-3);font-family:var(--mono)}
+
+/* =========================================================================
    TERMOMETRO
    ========================================================================= */
 .termo-lista{display:flex;flex-direction:column;gap:10px}
@@ -799,51 +831,68 @@ textarea{resize:vertical;min-height:96px;line-height:1.65}
     </div>
     <div class="modal-corpo">
 
-      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Conexão OpenRouter</h4>
-      <div class="linha-form">
-        <div>
-          <label class="rot" for="cfgApiKey">Chave da API</label>
-          <input type="password" id="cfgApiKey" placeholder="sk-or-v1-...">
-          <div class="dica">Pegue em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--azul)">openrouter.ai/keys</a>. Fica salva só no seu navegador (localStorage) e vai direto para a OpenRouter — nenhum servidor intermediário. Como é uma ferramenta local, não use esta chave em página pública e prefira uma chave com limite de gasto definido.</div>
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">Chaves de IA</h4>
+      <div class="dica" style="margin-bottom:16px">Preencha as que você tiver — basta uma. Na hora de rodar,
+      você escolhe qual usar. Todas ficam só neste navegador e vão direto para o provedor.</div>
+
+      <div class="prov-bloco" data-prov="anthropic">
+        <div class="prov-cab">
+          <b>Claude — Anthropic</b>
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">pegar chave ↗</a>
         </div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveAnthropic" placeholder="sk-ant-...">
+          <select id="cfgModeloAnthropic"></select>
+        </div>
+        <button class="btn btn-sm btn-fantasma" data-testar="anthropic">Testar</button>
+        <span class="prov-status" id="statusAnthropic"></span>
       </div>
-      <div class="linha-form duas">
-        <div>
-          <label class="rot" for="cfgModelo">Modelo para o pacote</label>
-          <select id="cfgModelo"></select>
-          <div class="dica">Deixe em <b>Automático</b> para a ferramenta escolher o melhor gratuito a cada chamada.</div>
+
+      <div class="prov-bloco" data-prov="gemini">
+        <div class="prov-cab">
+          <b>Gemini — Google</b>
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">pegar chave ↗</a>
         </div>
-        <div>
-          <label class="rot" for="cfgModeloRadar">Modelo para a varredura</label>
-          <select id="cfgModeloRadar"></select>
-          <div class="dica">Pode ser mais barato: aqui o peso é a busca.</div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveGemini" placeholder="AIza...">
+          <select id="cfgModeloGemini"></select>
         </div>
+        <button class="btn btn-sm btn-fantasma" data-testar="gemini">Testar</button>
+        <span class="prov-status" id="statusGemini"></span>
       </div>
-      <div class="dica" id="avisoCatalogo" style="margin:-6px 0 14px">Carregando catálogo…</div>
-      <div class="linha-form duas">
+
+      <div class="prov-bloco" data-prov="openrouter">
+        <div class="prov-cab">
+          <b>OpenRouter</b>
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">pegar chave ↗</a>
+        </div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveOpenRouter" placeholder="sk-or-v1-...">
+          <select id="cfgModeloOpenrouter"></select>
+        </div>
+        <div class="dica" id="avisoCatalogo" style="margin:0 0 8px">Carregando catálogo…</div>
+        <button class="btn btn-sm btn-fantasma" data-testar="openrouter">Testar</button>
+        <span class="prov-status" id="statusOpenrouter"></span>
+        <label class="switch" style="margin-top:12px">
+          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
+          <span style="font-size:12.5px;font-weight:600">Busca web paga <span style="color:var(--txt-3);font-weight:400">— devolve LinkedIn no lugar de notícia; deixe desligada</span></span>
+        </label>
+      </div>
+
+      <div class="linha-form duas" style="margin-top:18px">
+        <div>
+          <label class="rot" for="cfgProvedor">Provedor preferido</label>
+          <select id="cfgProvedor"></select>
+        </div>
         <div>
           <label class="rot" for="cfgTemp">Temperatura — <span id="cfgTempVal">0.7</span></label>
           <input type="range" id="cfgTemp" min="0" max="1.2" step="0.05" style="width:100%;accent-color:var(--ouro)">
-          <div class="dica">Baixo = mais previsível. Alto = mais criativo.</div>
-        </div>
-        <div>
-          <label class="rot" for="cfgMaxBusca">Resultados de busca por consulta</label>
-          <input type="number" id="cfgMaxBusca" min="3" max="20">
-          <div class="dica">Mais resultados = mais fontes, custo maior.</div>
         </div>
       </div>
-      <div class="linha-form">
-        <label class="switch">
-          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
-          <span style="font-size:13.5px;font-weight:600">Busca web paga da OpenRouter <span style="color:var(--txt-3);font-weight:400">— desligada por padrão</span></span>
-        </label>
-      </div>
-      <div class="dica" style="margin:-8px 0 14px">A busca da OpenRouter é semântica e costuma devolver
-      perfil de LinkedIn e página institucional em vez de notícia — por isso vem desligada. Quem traz
-      manchete aqui é o coletor local, que lê feed de veículo de verdade. Ligue só se quiser uma camada
-      extra, e confira as fontes no bloco de checagem.</div>
-      <button class="btn btn-fantasma btn-sm" id="btnTestarChave">Testar chave</button>
-      <span id="resultadoChave" style="margin-left:11px;font-size:12.5px"></span>
+      <label class="switch" style="margin-bottom:6px">
+        <input type="checkbox" id="cfgPerguntar"><span class="switch-tr"></span>
+        <span style="font-size:13.5px;font-weight:600">Perguntar qual usar a cada trabalho</span>
+      </label>
 
       <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
 
@@ -960,6 +1009,23 @@ textarea{resize:vertical;min-height:96px;line-height:1.65}
       <span class="tp-sep">·</span>
       <span>rolagem <b id="tpEfetiva">—</b></span>
       <span class="tp-atalhos">Espaço = play/pause · ↑↓ = velocidade · Esc = sair</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ESCOLHA DE PROVEDOR ================= -->
+<div class="modal" id="modalProvedor">
+  <div class="modal-cx" style="max-width:520px">
+    <div class="modal-cab"><h3 id="tituloEscolha">Qual IA usar agora?</h3></div>
+    <div class="modal-corpo">
+      <div class="escolha-lista" id="escolhaLista"></div>
+      <label class="switch" style="margin-top:16px">
+        <input type="checkbox" id="escolhaNaoPerguntar"><span class="switch-tr"></span>
+        <span style="font-size:12.5px;color:var(--txt-2)">Não perguntar de novo — usar sempre a escolhida</span>
+      </label>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn btn-fantasma" id="escolhaCancelar">Cancelar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1524,15 +1590,23 @@ const CHAVE_CFG = 'radar_cfg_v1';
 const CHAVE_HIST = 'radar_hist_v1';
 
 const CFG_PADRAO = {
-  // --- OpenRouter ---
-  apiKey: '',
-  // 'auto' = o app pontua o catalogo vivo da OpenRouter e escolhe o melhor
-  // gratuito do momento, com cascata de reserva atras.
-  modelo: 'auto',
-  modeloRadar: 'auto',
-  // Desligada por padrao. A busca da OpenRouter faz busca semantica e devolve
-  // perfil de LinkedIn e pagina institucional no lugar de noticia. Quem traz
-  // noticia aqui e o coletor local, que le feed de veiculo de verdade.
+  // --- Chaves, uma por provedor. Todas opcionais; basta uma. ---
+  chaveAnthropic: '',
+  chaveGemini: '',
+  chaveOpenRouter: '',
+
+  // Provedor preferido. A tela de escolha aparece na hora de rodar quando
+  // ha mais de uma chave configurada.
+  provedor: 'anthropic',
+  perguntarProvedor: true,
+
+  // Modelo por provedor
+  modeloAnthropic: 'claude-opus-5',
+  modeloGemini: 'gemini-3.7-flash',
+  modeloOpenrouter: 'auto',
+
+  // --- Busca web paga (so OpenRouter). Desligada: devolve perfil de
+  //     LinkedIn e pagina institucional em vez de noticia. ---
   buscaWeb: false,
   maxResultadosBusca: 8,
   temperatura: 0.7,
@@ -1549,7 +1623,6 @@ const CFG_PADRAO = {
   formatoPadrao: 'ambos',
   produtoPreferido: '',
 
-  // --- Extras opcionais ---
   brapiToken: ''
 };
 
@@ -1564,7 +1637,10 @@ const MODELOS_RESERVA = [
 function lerCfg() {
   try {
     const bruto = localStorage.getItem(CHAVE_CFG);
-    return bruto ? Object.assign({}, CFG_PADRAO, JSON.parse(bruto)) : Object.assign({}, CFG_PADRAO);
+    const salvo = bruto ? JSON.parse(bruto) : {};
+    // Versoes anteriores guardavam uma chave so, em "apiKey". Preserva.
+    if (salvo.apiKey && !salvo.chaveOpenRouter) salvo.chaveOpenRouter = salvo.apiKey;
+    return Object.assign({}, CFG_PADRAO, salvo);
   } catch (e) {
     return Object.assign({}, CFG_PADRAO);
   }
@@ -2748,6 +2824,385 @@ if (typeof window !== 'undefined') {
 }
 
 
+/* ===== ia.js ===== */
+/* =========================================================================
+   RADAR INSTITUCIONAL - Camada de IA multi-provedor
+   -------------------------------------------------------------------------
+   Tres provedores, uma interface. Voce escolhe qual usar em cada trabalho.
+
+   Anthropic  api.anthropic.com/v1/messages
+              header anthropic-dangerous-direct-browser-access (confirmado
+              no preflight CORS: a Anthropic o declara em
+              access-control-allow-headers)
+   Gemini     generativelanguage.googleapis.com/v1beta/models/{id}
+              header x-goog-api-key; responseMimeType forca JSON valido
+   OpenRouter openrouter.ai/api/v1/chat/completions
+
+   Chamada HTTP direta, sem SDK: esta e uma pagina de navegador sem etapa de
+   build, entao nao ha como empacotar um SDK npm.
+   ========================================================================= */
+
+class ErroIA extends Error {
+  constructor(mensagem, status, provedor) {
+    super(mensagem);
+    this.name = 'ErroIA';
+    this.status = status;
+    this.provedor = provedor;
+  }
+}
+
+/* ---------- utilidades comuns ------------------------------------------ */
+
+function origemSegura() {
+  return (location.origin && location.origin !== 'null')
+    ? location.origin : 'https://radar-institucional.local';
+}
+
+/* Le um corpo SSE aplicando um extrator por linha de dados. */
+async function lerSSE(resposta, extrair, aoReceberToken) {
+  const leitor = resposta.body.getReader();
+  const dec = new TextDecoder();
+  let buffer = '';
+  let texto = '';
+
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    buffer += dec.decode(value, { stream: true });
+
+    const linhas = buffer.split('\n');
+    buffer = linhas.pop() || '';
+
+    for (const linha of linhas) {
+      const l = linha.trim();
+      if (!l || l.startsWith(':') || l.startsWith('event:')) continue;
+      if (!l.startsWith('data:')) continue;
+      const dados = l.slice(5).trim();
+      if (!dados || dados === '[DONE]') continue;
+
+      try {
+        const pedaco = extrair(JSON.parse(dados));
+        if (pedaco) {
+          texto += pedaco;
+          if (aoReceberToken) aoReceberToken(pedaco, texto);
+        }
+      } catch (e) {
+        // fragmento SSE incompleto; a proxima iteracao completa
+      }
+    }
+  }
+  return texto;
+}
+
+async function corpoErro(r) {
+  try {
+    const j = await r.json();
+    return (j.error && (j.error.message || j.error.type)) || JSON.stringify(j).slice(0, 200);
+  } catch (e) {
+    return `HTTP ${r.status}`;
+  }
+}
+
+function mensagemDeStatus(status, detalhe, provedor, painel) {
+  if (status === 401 || status === 403) {
+    return `Chave da ${provedor} inválida ou sem permissão. Confira em Configurações. (${detalhe})`;
+  }
+  if (status === 402) return `Sem créditos na ${provedor}. Adicione saldo em ${painel}.`;
+  if (status === 429) return `Limite de uso da ${provedor} atingido. Aguarde alguns instantes.`;
+  if (status >= 500) return `Instabilidade na ${provedor} (${status}). Tente de novo.`;
+  return `${provedor}: ${detalhe}`;
+}
+
+/* =========================================================================
+   ANTHROPIC
+   ========================================================================= */
+const ANTHROPIC = {
+  id: 'anthropic',
+  nome: 'Claude (Anthropic)',
+  campoChave: 'chaveAnthropic',
+  painel: 'console.anthropic.com',
+  ondePegar: 'https://console.anthropic.com/settings/keys',
+  prefixoChave: 'sk-ant-',
+  modelos: [
+    { id: 'claude-opus-5', rotulo: 'Claude Opus 5 — melhor roteiro' },
+    { id: 'claude-sonnet-5', rotulo: 'Claude Sonnet 5 — equilíbrio' },
+    { id: 'claude-haiku-4-5', rotulo: 'Claude Haiku 4.5 — mais barato' }
+  ],
+  padrao: 'claude-opus-5',
+
+  async chamar(cfg, mensagens, opcoes) {
+    const chave = cfg.chaveAnthropic;
+    if (!chave) throw new ErroIA('Nenhuma chave da Anthropic configurada.', 0, 'Anthropic');
+
+    const modelo = opcoes.modelo || cfg.modeloAnthropic || this.padrao;
+    const sistema = mensagens.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+    const conversa = mensagens.filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const corpo = {
+      model: modelo,
+      max_tokens: opcoes.maxTokens || 16000,
+      messages: conversa,
+      stream: true
+    };
+    if (sistema) corpo.system = sistema;
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': chave,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(corpo),
+      signal: opcoes.signal
+    });
+
+    if (!r.ok) {
+      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Anthropic', this.painel),
+                       r.status, 'Anthropic');
+    }
+
+    const texto = await lerSSE(r,
+      (j) => (j.type === 'content_block_delta' && j.delta && j.delta.type === 'text_delta')
+             ? j.delta.text : '',
+      opcoes.aoReceberToken);
+
+    return { texto, citacoes: [], modeloUsado: modelo };
+  }
+};
+
+/* =========================================================================
+   GEMINI
+   ========================================================================= */
+const GEMINI = {
+  id: 'gemini',
+  nome: 'Gemini (Google)',
+  campoChave: 'chaveGemini',
+  painel: 'aistudio.google.com',
+  ondePegar: 'https://aistudio.google.com/apikey',
+  prefixoChave: 'AIza',
+  modelos: [
+    { id: 'gemini-3.7-flash', rotulo: 'Gemini 3.7 Flash — rápido e capaz' },
+    { id: 'gemini-3.1-pro-preview', rotulo: 'Gemini 3.1 Pro — raciocínio' },
+    { id: 'gemini-3.5-flash', rotulo: 'Gemini 3.5 Flash' },
+    { id: 'gemini-2.5-flash', rotulo: 'Gemini 2.5 Flash — geração anterior' }
+  ],
+  padrao: 'gemini-3.7-flash',
+
+  async chamar(cfg, mensagens, opcoes) {
+    const chave = cfg.chaveGemini;
+    if (!chave) throw new ErroIA('Nenhuma chave do Gemini configurada.', 0, 'Gemini');
+
+    const modelo = opcoes.modelo || cfg.modeloGemini || this.padrao;
+    const sistema = mensagens.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+    const partes = mensagens.filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user',
+                   parts: [{ text: m.content }] }));
+
+    const corpo = {
+      contents: partes,
+      generationConfig: {
+        temperature: typeof opcoes.temperatura === 'number' ? opcoes.temperatura : cfg.temperatura,
+        maxOutputTokens: opcoes.maxTokens || 16000,
+        // Forca saida JSON valida: o Gemini respeita isso no nivel do decoder,
+        // o que elimina a classe de erro "respondeu fora do formato".
+        ...(opcoes.esperaJSON ? { responseMimeType: 'application/json' } : {})
+      }
+    };
+    if (sistema) corpo.systemInstruction = { parts: [{ text: sistema }] };
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}`
+              + ':streamGenerateContent?alt=sse';
+
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
+      body: JSON.stringify(corpo),
+      signal: opcoes.signal
+    });
+
+    if (!r.ok) {
+      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Gemini', this.painel),
+                       r.status, 'Gemini');
+    }
+
+    const texto = await lerSSE(r, (j) => {
+      const c = j.candidates && j.candidates[0];
+      const p = c && c.content && c.content.parts;
+      return (p || []).map(x => x.text || '').join('');
+    }, opcoes.aoReceberToken);
+
+    return { texto, citacoes: [], modeloUsado: modelo };
+  }
+};
+
+/* =========================================================================
+   OPENROUTER
+   ========================================================================= */
+const OPENROUTER = {
+  id: 'openrouter',
+  nome: 'OpenRouter',
+  campoChave: 'chaveOpenRouter',
+  painel: 'openrouter.ai/credits',
+  ondePegar: 'https://openrouter.ai/keys',
+  prefixoChave: 'sk-or-',
+  modelos: [
+    { id: 'auto', rotulo: 'Automático — melhor gratuito do momento' },
+    { id: 'openrouter/free', rotulo: 'Roteador Gratuito' }
+  ],
+  padrao: 'auto',
+
+  async chamar(cfg, mensagens, opcoes) {
+    const chave = cfg.chaveOpenRouter;
+    if (!chave) throw new ErroIA('Nenhuma chave da OpenRouter configurada.', 0, 'OpenRouter');
+
+    const modelo = opcoes.modelo === 'auto' || !opcoes.modelo
+      ? 'openrouter/free' : opcoes.modelo;
+
+    const corpo = {
+      model: modelo,
+      messages: mensagens,
+      temperature: typeof opcoes.temperatura === 'number' ? opcoes.temperatura : cfg.temperatura,
+      stream: true
+    };
+    if (opcoes.maxTokens) corpo.max_tokens = opcoes.maxTokens;
+    if (opcoes.buscaWeb) {
+      corpo.plugins = [{ id: 'web', max_results: cfg.maxResultadosBusca || 8 }];
+    }
+
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'Authorization': `Bearer ${chave}`,
+        'HTTP-Referer': origemSegura(),
+        'X-Title': 'Radar Institucional'
+      },
+      body: JSON.stringify(corpo),
+      signal: opcoes.signal
+    });
+
+    if (!r.ok) {
+      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'OpenRouter', this.painel),
+                       r.status, 'OpenRouter');
+    }
+
+    const citacoes = [];
+    const texto = await lerSSE(r, (j) => {
+      const d = j.choices && j.choices[0] && j.choices[0].delta;
+      if (d && d.annotations) {
+        (d.annotations || []).forEach(a => {
+          if (a.type === 'url_citation' && a.url_citation) {
+            citacoes.push({ url: a.url_citation.url, titulo: a.url_citation.title || a.url_citation.url });
+          }
+        });
+      }
+      return (d && d.content) || '';
+    }, opcoes.aoReceberToken);
+
+    return { texto, citacoes, modeloUsado: modelo };
+  }
+};
+
+const PROVEDORES = { anthropic: ANTHROPIC, gemini: GEMINI, openrouter: OPENROUTER };
+const ORDEM_PROVEDORES = ['anthropic', 'gemini', 'openrouter'];
+
+/* Quais tem chave preenchida. */
+function provedoresProntos(cfg) {
+  return ORDEM_PROVEDORES.filter(id => (cfg[PROVEDORES[id].campoChave] || '').trim());
+}
+
+function modeloEscolhido(cfg, id) {
+  const p = PROVEDORES[id];
+  return cfg['modelo' + id.charAt(0).toUpperCase() + id.slice(1)] || p.padrao;
+}
+
+/* -------------------------------------------------------------------------
+   CHAMADA COM RESERVA
+   Usa o provedor escolhido. Se ele falhar por motivo que trocar de provedor
+   resolve (sem credito, limite, instabilidade), tenta os outros configurados.
+   Erro de chave invalida nao cai para o proximo do mesmo provedor - trocar de
+   modelo nao conserta chave errada.
+   ------------------------------------------------------------------------- */
+async function chamarIA(cfg, opcoes = {}) {
+  const preferido = opcoes.provedor || cfg.provedor;
+  const prontos = provedoresProntos(cfg);
+
+  if (!prontos.length) {
+    throw new ErroIA('Nenhuma chave configurada. Abra Configurações e preencha ao menos uma: '
+      + 'Claude, Gemini ou OpenRouter.', 0, '-');
+  }
+
+  const fila = [preferido, ...prontos].filter((v, i, a) => prontos.includes(v) && a.indexOf(v) === i);
+  const tentativas = [];
+
+  for (let i = 0; i < fila.length; i++) {
+    const id = fila[i];
+    const prov = PROVEDORES[id];
+    const modelo = modeloEscolhido(cfg, id);
+
+    if (opcoes.aoTentar) {
+      opcoes.aoTentar({ provedor: prov.nome, modelo, indice: i, total: fila.length });
+    }
+
+    try {
+      const mensagens = opcoes.mensagensPara
+        ? opcoes.mensagensPara(false)   // busca web paga fica so no OpenRouter
+        : opcoes.mensagens;
+
+      const r = await prov.chamar(cfg, mensagens, { ...opcoes, modelo });
+
+      if (!r.texto || !r.texto.trim()) {
+        throw new ErroIA(`${prov.nome} devolveu resposta vazia.`, 0, prov.nome);
+      }
+      return { ...r, provedorUsado: prov.nome, provedorId: id, buscaUsada: false, tentativas };
+
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      tentativas.push({ provedor: prov.nome, modelo, status: e.status || 0, erro: e.message });
+      if (i === fila.length - 1) {
+        throw new ErroIA(resumo(tentativas), 0, prov.nome);
+      }
+    }
+  }
+  throw new ErroIA(resumo(tentativas), 0, '-');
+}
+
+function resumo(tentativas) {
+  if (!tentativas.length) return 'Nenhum provedor pôde ser acionado.';
+  if (tentativas.length === 1) return tentativas[0].erro;
+  return `Tentei ${tentativas.length} provedores e nenhum respondeu:\n`
+    + tentativas.map(t => `• ${t.provedor} (${t.modelo}): ${t.erro}`).join('\n');
+}
+
+/* Teste de chave, por provedor. */
+async function testarChave(cfg, id) {
+  const prov = PROVEDORES[id];
+  const chave = (cfg[prov.campoChave] || '').trim();
+  if (!chave) return { ok: false, mensagem: 'Campo vazio.' };
+  if (prov.prefixoChave && !chave.startsWith(prov.prefixoChave)) {
+    return { ok: false, mensagem: `Esta chave não parece da ${prov.nome} (deveria começar com "${prov.prefixoChave}").` };
+  }
+  try {
+    const r = await prov.chamar({ ...cfg, [prov.campoChave]: chave },
+      [{ role: 'user', content: 'Responda apenas: ok' }],
+      { maxTokens: 16 });
+    return { ok: true, mensagem: `Chave válida — ${prov.nome} respondeu com ${r.modeloUsado}.` };
+  } catch (e) {
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.IA = {
+    PROVEDORES, ORDEM_PROVEDORES, provedoresProntos, modeloEscolhido,
+    chamarIA, testarChave, ErroIA
+  };
+}
+
+
 /* ===== teleprompter.js ===== */
 /* =========================================================================
    RADAR INSTITUCIONAL - Teleprompter
@@ -3195,6 +3650,59 @@ function realcarMarcacoes(txt) {
 const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
 /* =========================================================================
+   ESCOLHA DE PROVEDOR
+   -------------------------------------------------------------------------
+   Cada trabalho pode usar uma IA diferente. Com mais de uma chave preenchida
+   e "perguntar" ligado, a escolha aparece antes de rodar.
+   ========================================================================= */
+function escolherProvedor(titulo) {
+  return new Promise((resolve) => {
+    const prontos = window.IA.provedoresProntos(APP.cfg);
+
+    if (!prontos.length) { resolve(null); return; }
+    if (prontos.length === 1 || !APP.cfg.perguntarProvedor) {
+      resolve(prontos.includes(APP.cfg.provedor) ? APP.cfg.provedor : prontos[0]);
+      return;
+    }
+
+    const modal = $('#modalProvedor');
+    $('#tituloEscolha').textContent = titulo || 'Qual IA usar agora?';
+    $('#escolhaNaoPerguntar').checked = false;
+
+    $('#escolhaLista').innerHTML = prontos.map(id => {
+      const p = window.IA.PROVEDORES[id];
+      const m = window.IA.modeloEscolhido(APP.cfg, id);
+      const rot = (p.modelos.find(x => x.id === m) || {}).rotulo || m;
+      return `<button class="escolha ${id === APP.cfg.provedor ? 'preferido' : ''}" data-prov="${esc(id)}">
+        <span class="escolha-nome">${esc(p.nome)}${id === APP.cfg.provedor ? ' <b>preferido</b>' : ''}</span>
+        <span class="escolha-modelo">${esc(rot)}</span>
+      </button>`;
+    }).join('');
+
+    const fechar = (valor) => {
+      modal.classList.remove('on');
+      modal.onclick = null;
+      resolve(valor);
+    };
+
+    $('#escolhaLista').querySelectorAll('.escolha').forEach(b => {
+      b.onclick = () => {
+        const id = b.dataset.prov;
+        if ($('#escolhaNaoPerguntar').checked) {
+          APP.cfg.provedor = id;
+          APP.cfg.perguntarProvedor = false;
+          window.CFG.salvarCfg(APP.cfg);
+        }
+        fechar(id);
+      };
+    });
+    $('#escolhaCancelar').onclick = () => fechar(null);
+    modal.onclick = (e) => { if (e.target.id === 'modalProvedor') fechar(null); };
+    modal.classList.add('on');
+  });
+}
+
+/* =========================================================================
    NAVEGACAO
    ========================================================================= */
 function irPara(tela) {
@@ -3274,11 +3782,13 @@ function renderMacro() {
    VARREDURA DO DIA
    ========================================================================= */
 async function rodarVarredura() {
-  if (!APP.cfg.apiKey) {
-    toast('Configure sua chave da OpenRouter primeiro.', 'err');
+  if (!window.IA.provedoresProntos(APP.cfg).length) {
+    toast('Configure ao menos uma chave de IA: Claude, Gemini ou OpenRouter.', 'err', 6000);
     abrirConfig();
     return;
   }
+  const provedor = await escolherProvedor('Qual IA vai fazer a varredura?');
+  if (!provedor) return;
   if (!APP.panorama) await carregarMacro();
 
   const area = $('#areaPautas');
@@ -3312,8 +3822,9 @@ async function rodarVarredura() {
     .map(h => h.tema).filter(Boolean);
 
   try {
-    const r = await window.OR.chamarComCascata(APP.cfg, {
-      modelo: APP.cfg.modeloRadar,
+    const r = await window.IA.chamarIA(APP.cfg, {
+      provedor,
+      esperaJSON: true,
       // A cascata pode desligar a busca no meio do caminho. Cada versão do
       // prompt carrega regras diferentes, então ela pede a certa na hora.
       mensagensPara: (comBusca) => ([{
@@ -3322,26 +3833,27 @@ async function rodarVarredura() {
           semBusca: !comBusca, noticiasTexto, jaUsados
         })
       }]),
-      aoTentar: ({ modelo, comBusca, indice, total }) => {
+      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
         stream.textContent = '';
         const r0 = $('#carregandoRadar');
         if (r0) r0.textContent = indice === 0
-          ? `Consultando ${modelo}${comBusca ? ' com busca web' : ' sem busca web'}…`
-          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+          ? `Analisando com ${nome} (${modelo})…`
+          : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
     const j = window.OR.extrairJSON(r.texto);
     if (!j || !Array.isArray(j.pautas) || !j.pautas.length) {
-      throw new Error(`${r.modeloUsado} respondeu, mas fora do formato esperado. `
-        + 'Tente de novo, ou escolha um modelo específico em Configurações.');
+      throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu, mas fora do formato `
+        + 'esperado. Tente de novo, ou escolha outro provedor em Configurações. '
+        + 'Modelos pequenos costumam falhar neste JSON — Claude e Gemini são mais confiáveis aqui.');
     }
 
     APP.pautas = j.pautas;
     renderPautas(j, r.citacoes, r);
     renderTermometro('#areaTermometro', 6);
-    toast(`${j.pautas.length} pautas via ${r.modeloUsado}.`, 'ok');
+    toast(`${j.pautas.length} pautas via ${r.provedorUsado}.`, 'ok');
 
   } catch (e) {
     area.innerHTML = `
@@ -3605,8 +4117,11 @@ async function colherManchetes(alvo) {
 /* =========================================================================
    GERACAO DO PACOTE
    ========================================================================= */
-async function gerarPacote(pauta) {
+async function gerarPacote(pauta, provedorEscolhido) {
   if (!pauta) return;
+  const provedor = provedorEscolhido
+    || await escolherProvedor('Qual IA vai escrever o pacote?');
+  if (!provedor) return;
   APP.pautaAtual = pauta;
   irPara('pacote');
 
@@ -3624,8 +4139,9 @@ async function gerarPacote(pauta) {
   const stream = $('#streamPacote');
 
   try {
-    const r = await window.OR.chamarComCascata(APP.cfg, {
-      modelo: APP.cfg.modelo,
+    const r = await window.IA.chamarIA(APP.cfg, {
+      provedor,
+      esperaJSON: true,
       maxTokens: 16000,
       mensagensPara: (comBusca) => ([{
         role: 'user',
@@ -3637,23 +4153,24 @@ async function gerarPacote(pauta) {
           noticiasTexto: APP.colheita ? window.DADOS.noticiasParaTexto(APP.colheita, 6) : ''
         })
       }]),
-      aoTentar: ({ modelo, comBusca, indice, total }) => {
+      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
         stream.textContent = '';
         const r0 = $('#carregandoPacote');
         if (r0) r0.textContent = indice === 0
-          ? `Escrevendo com ${modelo}${comBusca ? '' : ' (sem busca web)'}…`
-          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+          ? `Escrevendo com ${nome} (${modelo})…`
+          : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
     const j = window.OR.extrairJSON(r.texto);
-    if (!j) throw new Error(`${r.modeloUsado} respondeu fora do formato esperado. `
-      + 'Tente de novo, ou escolha um modelo específico em Configurações.');
+    if (!j) throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu fora do formato `
+      + 'esperado. Tente de novo, ou escolha outro provedor. Claude e Gemini são mais '
+      + 'confiáveis neste JSON longo do que os modelos gratuitos.');
 
     j._citacoes = r.citacoes || [];
     j._geradoEm = new Date().toISOString();
-    j._modeloUsado = r.modeloUsado;
+    j._modeloUsado = `${r.provedorUsado} · ${r.modeloUsado}`;
     j._buscaUsada = r.buscaUsada;
     APP.pacote = j;
 
@@ -4061,94 +4578,100 @@ function renderHistorico() {
 /* =========================================================================
    CONFIGURACOES
    ========================================================================= */
-/* Popula os dois seletores com o catálogo vivo da OpenRouter.
-   O endpoint /models é público, então isso funciona mesmo antes de haver
-   chave configurada. Se a rede falhar, cai na lista de reserva e o app
-   continua utilizável. */
-async function preencherModelos(c) {
-  const seletores = [
-    { sel: '#cfgModelo', valor: c.modelo },
-    { sel: '#cfgModeloRadar', valor: c.modeloRadar }
-  ];
-
-  const aplicar = (html, aviso) => {
-    seletores.forEach(({ sel, valor }) => {
-      const el = $(sel);
-      if (!el) return;
-      el.innerHTML = html;
-      // Um modelo salvo antes pode ter saído do catálogo. Em vez de trocar
-      // silenciosamente a escolha do usuário, mantém a opção visível.
-      if (![...el.querySelectorAll('option')].some(o => o.value === valor)) {
-        el.add(new Option(`${valor} (fora do catálogo atual)`, valor), 0);
-      }
-      el.value = valor;
-    });
-    const av = $('#avisoCatalogo');
-    if (av) av.textContent = aviso;
-  };
-
-  // Estado provisório enquanto o catálogo carrega.
-  aplicar(window.CFG.MODELOS_RESERVA.map(m =>
-    `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''), 'Carregando catálogo…');
-
-  try {
-    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
-
-    const grupo = (rotulo, itens, marcar) => itens.length
-      ? `<optgroup label="${esc(rotulo)}">` + itens.map(m =>
-          `<option value="${esc(m.id)}">${esc(m.nome)}${marcar ? ` — ${(m.contexto / 1000).toFixed(0)}k` : ''}</option>`
-        ).join('') + '</optgroup>'
-      : '';
-
-    const html =
-      `<optgroup label="Escolha automática">
-         <option value="auto">Automático — melhor gratuito do momento (recomendado)</option>
-       </optgroup>`
-      + grupo('Roteadores da OpenRouter', cat.roteadores, false)
-      + grupo(`Gratuitos (${cat.gratuitos.length}) — ordenados por aptidão`, cat.gratuitos, true)
-      + grupo(`Pagos (${cat.pagos.length})`, cat.pagos, false);
-
-    aplicar(html, `${cat.gratuitos.length} modelos gratuitos e ${cat.pagos.length} pagos disponíveis agora `
-      + `(catálogo de ${cat.total} lido da OpenRouter).`);
-
-  } catch (e) {
-    aplicar(window.CFG.MODELOS_RESERVA.map(m =>
-      `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''),
-      'Não consegui ler o catálogo da OpenRouter. Usando a lista de reserva — o modo Automático continua funcionando.');
-  }
-}
-
 function abrirConfig() {
   const c = APP.cfg;
-  $('#cfgApiKey').value = c.apiKey;
+
+  // Chaves e modelos, um bloco por provedor
+  window.IA.ORDEM_PROVEDORES.forEach(id => {
+    const prov = window.IA.PROVEDORES[id];
+    const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+
+    const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+    if (campo) campo.value = c[prov.campoChave] || '';
+
+    const sel = $('#cfgModelo' + Cap);
+    if (sel) {
+      sel.innerHTML = prov.modelos
+        .map(m => `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join('');
+      const escolhido = window.IA.modeloEscolhido(c, id);
+      if (![...sel.options].some(o => o.value === escolhido)) {
+        sel.add(new Option(escolhido, escolhido), 0);
+      }
+      sel.value = escolhido;
+    }
+    const st = $('#status' + Cap);
+    if (st) { st.textContent = ''; st.className = 'prov-status'; }
+  });
+
+  // O catálogo vivo da OpenRouter entra por cima da lista curta.
+  preencherModelosOpenRouter(c);
+
+  $('#cfgProvedor').innerHTML = window.IA.ORDEM_PROVEDORES
+    .map(id => `<option value="${esc(id)}">${esc(window.IA.PROVEDORES[id].nome)}</option>`).join('');
+  $('#cfgProvedor').value = c.provedor;
+  $('#cfgPerguntar').checked = !!c.perguntarProvedor;
+
   $('#cfgTemp').value = c.temperatura;
   $('#cfgTempVal').textContent = c.temperatura;
-  $('#cfgMaxBusca').value = c.maxResultadosBusca;
   $('#cfgBuscaWeb').checked = c.buscaWeb;
+
   ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
     const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
     if (el) el.value = c[k] || '';
   });
   $('#cfgFormato').value = c.formatoPadrao;
 
-  preencherModelos(c);
-
   $('#cfgProduto').innerHTML = '<option value="">A IA escolhe pela dor da pauta</option>' +
     window.KB.PRODUTOS.map(p => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join('');
   $('#cfgProduto').value = c.produtoPreferido || '';
 
-  $('#resultadoChave').textContent = '';
   $('#modalConfig').classList.add('on');
+}
+
+/* Catálogo vivo da OpenRouter: endpoint público, funciona sem chave. */
+async function preencherModelosOpenRouter(c) {
+  const sel = $('#cfgModeloOpenrouter');
+  const aviso = $('#avisoCatalogo');
+  if (!sel) return;
+  try {
+    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
+    const grupo = (rot, itens) => itens.length
+      ? `<optgroup label="${esc(rot)}">` + itens.map(m =>
+          `<option value="${esc(m.id)}">${esc(m.nome)}</option>`).join('') + '</optgroup>'
+      : '';
+    sel.innerHTML =
+      '<optgroup label="Automático"><option value="auto">Automático — melhor gratuito</option></optgroup>'
+      + grupo('Roteadores', cat.roteadores)
+      + grupo(`Gratuitos (${cat.gratuitos.length})`, cat.gratuitos)
+      + grupo(`Pagos (${cat.pagos.length})`, cat.pagos);
+    const escolhido = window.IA.modeloEscolhido(c, 'openrouter');
+    if (![...sel.querySelectorAll('option')].some(o => o.value === escolhido)) {
+      sel.add(new Option(escolhido, escolhido), 0);
+    }
+    sel.value = escolhido;
+    if (aviso) aviso.textContent = `${cat.gratuitos.length} gratuitos e ${cat.pagos.length} pagos no catálogo.`;
+  } catch (e) {
+    if (aviso) aviso.textContent = 'Não consegui ler o catálogo da OpenRouter; usando a lista curta.';
+  }
 }
 
 function salvarConfig() {
   const c = APP.cfg;
-  c.apiKey = $('#cfgApiKey').value.trim();
-  c.modelo = $('#cfgModelo').value;
-  c.modeloRadar = $('#cfgModeloRadar').value;
+
+  window.IA.ORDEM_PROVEDORES.forEach(id => {
+    const prov = window.IA.PROVEDORES[id];
+    const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+    const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+    if (campo) c[prov.campoChave] = campo.value.trim();
+    const sel = $('#cfgModelo' + Cap);
+    if (sel) c['modelo' + Cap] = sel.value;
+  });
+
+  c.provedor = $('#cfgProvedor').value;
+  c.perguntarProvedor = $('#cfgPerguntar').checked;
   c.temperatura = parseFloat($('#cfgTemp').value);
-  c.maxResultadosBusca = parseInt($('#cfgMaxBusca').value, 10) || 8;
   c.buscaWeb = $('#cfgBuscaWeb').checked;
+
   ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
     const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
     if (el) c[k] = el.value.trim();
@@ -4164,8 +4687,13 @@ function salvarConfig() {
 
 function atualizarStatus() {
   const p = $('#statusApi');
-  const temChave = !!APP.cfg.apiKey;
-  p.innerHTML = `<span class="ponto ${temChave ? 'on' : 'off'}"></span><span>${temChave ? 'Conectado' : 'Sem chave'}</span>`;
+  const prontos = window.IA.provedoresProntos(APP.cfg);
+  const nomes = prontos.map(id => window.IA.PROVEDORES[id].nome.split(' ')[0]);
+  p.innerHTML = `<span class="ponto ${prontos.length ? 'on' : 'off'}"></span><span>${
+    prontos.length ? nomes.join(' · ') : 'Sem chave'}</span>`;
+  p.title = prontos.length
+    ? `Chaves configuradas: ${prontos.map(id => window.IA.PROVEDORES[id].nome).join(', ')}`
+    : 'Nenhuma chave configurada';
   $('#logoMarca').textContent = APP.cfg.marca || 'Central de Conteúdo';
 }
 
@@ -4194,14 +4722,24 @@ function iniciar() {
 
   $('#cfgTemp').oninput = (e) => $('#cfgTempVal').textContent = e.target.value;
 
-  $('#btnTestarChave').onclick = async () => {
-    const el = $('#resultadoChave');
-    el.textContent = 'testando…';
-    el.style.color = 'var(--txt-3)';
-    const r = await window.OR.testarChave(Object.assign({}, APP.cfg, { apiKey: $('#cfgApiKey').value.trim() }));
-    el.textContent = r.mensagem;
-    el.style.color = r.ok ? 'var(--verde)' : 'var(--vermelho)';
-  };
+  document.querySelectorAll('[data-testar]').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.testar;
+      const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+      const alvo = $('#status' + Cap);
+      const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+      const sel = $('#cfgModelo' + Cap);
+      alvo.textContent = 'testando…';
+      alvo.className = 'prov-status';
+      const provisorio = Object.assign({}, APP.cfg, {
+        [window.IA.PROVEDORES[id].campoChave]: campo.value.trim(),
+        ['modelo' + Cap]: sel ? sel.value : undefined
+      });
+      const r = await window.IA.testarChave(provisorio, id);
+      alvo.textContent = r.mensagem;
+      alvo.className = 'prov-status ' + (r.ok ? 'ok' : 'erro');
+    };
+  });
 
   $('#btnLimparDados').onclick = () => {
     if (!confirm('Isso apaga sua chave, suas configurações e todo o histórico salvo neste navegador. Confirma?')) return;
@@ -4242,9 +4780,10 @@ function iniciar() {
   atualizarStatus();
   carregarMacro();
 
-  if (!APP.cfg.apiKey) {
+  if (!window.IA.provedoresProntos(APP.cfg).length) {
     setTimeout(() => {
-      toast('Cole sua chave da OpenRouter em Configurações para ativar a varredura.', 'info', 7000);
+      toast('Configure ao menos uma chave de IA — Claude, Gemini ou OpenRouter — em Configurações.',
+            'info', 8000);
     }, 1100);
   }
 

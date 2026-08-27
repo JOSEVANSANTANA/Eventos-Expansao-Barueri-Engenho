@@ -62,6 +62,59 @@ function realcarMarcacoes(txt) {
 const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
 /* =========================================================================
+   ESCOLHA DE PROVEDOR
+   -------------------------------------------------------------------------
+   Cada trabalho pode usar uma IA diferente. Com mais de uma chave preenchida
+   e "perguntar" ligado, a escolha aparece antes de rodar.
+   ========================================================================= */
+function escolherProvedor(titulo) {
+  return new Promise((resolve) => {
+    const prontos = window.IA.provedoresProntos(APP.cfg);
+
+    if (!prontos.length) { resolve(null); return; }
+    if (prontos.length === 1 || !APP.cfg.perguntarProvedor) {
+      resolve(prontos.includes(APP.cfg.provedor) ? APP.cfg.provedor : prontos[0]);
+      return;
+    }
+
+    const modal = $('#modalProvedor');
+    $('#tituloEscolha').textContent = titulo || 'Qual IA usar agora?';
+    $('#escolhaNaoPerguntar').checked = false;
+
+    $('#escolhaLista').innerHTML = prontos.map(id => {
+      const p = window.IA.PROVEDORES[id];
+      const m = window.IA.modeloEscolhido(APP.cfg, id);
+      const rot = (p.modelos.find(x => x.id === m) || {}).rotulo || m;
+      return `<button class="escolha ${id === APP.cfg.provedor ? 'preferido' : ''}" data-prov="${esc(id)}">
+        <span class="escolha-nome">${esc(p.nome)}${id === APP.cfg.provedor ? ' <b>preferido</b>' : ''}</span>
+        <span class="escolha-modelo">${esc(rot)}</span>
+      </button>`;
+    }).join('');
+
+    const fechar = (valor) => {
+      modal.classList.remove('on');
+      modal.onclick = null;
+      resolve(valor);
+    };
+
+    $('#escolhaLista').querySelectorAll('.escolha').forEach(b => {
+      b.onclick = () => {
+        const id = b.dataset.prov;
+        if ($('#escolhaNaoPerguntar').checked) {
+          APP.cfg.provedor = id;
+          APP.cfg.perguntarProvedor = false;
+          window.CFG.salvarCfg(APP.cfg);
+        }
+        fechar(id);
+      };
+    });
+    $('#escolhaCancelar').onclick = () => fechar(null);
+    modal.onclick = (e) => { if (e.target.id === 'modalProvedor') fechar(null); };
+    modal.classList.add('on');
+  });
+}
+
+/* =========================================================================
    NAVEGACAO
    ========================================================================= */
 function irPara(tela) {
@@ -141,11 +194,13 @@ function renderMacro() {
    VARREDURA DO DIA
    ========================================================================= */
 async function rodarVarredura() {
-  if (!APP.cfg.apiKey) {
-    toast('Configure sua chave da OpenRouter primeiro.', 'err');
+  if (!window.IA.provedoresProntos(APP.cfg).length) {
+    toast('Configure ao menos uma chave de IA: Claude, Gemini ou OpenRouter.', 'err', 6000);
     abrirConfig();
     return;
   }
+  const provedor = await escolherProvedor('Qual IA vai fazer a varredura?');
+  if (!provedor) return;
   if (!APP.panorama) await carregarMacro();
 
   const area = $('#areaPautas');
@@ -179,8 +234,9 @@ async function rodarVarredura() {
     .map(h => h.tema).filter(Boolean);
 
   try {
-    const r = await window.OR.chamarComCascata(APP.cfg, {
-      modelo: APP.cfg.modeloRadar,
+    const r = await window.IA.chamarIA(APP.cfg, {
+      provedor,
+      esperaJSON: true,
       // A cascata pode desligar a busca no meio do caminho. Cada versão do
       // prompt carrega regras diferentes, então ela pede a certa na hora.
       mensagensPara: (comBusca) => ([{
@@ -189,26 +245,27 @@ async function rodarVarredura() {
           semBusca: !comBusca, noticiasTexto, jaUsados
         })
       }]),
-      aoTentar: ({ modelo, comBusca, indice, total }) => {
+      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
         stream.textContent = '';
         const r0 = $('#carregandoRadar');
         if (r0) r0.textContent = indice === 0
-          ? `Consultando ${modelo}${comBusca ? ' com busca web' : ' sem busca web'}…`
-          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+          ? `Analisando com ${nome} (${modelo})…`
+          : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
     const j = window.OR.extrairJSON(r.texto);
     if (!j || !Array.isArray(j.pautas) || !j.pautas.length) {
-      throw new Error(`${r.modeloUsado} respondeu, mas fora do formato esperado. `
-        + 'Tente de novo, ou escolha um modelo específico em Configurações.');
+      throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu, mas fora do formato `
+        + 'esperado. Tente de novo, ou escolha outro provedor em Configurações. '
+        + 'Modelos pequenos costumam falhar neste JSON — Claude e Gemini são mais confiáveis aqui.');
     }
 
     APP.pautas = j.pautas;
     renderPautas(j, r.citacoes, r);
     renderTermometro('#areaTermometro', 6);
-    toast(`${j.pautas.length} pautas via ${r.modeloUsado}.`, 'ok');
+    toast(`${j.pautas.length} pautas via ${r.provedorUsado}.`, 'ok');
 
   } catch (e) {
     area.innerHTML = `
@@ -472,8 +529,11 @@ async function colherManchetes(alvo) {
 /* =========================================================================
    GERACAO DO PACOTE
    ========================================================================= */
-async function gerarPacote(pauta) {
+async function gerarPacote(pauta, provedorEscolhido) {
   if (!pauta) return;
+  const provedor = provedorEscolhido
+    || await escolherProvedor('Qual IA vai escrever o pacote?');
+  if (!provedor) return;
   APP.pautaAtual = pauta;
   irPara('pacote');
 
@@ -491,8 +551,9 @@ async function gerarPacote(pauta) {
   const stream = $('#streamPacote');
 
   try {
-    const r = await window.OR.chamarComCascata(APP.cfg, {
-      modelo: APP.cfg.modelo,
+    const r = await window.IA.chamarIA(APP.cfg, {
+      provedor,
+      esperaJSON: true,
       maxTokens: 16000,
       mensagensPara: (comBusca) => ([{
         role: 'user',
@@ -504,23 +565,24 @@ async function gerarPacote(pauta) {
           noticiasTexto: APP.colheita ? window.DADOS.noticiasParaTexto(APP.colheita, 6) : ''
         })
       }]),
-      aoTentar: ({ modelo, comBusca, indice, total }) => {
+      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
         stream.textContent = '';
         const r0 = $('#carregandoPacote');
         if (r0) r0.textContent = indice === 0
-          ? `Escrevendo com ${modelo}${comBusca ? '' : ' (sem busca web)'}…`
-          : `Modelo ${indice + 1} de ${total}: ${modelo}${comBusca ? '' : ' (sem busca web)'}…`;
+          ? `Escrevendo com ${nome} (${modelo})…`
+          : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
     const j = window.OR.extrairJSON(r.texto);
-    if (!j) throw new Error(`${r.modeloUsado} respondeu fora do formato esperado. `
-      + 'Tente de novo, ou escolha um modelo específico em Configurações.');
+    if (!j) throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu fora do formato `
+      + 'esperado. Tente de novo, ou escolha outro provedor. Claude e Gemini são mais '
+      + 'confiáveis neste JSON longo do que os modelos gratuitos.');
 
     j._citacoes = r.citacoes || [];
     j._geradoEm = new Date().toISOString();
-    j._modeloUsado = r.modeloUsado;
+    j._modeloUsado = `${r.provedorUsado} · ${r.modeloUsado}`;
     j._buscaUsada = r.buscaUsada;
     APP.pacote = j;
 
@@ -928,94 +990,100 @@ function renderHistorico() {
 /* =========================================================================
    CONFIGURACOES
    ========================================================================= */
-/* Popula os dois seletores com o catálogo vivo da OpenRouter.
-   O endpoint /models é público, então isso funciona mesmo antes de haver
-   chave configurada. Se a rede falhar, cai na lista de reserva e o app
-   continua utilizável. */
-async function preencherModelos(c) {
-  const seletores = [
-    { sel: '#cfgModelo', valor: c.modelo },
-    { sel: '#cfgModeloRadar', valor: c.modeloRadar }
-  ];
-
-  const aplicar = (html, aviso) => {
-    seletores.forEach(({ sel, valor }) => {
-      const el = $(sel);
-      if (!el) return;
-      el.innerHTML = html;
-      // Um modelo salvo antes pode ter saído do catálogo. Em vez de trocar
-      // silenciosamente a escolha do usuário, mantém a opção visível.
-      if (![...el.querySelectorAll('option')].some(o => o.value === valor)) {
-        el.add(new Option(`${valor} (fora do catálogo atual)`, valor), 0);
-      }
-      el.value = valor;
-    });
-    const av = $('#avisoCatalogo');
-    if (av) av.textContent = aviso;
-  };
-
-  // Estado provisório enquanto o catálogo carrega.
-  aplicar(window.CFG.MODELOS_RESERVA.map(m =>
-    `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''), 'Carregando catálogo…');
-
-  try {
-    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
-
-    const grupo = (rotulo, itens, marcar) => itens.length
-      ? `<optgroup label="${esc(rotulo)}">` + itens.map(m =>
-          `<option value="${esc(m.id)}">${esc(m.nome)}${marcar ? ` — ${(m.contexto / 1000).toFixed(0)}k` : ''}</option>`
-        ).join('') + '</optgroup>'
-      : '';
-
-    const html =
-      `<optgroup label="Escolha automática">
-         <option value="auto">Automático — melhor gratuito do momento (recomendado)</option>
-       </optgroup>`
-      + grupo('Roteadores da OpenRouter', cat.roteadores, false)
-      + grupo(`Gratuitos (${cat.gratuitos.length}) — ordenados por aptidão`, cat.gratuitos, true)
-      + grupo(`Pagos (${cat.pagos.length})`, cat.pagos, false);
-
-    aplicar(html, `${cat.gratuitos.length} modelos gratuitos e ${cat.pagos.length} pagos disponíveis agora `
-      + `(catálogo de ${cat.total} lido da OpenRouter).`);
-
-  } catch (e) {
-    aplicar(window.CFG.MODELOS_RESERVA.map(m =>
-      `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join(''),
-      'Não consegui ler o catálogo da OpenRouter. Usando a lista de reserva — o modo Automático continua funcionando.');
-  }
-}
-
 function abrirConfig() {
   const c = APP.cfg;
-  $('#cfgApiKey').value = c.apiKey;
+
+  // Chaves e modelos, um bloco por provedor
+  window.IA.ORDEM_PROVEDORES.forEach(id => {
+    const prov = window.IA.PROVEDORES[id];
+    const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+
+    const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+    if (campo) campo.value = c[prov.campoChave] || '';
+
+    const sel = $('#cfgModelo' + Cap);
+    if (sel) {
+      sel.innerHTML = prov.modelos
+        .map(m => `<option value="${esc(m.id)}">${esc(m.rotulo)}</option>`).join('');
+      const escolhido = window.IA.modeloEscolhido(c, id);
+      if (![...sel.options].some(o => o.value === escolhido)) {
+        sel.add(new Option(escolhido, escolhido), 0);
+      }
+      sel.value = escolhido;
+    }
+    const st = $('#status' + Cap);
+    if (st) { st.textContent = ''; st.className = 'prov-status'; }
+  });
+
+  // O catálogo vivo da OpenRouter entra por cima da lista curta.
+  preencherModelosOpenRouter(c);
+
+  $('#cfgProvedor').innerHTML = window.IA.ORDEM_PROVEDORES
+    .map(id => `<option value="${esc(id)}">${esc(window.IA.PROVEDORES[id].nome)}</option>`).join('');
+  $('#cfgProvedor').value = c.provedor;
+  $('#cfgPerguntar').checked = !!c.perguntarProvedor;
+
   $('#cfgTemp').value = c.temperatura;
   $('#cfgTempVal').textContent = c.temperatura;
-  $('#cfgMaxBusca').value = c.maxResultadosBusca;
   $('#cfgBuscaWeb').checked = c.buscaWeb;
+
   ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
     const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
     if (el) el.value = c[k] || '';
   });
   $('#cfgFormato').value = c.formatoPadrao;
 
-  preencherModelos(c);
-
   $('#cfgProduto').innerHTML = '<option value="">A IA escolhe pela dor da pauta</option>' +
     window.KB.PRODUTOS.map(p => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join('');
   $('#cfgProduto').value = c.produtoPreferido || '';
 
-  $('#resultadoChave').textContent = '';
   $('#modalConfig').classList.add('on');
+}
+
+/* Catálogo vivo da OpenRouter: endpoint público, funciona sem chave. */
+async function preencherModelosOpenRouter(c) {
+  const sel = $('#cfgModeloOpenrouter');
+  const aviso = $('#avisoCatalogo');
+  if (!sel) return;
+  try {
+    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
+    const grupo = (rot, itens) => itens.length
+      ? `<optgroup label="${esc(rot)}">` + itens.map(m =>
+          `<option value="${esc(m.id)}">${esc(m.nome)}</option>`).join('') + '</optgroup>'
+      : '';
+    sel.innerHTML =
+      '<optgroup label="Automático"><option value="auto">Automático — melhor gratuito</option></optgroup>'
+      + grupo('Roteadores', cat.roteadores)
+      + grupo(`Gratuitos (${cat.gratuitos.length})`, cat.gratuitos)
+      + grupo(`Pagos (${cat.pagos.length})`, cat.pagos);
+    const escolhido = window.IA.modeloEscolhido(c, 'openrouter');
+    if (![...sel.querySelectorAll('option')].some(o => o.value === escolhido)) {
+      sel.add(new Option(escolhido, escolhido), 0);
+    }
+    sel.value = escolhido;
+    if (aviso) aviso.textContent = `${cat.gratuitos.length} gratuitos e ${cat.pagos.length} pagos no catálogo.`;
+  } catch (e) {
+    if (aviso) aviso.textContent = 'Não consegui ler o catálogo da OpenRouter; usando a lista curta.';
+  }
 }
 
 function salvarConfig() {
   const c = APP.cfg;
-  c.apiKey = $('#cfgApiKey').value.trim();
-  c.modelo = $('#cfgModelo').value;
-  c.modeloRadar = $('#cfgModeloRadar').value;
+
+  window.IA.ORDEM_PROVEDORES.forEach(id => {
+    const prov = window.IA.PROVEDORES[id];
+    const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+    const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+    if (campo) c[prov.campoChave] = campo.value.trim();
+    const sel = $('#cfgModelo' + Cap);
+    if (sel) c['modelo' + Cap] = sel.value;
+  });
+
+  c.provedor = $('#cfgProvedor').value;
+  c.perguntarProvedor = $('#cfgPerguntar').checked;
   c.temperatura = parseFloat($('#cfgTemp').value);
-  c.maxResultadosBusca = parseInt($('#cfgMaxBusca').value, 10) || 8;
   c.buscaWeb = $('#cfgBuscaWeb').checked;
+
   ['marca', 'credenciais', 'formacao', 'experiencia', 'instituicoes', 'publico'].forEach(k => {
     const el = $('#cfg' + k.charAt(0).toUpperCase() + k.slice(1));
     if (el) c[k] = el.value.trim();
@@ -1031,8 +1099,13 @@ function salvarConfig() {
 
 function atualizarStatus() {
   const p = $('#statusApi');
-  const temChave = !!APP.cfg.apiKey;
-  p.innerHTML = `<span class="ponto ${temChave ? 'on' : 'off'}"></span><span>${temChave ? 'Conectado' : 'Sem chave'}</span>`;
+  const prontos = window.IA.provedoresProntos(APP.cfg);
+  const nomes = prontos.map(id => window.IA.PROVEDORES[id].nome.split(' ')[0]);
+  p.innerHTML = `<span class="ponto ${prontos.length ? 'on' : 'off'}"></span><span>${
+    prontos.length ? nomes.join(' · ') : 'Sem chave'}</span>`;
+  p.title = prontos.length
+    ? `Chaves configuradas: ${prontos.map(id => window.IA.PROVEDORES[id].nome).join(', ')}`
+    : 'Nenhuma chave configurada';
   $('#logoMarca').textContent = APP.cfg.marca || 'Central de Conteúdo';
 }
 
@@ -1061,14 +1134,24 @@ function iniciar() {
 
   $('#cfgTemp').oninput = (e) => $('#cfgTempVal').textContent = e.target.value;
 
-  $('#btnTestarChave').onclick = async () => {
-    const el = $('#resultadoChave');
-    el.textContent = 'testando…';
-    el.style.color = 'var(--txt-3)';
-    const r = await window.OR.testarChave(Object.assign({}, APP.cfg, { apiKey: $('#cfgApiKey').value.trim() }));
-    el.textContent = r.mensagem;
-    el.style.color = r.ok ? 'var(--verde)' : 'var(--vermelho)';
-  };
+  document.querySelectorAll('[data-testar]').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.testar;
+      const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+      const alvo = $('#status' + Cap);
+      const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+      const sel = $('#cfgModelo' + Cap);
+      alvo.textContent = 'testando…';
+      alvo.className = 'prov-status';
+      const provisorio = Object.assign({}, APP.cfg, {
+        [window.IA.PROVEDORES[id].campoChave]: campo.value.trim(),
+        ['modelo' + Cap]: sel ? sel.value : undefined
+      });
+      const r = await window.IA.testarChave(provisorio, id);
+      alvo.textContent = r.mensagem;
+      alvo.className = 'prov-status ' + (r.ok ? 'ok' : 'erro');
+    };
+  });
 
   $('#btnLimparDados').onclick = () => {
     if (!confirm('Isso apaga sua chave, suas configurações e todo o histórico salvo neste navegador. Confirma?')) return;
@@ -1109,9 +1192,10 @@ function iniciar() {
   atualizarStatus();
   carregarMacro();
 
-  if (!APP.cfg.apiKey) {
+  if (!window.IA.provedoresProntos(APP.cfg).length) {
     setTimeout(() => {
-      toast('Cole sua chave da OpenRouter em Configurações para ativar a varredura.', 'info', 7000);
+      toast('Configure ao menos uma chave de IA — Claude, Gemini ou OpenRouter — em Configurações.',
+            'info', 8000);
     }, 1100);
   }
 

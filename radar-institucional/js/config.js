@@ -6,15 +6,23 @@ const CHAVE_CFG = 'radar_cfg_v1';
 const CHAVE_HIST = 'radar_hist_v1';
 
 const CFG_PADRAO = {
-  // --- OpenRouter ---
-  apiKey: '',
-  // 'auto' = o app pontua o catalogo vivo da OpenRouter e escolhe o melhor
-  // gratuito do momento, com cascata de reserva atras.
-  modelo: 'auto',
-  modeloRadar: 'auto',
-  // Desligada por padrao. A busca da OpenRouter faz busca semantica e devolve
-  // perfil de LinkedIn e pagina institucional no lugar de noticia. Quem traz
-  // noticia aqui e o coletor local, que le feed de veiculo de verdade.
+  // --- Chaves, uma por provedor. Todas opcionais; basta uma. ---
+  chaveAnthropic: '',
+  chaveGemini: '',
+  chaveOpenRouter: '',
+
+  // Provedor preferido. A tela de escolha aparece na hora de rodar quando
+  // ha mais de uma chave configurada.
+  provedor: 'anthropic',
+  perguntarProvedor: true,
+
+  // Modelo por provedor
+  modeloAnthropic: 'claude-opus-5',
+  modeloGemini: 'gemini-3.7-flash',
+  modeloOpenrouter: 'auto',
+
+  // --- Busca web paga (so OpenRouter). Desligada: devolve perfil de
+  //     LinkedIn e pagina institucional em vez de noticia. ---
   buscaWeb: false,
   maxResultadosBusca: 8,
   temperatura: 0.7,
@@ -31,7 +39,6 @@ const CFG_PADRAO = {
   formatoPadrao: 'ambos',
   produtoPreferido: '',
 
-  // --- Extras opcionais ---
   brapiToken: ''
 };
 
@@ -46,7 +53,10 @@ const MODELOS_RESERVA = [
 function lerCfg() {
   try {
     const bruto = localStorage.getItem(CHAVE_CFG);
-    return bruto ? Object.assign({}, CFG_PADRAO, JSON.parse(bruto)) : Object.assign({}, CFG_PADRAO);
+    const salvo = bruto ? JSON.parse(bruto) : {};
+    // Versoes anteriores guardavam uma chave so, em "apiKey". Preserva.
+    if (salvo.apiKey && !salvo.chaveOpenRouter) salvo.chaveOpenRouter = salvo.apiKey;
+    return Object.assign({}, CFG_PADRAO, salvo);
   } catch (e) {
     return Object.assign({}, CFG_PADRAO);
   }

@@ -189,51 +189,68 @@
     </div>
     <div class="modal-corpo">
 
-      <h4 style="font-size:14px;font-weight:700;margin-bottom:13px;color:var(--ouro)">Conexão OpenRouter</h4>
-      <div class="linha-form">
-        <div>
-          <label class="rot" for="cfgApiKey">Chave da API</label>
-          <input type="password" id="cfgApiKey" placeholder="sk-or-v1-...">
-          <div class="dica">Pegue em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--azul)">openrouter.ai/keys</a>. Fica salva só no seu navegador (localStorage) e vai direto para a OpenRouter — nenhum servidor intermediário. Como é uma ferramenta local, não use esta chave em página pública e prefira uma chave com limite de gasto definido.</div>
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--ouro)">Chaves de IA</h4>
+      <div class="dica" style="margin-bottom:16px">Preencha as que você tiver — basta uma. Na hora de rodar,
+      você escolhe qual usar. Todas ficam só neste navegador e vão direto para o provedor.</div>
+
+      <div class="prov-bloco" data-prov="anthropic">
+        <div class="prov-cab">
+          <b>Claude — Anthropic</b>
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">pegar chave ↗</a>
         </div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveAnthropic" placeholder="sk-ant-...">
+          <select id="cfgModeloAnthropic"></select>
+        </div>
+        <button class="btn btn-sm btn-fantasma" data-testar="anthropic">Testar</button>
+        <span class="prov-status" id="statusAnthropic"></span>
       </div>
-      <div class="linha-form duas">
-        <div>
-          <label class="rot" for="cfgModelo">Modelo para o pacote</label>
-          <select id="cfgModelo"></select>
-          <div class="dica">Deixe em <b>Automático</b> para a ferramenta escolher o melhor gratuito a cada chamada.</div>
+
+      <div class="prov-bloco" data-prov="gemini">
+        <div class="prov-cab">
+          <b>Gemini — Google</b>
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">pegar chave ↗</a>
         </div>
-        <div>
-          <label class="rot" for="cfgModeloRadar">Modelo para a varredura</label>
-          <select id="cfgModeloRadar"></select>
-          <div class="dica">Pode ser mais barato: aqui o peso é a busca.</div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveGemini" placeholder="AIza...">
+          <select id="cfgModeloGemini"></select>
         </div>
+        <button class="btn btn-sm btn-fantasma" data-testar="gemini">Testar</button>
+        <span class="prov-status" id="statusGemini"></span>
       </div>
-      <div class="dica" id="avisoCatalogo" style="margin:-6px 0 14px">Carregando catálogo…</div>
-      <div class="linha-form duas">
+
+      <div class="prov-bloco" data-prov="openrouter">
+        <div class="prov-cab">
+          <b>OpenRouter</b>
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">pegar chave ↗</a>
+        </div>
+        <div class="linha-form duas" style="margin-bottom:8px">
+          <input type="password" id="cfgChaveOpenRouter" placeholder="sk-or-v1-...">
+          <select id="cfgModeloOpenrouter"></select>
+        </div>
+        <div class="dica" id="avisoCatalogo" style="margin:0 0 8px">Carregando catálogo…</div>
+        <button class="btn btn-sm btn-fantasma" data-testar="openrouter">Testar</button>
+        <span class="prov-status" id="statusOpenrouter"></span>
+        <label class="switch" style="margin-top:12px">
+          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
+          <span style="font-size:12.5px;font-weight:600">Busca web paga <span style="color:var(--txt-3);font-weight:400">— devolve LinkedIn no lugar de notícia; deixe desligada</span></span>
+        </label>
+      </div>
+
+      <div class="linha-form duas" style="margin-top:18px">
+        <div>
+          <label class="rot" for="cfgProvedor">Provedor preferido</label>
+          <select id="cfgProvedor"></select>
+        </div>
         <div>
           <label class="rot" for="cfgTemp">Temperatura — <span id="cfgTempVal">0.7</span></label>
           <input type="range" id="cfgTemp" min="0" max="1.2" step="0.05" style="width:100%;accent-color:var(--ouro)">
-          <div class="dica">Baixo = mais previsível. Alto = mais criativo.</div>
-        </div>
-        <div>
-          <label class="rot" for="cfgMaxBusca">Resultados de busca por consulta</label>
-          <input type="number" id="cfgMaxBusca" min="3" max="20">
-          <div class="dica">Mais resultados = mais fontes, custo maior.</div>
         </div>
       </div>
-      <div class="linha-form">
-        <label class="switch">
-          <input type="checkbox" id="cfgBuscaWeb"><span class="switch-tr"></span>
-          <span style="font-size:13.5px;font-weight:600">Busca web paga da OpenRouter <span style="color:var(--txt-3);font-weight:400">— desligada por padrão</span></span>
-        </label>
-      </div>
-      <div class="dica" style="margin:-8px 0 14px">A busca da OpenRouter é semântica e costuma devolver
-      perfil de LinkedIn e página institucional em vez de notícia — por isso vem desligada. Quem traz
-      manchete aqui é o coletor local, que lê feed de veículo de verdade. Ligue só se quiser uma camada
-      extra, e confira as fontes no bloco de checagem.</div>
-      <button class="btn btn-fantasma btn-sm" id="btnTestarChave">Testar chave</button>
-      <span id="resultadoChave" style="margin-left:11px;font-size:12.5px"></span>
+      <label class="switch" style="margin-bottom:6px">
+        <input type="checkbox" id="cfgPerguntar"><span class="switch-tr"></span>
+        <span style="font-size:13.5px;font-weight:600">Perguntar qual usar a cada trabalho</span>
+      </label>
 
       <hr style="border:0;border-top:1px solid var(--linha);margin:26px 0">
 
@@ -354,6 +371,23 @@
   </div>
 </div>
 
+<!-- ================= ESCOLHA DE PROVEDOR ================= -->
+<div class="modal" id="modalProvedor">
+  <div class="modal-cx" style="max-width:520px">
+    <div class="modal-cab"><h3 id="tituloEscolha">Qual IA usar agora?</h3></div>
+    <div class="modal-corpo">
+      <div class="escolha-lista" id="escolhaLista"></div>
+      <label class="switch" style="margin-top:16px">
+        <input type="checkbox" id="escolhaNaoPerguntar"><span class="switch-tr"></span>
+        <span style="font-size:12.5px;color:var(--txt-2)">Não perguntar de novo — usar sempre a escolhida</span>
+      </label>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn btn-fantasma" id="escolhaCancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-area" id="toasts"></div>
 
 <script src="js/knowledge.js"></script>
@@ -361,6 +395,7 @@
 <script src="js/data.js"></script>
 <script src="js/prompts.js"></script>
 <script src="js/openrouter.js"></script>
+<script src="js/ia.js"></script>
 <script src="js/teleprompter.js"></script>
 <script src="js/app.js"></script>
 </body>

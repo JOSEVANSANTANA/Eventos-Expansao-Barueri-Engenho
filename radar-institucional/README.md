@@ -27,19 +27,37 @@ barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
 
 ## Configuração inicial (uma vez)
 
-1. Crie uma chave em [openrouter.ai/keys](https://openrouter.ai/keys)
-2. Na ferramenta, clique em **Configurações** e cole a chave
-3. Clique em **Testar chave** para confirmar
-4. Deixe o modelo em **Automático** (padrão)
-5. Preencha sua identidade (marca, certificações, bagagem) — isso entra na voz do roteiro
-6. Salvar
+A ferramenta fala com **três provedores de IA**. Preencha as chaves que você tiver —
+basta uma. Em cada trabalho você escolhe qual usar.
 
-**Sobre a chave:** fica no `localStorage` do seu navegador e vai direto para a
-OpenRouter. Não passa por servidor intermediário. Como é ferramenta local, não
-publique esta página em endereço público com a chave dentro, e prefira uma chave
-com limite de gasto definido no painel da OpenRouter.
+| Provedor | Onde pegar a chave | Começa com | Modelos |
+|---|---|---|---|
+| **Claude (Anthropic)** | console.anthropic.com/settings/keys | `sk-ant-` | Opus 5, Sonnet 5, Haiku 4.5 |
+| **Gemini (Google)** | aistudio.google.com/apikey | `AIza` | 3.7 Flash, 3.1 Pro, 3.5 Flash, 2.5 Flash |
+| **OpenRouter** | openrouter.ai/keys | `sk-or-` | catálogo vivo, ~400 modelos |
 
----
+1. Abra **Configurações** e cole a(s) chave(s)
+2. Clique em **Testar** em cada bloco — o teste faz uma chamada real
+3. Escolha o **provedor preferido** e o modelo de cada um
+4. Preencha sua identidade (marca, certificações, bagagem)
+5. Salvar
+
+**Qual escolher.** Para o pacote completo, prefira **Claude ou Gemini** — o JSON é longo
+e estruturado, e modelos pequenos falham nele (foi exatamente o erro *"respondeu fora do
+formato esperado"*). O Gemini recebe `responseMimeType: application/json`, que força saída
+válida no nível do decodificador. Os gratuitos da OpenRouter servem bem para a varredura,
+que é mais curta.
+
+**Escolha por trabalho.** Com mais de uma chave preenchida, ao clicar em *Rodar varredura*
+ou ao abrir uma pauta, a ferramenta pergunta qual IA usar. Dá para desligar essa pergunta
+na própria caixa ou em Configurações.
+
+**Reserva automática.** Se o provedor escolhido falhar por motivo que trocar resolve — sem
+crédito, limite atingido, instabilidade — a ferramenta tenta os outros configurados sozinha.
+Chave inválida não cai para o próximo: trocar de provedor não conserta chave errada.
+
+**As chaves ficam só no seu navegador** (`localStorage`) e vão direto para cada provedor,
+sem servidor intermediário. Defina limite de gasto no painel de cada um.
 
 ## O coletor de manchetes
 
