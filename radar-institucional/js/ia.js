@@ -26,6 +26,32 @@ class ErroIA extends Error {
 
 /* ---------- utilidades comuns ------------------------------------------ */
 
+/* Chave colada quase sempre vem com espaco ou quebra de linha invisivel.
+   Valor de header HTTP nao aceita esses caracteres: o fetch estoura ANTES de
+   sair, com um erro de rede generico que nao diz nada. Por isso todo uso de
+   chave passa por aqui. */
+function limparChave(v) {
+  return String(v || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+}
+
+/* Um fetch que nunca vaza erro cru do navegador. Falha aqui e sempre uma de
+   tres coisas, e a mensagem diz qual. */
+async function buscar(url, opcoes, provedor) {
+  try {
+    return await fetch(url, opcoes);
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    const detalhe = e && e.message ? ` (${e.message})` : '';
+    throw new ErroIA(
+      `Não consegui falar com a ${provedor}${detalhe}. Três causas possíveis, nesta ordem: `
+      + `1) bloqueador de anúncios ou extensão de privacidade barrando a chamada — `
+      + `teste numa janela anônima com as extensões desligadas; `
+      + `2) sem internet ou firewall bloqueando o domínio; `
+      + `3) a chave contém um caractere inválido — apague o campo e cole de novo.`,
+      0, provedor);
+  }
+}
+
 function origemSegura() {
   return (location.origin && location.origin !== 'null')
     ? location.origin : 'https://radar-institucional.local';
@@ -78,7 +104,12 @@ async function corpoErro(r) {
 
 function mensagemDeStatus(status, detalhe, provedor, painel) {
   if (status === 401 || status === 403) {
-    return `Chave da ${provedor} inválida ou sem permissão. Confira em Configurações. (${detalhe})`;
+    const dica = provedor === 'Gemini'
+      ? ' Dica: a chave precisa ser da Gemini API, criada em aistudio.google.com/apikey com um projeto'
+        + ' que tenha a Generative Language API habilitada. Chaves de outros fluxos do Google'
+        + ' (Live API, OAuth, Vertex) não servem aqui.'
+      : '';
+    return `Chave da ${provedor} recusada. (${detalhe})${dica}`;
   }
   if (status === 402) return `Sem créditos na ${provedor}. Adicione saldo em ${painel}.`;
   if (status === 429) return `Limite de uso da ${provedor} atingido. Aguarde alguns instantes.`;
@@ -95,7 +126,6 @@ const ANTHROPIC = {
   campoChave: 'chaveAnthropic',
   painel: 'console.anthropic.com',
   ondePegar: 'https://console.anthropic.com/settings/keys',
-  prefixoChave: 'sk-ant-',
   modelos: [
     { id: 'claude-opus-5', rotulo: 'Claude Opus 5 — melhor roteiro' },
     { id: 'claude-sonnet-5', rotulo: 'Claude Sonnet 5 — equilíbrio' },
@@ -104,7 +134,7 @@ const ANTHROPIC = {
   padrao: 'claude-opus-5',
 
   async chamar(cfg, mensagens, opcoes) {
-    const chave = cfg.chaveAnthropic;
+    const chave = limparChave(cfg.chaveAnthropic);
     if (!chave) throw new ErroIA('Nenhuma chave da Anthropic configurada.', 0, 'Anthropic');
 
     const modelo = opcoes.modelo || cfg.modeloAnthropic || this.padrao;
@@ -120,7 +150,7 @@ const ANTHROPIC = {
     };
     if (sistema) corpo.system = sistema;
 
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await buscar('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -130,7 +160,7 @@ const ANTHROPIC = {
       },
       body: JSON.stringify(corpo),
       signal: opcoes.signal
-    });
+    }, 'Anthropic');
 
     if (!r.ok) {
       throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Anthropic', this.painel),
@@ -155,7 +185,6 @@ const GEMINI = {
   campoChave: 'chaveGemini',
   painel: 'aistudio.google.com',
   ondePegar: 'https://aistudio.google.com/apikey',
-  prefixoChave: 'AIza',
   modelos: [
     { id: 'gemini-3.7-flash', rotulo: 'Gemini 3.7 Flash — rápido e capaz' },
     { id: 'gemini-3.1-pro-preview', rotulo: 'Gemini 3.1 Pro — raciocínio' },
@@ -165,7 +194,7 @@ const GEMINI = {
   padrao: 'gemini-3.7-flash',
 
   async chamar(cfg, mensagens, opcoes) {
-    const chave = cfg.chaveGemini;
+    const chave = limparChave(cfg.chaveGemini);
     if (!chave) throw new ErroIA('Nenhuma chave do Gemini configurada.', 0, 'Gemini');
 
     const modelo = opcoes.modelo || cfg.modeloGemini || this.padrao;
@@ -189,12 +218,12 @@ const GEMINI = {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}`
               + ':streamGenerateContent?alt=sse';
 
-    const r = await fetch(url, {
+    const r = await buscar(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
       body: JSON.stringify(corpo),
       signal: opcoes.signal
-    });
+    }, 'Gemini');
 
     if (!r.ok) {
       throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Gemini', this.painel),
@@ -220,7 +249,6 @@ const OPENROUTER = {
   campoChave: 'chaveOpenRouter',
   painel: 'openrouter.ai/credits',
   ondePegar: 'https://openrouter.ai/keys',
-  prefixoChave: 'sk-or-',
   modelos: [
     { id: 'auto', rotulo: 'Automático — melhor gratuito do momento' },
     { id: 'openrouter/free', rotulo: 'Roteador Gratuito' }
@@ -228,7 +256,7 @@ const OPENROUTER = {
   padrao: 'auto',
 
   async chamar(cfg, mensagens, opcoes) {
-    const chave = cfg.chaveOpenRouter;
+    const chave = limparChave(cfg.chaveOpenRouter);
     if (!chave) throw new ErroIA('Nenhuma chave da OpenRouter configurada.', 0, 'OpenRouter');
 
     const modelo = opcoes.modelo === 'auto' || !opcoes.modelo
@@ -245,7 +273,7 @@ const OPENROUTER = {
       corpo.plugins = [{ id: 'web', max_results: cfg.maxResultadosBusca || 8 }];
     }
 
-    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const r = await buscar('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -255,7 +283,7 @@ const OPENROUTER = {
       },
       body: JSON.stringify(corpo),
       signal: opcoes.signal
-    });
+    }, 'OpenRouter');
 
     if (!r.ok) {
       throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'OpenRouter', this.painel),
@@ -284,7 +312,7 @@ const ORDEM_PROVEDORES = ['anthropic', 'gemini', 'openrouter'];
 
 /* Quais tem chave preenchida. */
 function provedoresProntos(cfg) {
-  return ORDEM_PROVEDORES.filter(id => (cfg[PROVEDORES[id].campoChave] || '').trim());
+  return ORDEM_PROVEDORES.filter(id => limparChave(cfg[PROVEDORES[id].campoChave]));
 }
 
 function modeloEscolhido(cfg, id) {
@@ -353,11 +381,10 @@ function resumo(tentativas) {
 /* Teste de chave, por provedor. */
 async function testarChave(cfg, id) {
   const prov = PROVEDORES[id];
-  const chave = (cfg[prov.campoChave] || '').trim();
+  const chave = limparChave(cfg[prov.campoChave]);
   if (!chave) return { ok: false, mensagem: 'Campo vazio.' };
-  if (prov.prefixoChave && !chave.startsWith(prov.prefixoChave)) {
-    return { ok: false, mensagem: `Esta chave não parece da ${prov.nome} (deveria começar com "${prov.prefixoChave}").` };
-  }
+  // Sem validacao de formato: o formato das chaves e dos provedores, muda sem
+  // aviso, e chutar prefixo so serve para rejeitar chave boa. Quem valida e a API.
   try {
     const r = await prov.chamar({ ...cfg, [prov.campoChave]: chave },
       [{ role: 'user', content: 'Responda apenas: ok' }],
@@ -371,6 +398,6 @@ async function testarChave(cfg, id) {
 if (typeof window !== 'undefined') {
   window.IA = {
     PROVEDORES, ORDEM_PROVEDORES, provedoresProntos, modeloEscolhido,
-    chamarIA, testarChave, ErroIA
+    chamarIA, testarChave, limparChave, ErroIA
   };
 }

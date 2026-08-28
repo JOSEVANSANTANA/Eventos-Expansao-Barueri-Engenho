@@ -1134,6 +1134,25 @@ function iniciar() {
 
   $('#cfgTemp').oninput = (e) => $('#cfgTempVal').textContent = e.target.value;
 
+  // Limpa espacos e quebras de linha assim que o campo perde o foco.
+  ['#cfgChaveAnthropic', '#cfgChaveGemini', '#cfgChaveOpenRouter'].forEach(sel => {
+    const el = $(sel);
+    if (el) el.onblur = () => { el.value = window.IA.limparChave(el.value); };
+  });
+
+  // Mostrar/ocultar a chave: sem isso nao da para conferir uma colagem torta,
+  // que e justamente a causa mais comum de falha de autenticacao.
+  document.querySelectorAll('[data-olho]').forEach(btn => {
+    btn.onclick = () => {
+      const campo = $('#' + btn.dataset.olho);
+      const visivel = campo.type === 'text';
+      campo.type = visivel ? 'password' : 'text';
+      btn.textContent = visivel ? '👁' : '🙈';
+      btn.title = visivel ? 'Mostrar a chave' : 'Ocultar a chave';
+      btn.setAttribute('aria-label', btn.title);
+    };
+  });
+
   document.querySelectorAll('[data-testar]').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.testar;

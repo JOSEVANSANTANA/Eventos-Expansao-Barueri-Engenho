@@ -36,8 +36,17 @@ basta uma. Em cada trabalho você escolhe qual usar.
 | **Gemini (Google)** | aistudio.google.com/apikey | `AIza` | 3.7 Flash, 3.1 Pro, 3.5 Flash, 2.5 Flash |
 | **OpenRouter** | openrouter.ai/keys | `sk-or-` | catálogo vivo, ~400 modelos |
 
-1. Abra **Configurações** e cole a(s) chave(s)
+1. Abra **Configurações** e cole a(s) chave(s). O botão 👁 mostra o que foi colado —
+   use quando um teste falhar, porque colagem torta é a causa mais comum
 2. Clique em **Testar** em cada bloco — o teste faz uma chamada real
+
+**A ferramenta não valida o formato da chave.** Cada provedor muda o formato dos seus
+tokens sem aviso: chaves do Gemini, por exemplo, aparecem tanto como `AIza…` quanto como
+`AQ.…`. Quem decide se a chave vale é a API, não um palpite de prefixo no cliente.
+
+Espaços e quebras de linha são removidos automaticamente. Isso importa mais do que parece:
+um `\n` invisível numa chave torna o cabeçalho HTTP inválido, e o navegador derruba a
+chamada com um "network error" genérico, antes mesmo de sair da máquina.
 3. Escolha o **provedor preferido** e o modelo de cada um
 4. Preencha sua identidade (marca, certificações, bagagem)
 5. Salvar
