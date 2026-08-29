@@ -15,7 +15,12 @@ whatsapp-automation/
 │   ├── logger.js              # Logs unificados (terminal + frontend)
 │   ├── whatsapp-service.js    # Sessao, grupos, participantes e envios
 │   ├── campaign-runner.js     # Loop de disparo, delay aleatorio e erros
+│   ├── contact-name.js        # Nomes dos contatos e marcadores {nome} etc.
 │   └── audio.js               # Conversao para OGG/Opus (mensagem de voz)
+├── mac/                       # Fontes do app do macOS (.app)
+│   ├── build-mac-app.sh
+│   ├── bundle/                # Info.plist + launcher + icone
+│   └── app.icns
 ├── public/
 │   ├── index.html
 │   ├── css/styles.css
@@ -49,9 +54,40 @@ winget install Gyan.FFmpeg  # Windows
 1. **Conectar WhatsApp** -> escaneie o QR Code (WhatsApp > Aparelhos conectados).
 2. A lista de **grupos** carrega sozinha; clique em um grupo.
 3. Os **numeros** dos participantes aparecem no painel 3.
-4. Preencha o **texto**, e opcionalmente uma **midia** (imagem/video) e um **audio**.
+4. Preencha o **texto** (use os marcadores abaixo para personalizar), e
+   opcionalmente uma **midia** (imagem/video) e um **audio**.
 5. Ajuste o intervalo (padrao 5s a 10s) e clique em **Iniciar disparo**.
 6. Acompanhe "Enviado X de Y", os contadores e os logs em tempo real.
+
+## Personalizacao por nome
+
+Na extracao o sistema busca o nome de cada participante, na ordem: nome salvo na
+**sua agenda** > nome publico do contato (*pushname*) > nome curto > nome
+comercial verificado. Emojis, separadores e "nomes" que sao so o telefone sao
+descartados, e `JOAO DA SILVA` / `joao da silva` viram `Joao da Silva`.
+
+No texto da mensagem voce pode usar:
+
+| Marcador           | Vira                                  |
+| ------------------ | ------------------------------------- |
+| `{primeiro_nome}`  | `Joao`                                |
+| `{nome}`           | `Joao da Silva`                       |
+| `{numero}`         | `+5511999999999`                      |
+
+A caixa **Personalizar com o nome de cada contato** liga e desliga isso na hora
+do envio:
+
+- **Ligada**: quem tem nome recebe o proprio nome; quem nao tem cai no texto
+  alternativo do campo abaixo.
+- **Desligada**: ninguem recebe o nome — todos recebem a versao neutra. Assim um
+  `{nome}` esquecido no texto nunca vaza literalmente para o destinatario.
+
+Se o campo de texto alternativo ficar **vazio**, o marcador simplesmente some e a
+pontuacao e ajustada: `Oi {primeiro_nome}, tudo bem?` vira `Oi, tudo bem?` em vez
+de `Oi , tudo bem?`. Se preferir, escreva algo como `amigo(a)`.
+
+A previa na interface mostra as duas versoes (com e sem nome) antes do disparo,
+e o painel de participantes informa quantos nomes foram identificados.
 
 Dica: marque **Modo simulacao** na primeira execucao. Ele percorre toda a lista,
 valida os numeros e mostra o progresso, sem enviar nenhuma mensagem.
@@ -113,6 +149,38 @@ rm -rf .wwebjs_auth .wwebjs_cache
 **macOS/Windows: antivirus ou Gatekeeper bloqueando**
 
 Libere a pasta `node_modules/puppeteer/.local-chromium` (ou `~/.cache/puppeteer`).
+
+## App do macOS
+
+O `.app` e um bundle nativo: aparece no Launchpad, no Dock e no Finder com icone
+proprio, e pode ser arrastado para a pasta **Aplicativos**. Ele nao e um app
+Swift — por dentro, o executavel do bundle localiza o Node.js, sobe o servidor e
+abre a interface no navegador padrao. Enquanto o app estiver aberto o servidor
+esta no ar; **sair do app (Cmd+Q) derruba o servidor**.
+
+Detalhes:
+
+- O codigo e copiado para `~/Library/Application Support/WhatsApp Automation/`.
+  Nada e gravado dentro do `.app`, entao a sessao do WhatsApp sobrevive a
+  atualizacoes do app.
+- As dependencias sao instaladas na primeira execucao (com dialogo de aviso).
+- Se o Mac ja tiver Chrome, Brave, Edge ou Chromium, ele e reaproveitado e o
+  download do Chromium do Puppeteer e dispensado.
+- Log do launcher: `~/Library/Logs/WhatsApp Automation.log`.
+- Abrir o app com o servidor ja rodando so traz a aba do navegador de volta.
+
+Para reconstruir o bundle depois de mexer no codigo:
+
+```bash
+./mac/build-mac-app.sh    # gera dist/WhatsApp Automation.app e o .zip
+```
+
+Como o app nao e assinado nem notarizado pela Apple, na primeira abertura o
+macOS reclama. Resolva com **clique direito no app > Abrir > Abrir**, ou:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/WhatsApp Automation.app"
+```
 
 ## Avisos
 

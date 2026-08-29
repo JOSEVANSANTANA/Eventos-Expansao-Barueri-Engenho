@@ -1,0 +1,225 @@
+#!/bin/bash
+#
+# Launcher do WhatsApp Automation.app
+#
+# Responsabilidades:
+#   1. localizar o Node.js (o Finder nao herda o PATH do shell de login)
+#   2. copiar o codigo do bundle para ~/Library/Application Support (nunca escreve
+#      dentro do .app, para nao quebrar assinatura/permissoes)
+#   3. instalar as dependencias na primeira execucao
+#   4. subir o servidor, abrir o navegador e manter o app vivo no Dock
+#      (sair do app = derrubar o servidor)
+
+set -uo pipefail
+
+APP_VERSION="1.1.0"
+APP_NAME="WhatsApp Automation"
+BUNDLE_ID="br.com.expansaobarueri.whatsapp-automation"
+
+BUNDLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+RESOURCES="$BUNDLE_DIR/Contents/Resources"
+PAYLOAD="$RESOURCES/app"
+
+SUPPORT_DIR="$HOME/Library/Application Support/$APP_NAME"
+APP_HOME="$SUPPORT_DIR/app"
+LOG_DIR="$HOME/Library/Logs"
+LOG_FILE="$LOG_DIR/$APP_NAME.log"
+VERSION_FILE="$APP_HOME/.installed-version"
+
+mkdir -p "$SUPPORT_DIR" "$APP_HOME" "$LOG_DIR"
+
+# ------------------------------------------------------------------ utilidades
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE"
+}
+
+# Escapa aspas/barras para embutir texto com seguranca em AppleScript.
+as_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+notify() {
+  osascript -e "display notification \"$(as_escape "$1")\" with title \"$(as_escape "$APP_NAME")\"" >/dev/null 2>&1 || true
+}
+
+alert() {
+  osascript -e "display dialog \"$(as_escape "$1")\" buttons {\"OK\"} default button \"OK\" with title \"$(as_escape "$APP_NAME")\" with icon caution" >/dev/null 2>&1 || true
+}
+
+# Retorna 0 se o usuario confirmou.
+confirm() {
+  local out
+  out="$(osascript -e "display dialog \"$(as_escape "$1")\" buttons {\"Cancelar\", \"Continuar\"} default button \"Continuar\" with title \"$(as_escape "$APP_NAME")\" with icon note" 2>/dev/null)" || return 1
+  [[ "$out" == *"Continuar"* ]]
+}
+
+fatal() {
+  log "ERRO: $1"
+  alert "$1
+
+Detalhes em: $LOG_FILE"
+  exit 1
+}
+
+log "==== $APP_NAME $APP_VERSION iniciando ===="
+
+# --------------------------------------------------------------- achar o Node
+find_node() {
+  local candidate
+
+  # 1) shell de login do usuario (pega nvm, volta, asdf, fnm, homebrew...)
+  candidate="$($SHELL -lc 'command -v node' 2>/dev/null | tail -1)"
+  [[ -n "$candidate" && -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+
+  # 2) caminhos usuais
+  for candidate in \
+    /opt/homebrew/bin/node \
+    /usr/local/bin/node \
+    /opt/local/bin/node \
+    "$HOME/.volta/bin/node" \
+    "$HOME/.local/bin/node" \
+    /usr/bin/node
+  do
+    [[ -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+  done
+
+  # 3) versao mais recente instalada via nvm / fnm
+  candidate="$(ls -1d "$HOME"/.nvm/versions/node/*/bin/node "$HOME"/.local/share/fnm/node-versions/*/installation/bin/node 2>/dev/null | sort -V | tail -1)"
+  [[ -n "$candidate" && -x "$candidate" ]] && { printf '%s' "$candidate"; return 0; }
+
+  return 1
+}
+
+NODE_BIN="$(find_node)" || {
+  log "Node.js nao encontrado"
+  if osascript -e "display dialog \"O Node.js nao foi encontrado neste Mac.
+
+Ele e necessario para rodar o $APP_NAME. Instale a versao LTS e abra o app novamente.\" buttons {\"Agora nao\", \"Baixar Node.js\"} default button \"Baixar Node.js\" with title \"$(as_escape "$APP_NAME")\" with icon caution" 2>/dev/null | grep -q "Baixar"; then
+    open "https://nodejs.org/pt-br/download"
+  fi
+  exit 1
+}
+
+NODE_DIR="$(dirname "$NODE_BIN")"
+export PATH="$NODE_DIR:$PATH"
+NPM_BIN="$NODE_DIR/npm"
+[[ -x "$NPM_BIN" ]] || NPM_BIN="$(command -v npm 2>/dev/null)"
+[[ -n "$NPM_BIN" ]] || fatal "Encontrei o Node.js em $NODE_BIN, mas nao encontrei o npm."
+
+NODE_VERSION="$("$NODE_BIN" -v 2>/dev/null)"
+log "Node $NODE_VERSION em $NODE_BIN"
+
+NODE_MAJOR="$(printf '%s' "${NODE_VERSION#v}" | cut -d. -f1)"
+if [[ -n "$NODE_MAJOR" ]] && (( NODE_MAJOR < 18 )); then
+  fatal "Este app precisa do Node.js 18 ou superior. Voce tem $NODE_VERSION."
+fi
+
+# ------------------------------------------- copiar o codigo para o Application Support
+# ditto sobrescreve os arquivos do bundle e preserva o que ja existe
+# (node_modules, .wwebjs_auth, uploads).
+if [[ ! -f "$VERSION_FILE" || "$(cat "$VERSION_FILE" 2>/dev/null)" != "$APP_VERSION" ]]; then
+  log "Sincronizando codigo (versao $APP_VERSION)"
+  ditto "$PAYLOAD" "$APP_HOME" >> "$LOG_FILE" 2>&1 || fatal "Falha ao copiar os arquivos do app."
+  printf '%s' "$APP_VERSION" > "$VERSION_FILE"
+fi
+
+cd "$APP_HOME" || fatal "Nao consegui acessar $APP_HOME"
+
+# --------------------------------------------------- dependencias (1a execucao)
+if [[ ! -d "$APP_HOME/node_modules/whatsapp-web.js" ]]; then
+  log "Dependencias ausentes; iniciando npm install"
+  confirm "Primeira execucao: preciso instalar as dependencias.
+
+Isso baixa cerca de 200 MB (Node.js + Chromium) e leva de 2 a 5 minutos, dependendo da conexao. Voce recebera uma notificacao quando estiver pronto." || { log "Instalacao cancelada pelo usuario"; exit 0; }
+
+  notify "Instalando dependencias... isso leva alguns minutos."
+  if ! "$NPM_BIN" install --omit=dev --no-audit --no-fund >> "$LOG_FILE" 2>&1; then
+    fatal "Falha ao instalar as dependencias. Verifique sua conexao com a internet."
+  fi
+  log "npm install concluido"
+  notify "Dependencias instaladas."
+fi
+
+# ------------------------------------------------------- navegador do Puppeteer
+# Se o Mac ja tem Chrome/Brave/Edge, usamos ele e evitamos o download do Chromium.
+if [[ -z "${CHROME_PATH:-}" ]]; then
+  for browser in \
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \
+    "/Applications/Chromium.app/Contents/MacOS/Chromium"
+  do
+    if [[ -x "$browser" ]]; then
+      export CHROME_PATH="$browser"
+      log "Usando navegador do sistema: $browser"
+      break
+    fi
+  done
+fi
+
+# Se nao achou nenhum e o Puppeteer tambem nao baixou o Chromium, baixa agora.
+if [[ -z "${CHROME_PATH:-}" && ! -d "$HOME/.cache/puppeteer" ]]; then
+  log "Baixando Chromium do Puppeteer"
+  notify "Baixando o navegador interno (primeira vez)..."
+  "$NPM_BIN" exec --yes puppeteer browsers install chrome >> "$LOG_FILE" 2>&1 || \
+    log "AVISO: download do Chromium falhou; o Puppeteer tentara resolver sozinho."
+fi
+
+# ------------------------------------------------------------------- porta livre
+server_responds() {
+  curl -fsS --max-time 2 "http://127.0.0.1:$1/api/status" 2>/dev/null | grep -q '"status"'
+}
+
+PORT=""
+for candidate in 3000 3001 3002 3003 3004 3005; do
+  if server_responds "$candidate"; then
+    # Ja existe uma instancia rodando: so traz a janela do navegador de volta.
+    log "Instancia ja ativa na porta $candidate; abrindo o navegador"
+    open "http://127.0.0.1:$candidate"
+    exit 0
+  fi
+  if ! nc -z 127.0.0.1 "$candidate" >/dev/null 2>&1; then
+    PORT="$candidate"
+    break
+  fi
+done
+[[ -n "$PORT" ]] || fatal "Nenhuma porta livre entre 3000 e 3005."
+
+# ------------------------------------------------------------------- servidor
+log "Subindo o servidor na porta $PORT"
+export PORT HOST="127.0.0.1"
+
+"$NODE_BIN" "$APP_HOME/server.js" >> "$LOG_FILE" 2>&1 &
+NODE_PID=$!
+
+cleanup() {
+  log "Encerrando o servidor (pid $NODE_PID)"
+  kill "$NODE_PID" 2>/dev/null
+  # Da 5s para o shutdown gracioso do server.js antes do -9
+  for _ in 1 2 3 4 5; do
+    kill -0 "$NODE_PID" 2>/dev/null || break
+    sleep 1
+  done
+  kill -9 "$NODE_PID" 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+# Espera o servidor responder antes de abrir o navegador (ate 30s)
+READY=0
+for _ in $(seq 1 60); do
+  if server_responds "$PORT"; then READY=1; break; fi
+  kill -0 "$NODE_PID" 2>/dev/null || break
+  sleep 0.5
+done
+
+if (( READY == 0 )); then
+  fatal "O servidor nao subiu. Consulte o log para ver o motivo."
+fi
+
+log "Servidor pronto em http://127.0.0.1:$PORT"
+open "http://127.0.0.1:$PORT"
+notify "Pronto! A interface abriu no navegador."
+
+# Mantem o app vivo no Dock: fechar/sair do app derruba o servidor.
+wait "$NODE_PID"
+log "Servidor finalizado"

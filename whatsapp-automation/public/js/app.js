@@ -37,6 +37,11 @@
     msgText: el('msg-text'),
     msgMedia: el('msg-media'),
     msgAudio: el('msg-audio'),
+    optPersonalize: el('opt-personalize'),
+    fallbackName: el('fallback-name'),
+    fallbackField: el('fallback-field'),
+    previewText: el('preview-text'),
+    previewTarget: el('preview-target'),
     minDelay: el('min-delay'),
     maxDelay: el('max-delay'),
     optValidate: el('opt-validate'),
@@ -228,12 +233,95 @@
   }
 
   function renderRecipients(groupName) {
-    ui.extractCount.textContent = String(state.recipients.length);
-    ui.numbersBox.value = state.recipients.map((p) => `+${p.number}`).join('\n');
-    ui.btnCopyNumbers.disabled = state.recipients.length === 0;
-    ui.extractGroup.textContent = groupName
-      ? `${state.recipients.length} numero(s) extraido(s) de "${groupName}".`
-      : 'Selecione um grupo para extrair os participantes.';
+    const total = state.recipients.length;
+    const named = state.recipients.filter((p) => p.name).length;
+
+    ui.extractCount.textContent = String(total);
+    // Numero primeiro: assim "Copiar numeros" continua util para colar em planilha.
+    ui.numbersBox.value = state.recipients
+      .map((p) => `+${p.number}${p.name ? `  ${p.name}` : ''}`)
+      .join('\n');
+    ui.btnCopyNumbers.disabled = total === 0;
+
+    if (!groupName) {
+      ui.extractGroup.textContent = 'Selecione um grupo para extrair os participantes.';
+    } else {
+      const semNome = total - named;
+      ui.extractGroup.textContent =
+        `${total} participante(s) de "${groupName}" - ${named} com nome` +
+        `${semNome > 0 ? `, ${semNome} sem nome` : ''}.`;
+    }
+    updatePreview();
+  }
+
+  // ----------------------------------------------------------- personalizacao
+  /** Espelha renderTemplate() de src/contact-name.js, so para a previa na tela. */
+  function applyTemplate(template, recipient, personalize, fallback) {
+    const safeFallback = (fallback || '').trim();
+    const name = personalize && recipient.name ? recipient.name : safeFallback;
+    const first = personalize && (recipient.firstName || recipient.name)
+      ? recipient.firstName || recipient.name
+      : safeFallback;
+
+    const rendered = template
+      .replace(/\{nome\}/gi, name)
+      .replace(/\{primeiro_nome\}/gi, first)
+      .replace(/\{numero\}/gi, recipient.number ? `+${recipient.number}` : '');
+
+    const removeuMarcador = (!name || !first) && /\{(nome|primeiro_nome)\}/i.test(template);
+    if (!removeuMarcador) return rendered;
+
+    return rendered
+      .replace(/[^\S\n]{2,}/g, ' ')
+      .replace(/[^\S\n]+([,.!?;:])/g, '$1')
+      .replace(/(^|\n)[^\S\n]*[,;:][^\S\n]*/g, '$1')
+      .replace(/[^\S\n]+\n/g, '\n')
+      .trim();
+  }
+
+  function updatePreview() {
+    const template = ui.msgText.value;
+    const personalize = ui.optPersonalize.checked;
+    ui.fallbackField.style.opacity = personalize ? '1' : '.55';
+
+    if (!template.trim()) {
+      ui.previewText.textContent = 'Escreva a mensagem para ver a previa.';
+      ui.previewText.classList.add('placeholder');
+      ui.previewTarget.textContent = 'primeiro destinatario';
+      return;
+    }
+
+    // Se ha lista extraida, prefere mostrar alguem que realmente tenha nome.
+    const sample =
+      state.recipients.find((r) => r.name) ||
+      state.recipients[0] || { name: 'Ana Beatriz', firstName: 'Ana', number: '5511999998888' };
+
+    ui.previewTarget.textContent = sample.name
+      ? `${sample.name} (+${sample.number})`
+      : `+${sample.number} (sem nome)`;
+
+    let preview = applyTemplate(template, sample, personalize, ui.fallbackName.value);
+
+    // Se a lista tem gente sem nome, mostrar tambem como a mensagem chega para elas.
+    const semNome = state.recipients.find((r) => !r.name);
+    if (personalize && semNome && sample.name && /\{(nome|primeiro_nome)\}/i.test(template)) {
+      preview += `\n\n--- para quem nao tem nome (+${semNome.number}) ---\n` +
+        applyTemplate(template, semNome, personalize, ui.fallbackName.value);
+    }
+
+    ui.previewText.textContent = preview;
+    ui.previewText.classList.remove('placeholder');
+  }
+
+  function insertToken(token) {
+    const field = ui.msgText;
+    const start = field.selectionStart ?? field.value.length;
+    const end = field.selectionEnd ?? field.value.length;
+    field.value = field.value.slice(0, start) + token + field.value.slice(end);
+    field.focus();
+    field.selectionStart = field.selectionEnd = start + token.length;
+    updatePreview();
+    updateStartButton();
   }
 
   // ------------------------------------------------------------ campanha
@@ -272,9 +360,15 @@
       return;
     }
     const totalMin = ((state.recipients.length - 1) * min) / 60;
+    const named = state.recipients.filter((r) => r.name).length;
+    const usaNome = /\{(nome|primeiro_nome)\}/i.test(ui.msgText.value);
     const confirmMsg =
       `Enviar para ${state.recipients.length} numero(s) do grupo "${state.selectedGroup?.name || '-'}"?\n` +
-      `Tempo minimo estimado: ~${totalMin.toFixed(1)} minuto(s).`;
+      `Tempo minimo estimado: ~${totalMin.toFixed(1)} minuto(s).` +
+      (usaNome && ui.optPersonalize.checked
+        ? `\n\n${named} recebera(o) a mensagem com o proprio nome; ` +
+          `${state.recipients.length - named} recebera(o) "${ui.fallbackName.value.trim() || 'tudo bem'}".`
+        : '');
     if (!window.confirm(confirmMsg)) return;
 
     const form = new FormData();
@@ -285,6 +379,8 @@
     form.append('minDelay', String(min * 1000));
     form.append('maxDelay', String(max * 1000));
     form.append('validateNumbers', ui.optValidate.checked ? 'true' : 'false');
+    form.append('personalize', ui.optPersonalize.checked ? 'true' : 'false');
+    form.append('fallbackName', ui.fallbackName.value);
     form.append('dryRun', ui.optDryRun.checked ? 'true' : 'false');
     if (ui.msgMedia.files[0]) form.append('media', ui.msgMedia.files[0]);
     if (ui.msgAudio.files[0]) form.append('audio', ui.msgAudio.files[0]);
@@ -338,6 +434,13 @@
     input.addEventListener('change', updateStartButton);
   });
 
+  [ui.msgText, ui.fallbackName].forEach((input) => input.addEventListener('input', updatePreview));
+  ui.optPersonalize.addEventListener('change', updatePreview);
+
+  document.querySelectorAll('.chip[data-token]').forEach((chip) => {
+    chip.addEventListener('click', () => insertToken(chip.dataset.token));
+  });
+
   ui.btnStart.addEventListener('click', startCampaign);
 
   ui.btnStop.addEventListener('click', async () => {
@@ -375,6 +478,8 @@
 
   socket.on('connect', () => localLog('Conectado ao servidor local.', 'ok'));
   socket.on('disconnect', () => localLog('Conexao com o servidor perdida. Reconectando...', 'warn'));
+
+  updatePreview();
 
   // Estado inicial caso o socket demore a responder.
   api('/api/status')

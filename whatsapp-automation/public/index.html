@@ -57,11 +57,11 @@
     <!-- ETAPA 3: extracao -->
     <section class="card" id="card-extract">
       <div class="card-head">
-        <h2>3. Numeros extraidos</h2>
+        <h2>3. Participantes extraidos</h2>
         <span id="extract-count" class="badge">0</span>
       </div>
       <p id="extract-group" class="muted">Selecione um grupo para extrair os participantes.</p>
-      <textarea id="numbers-box" class="input mono" rows="8" readonly placeholder="Os numeros aparecerao aqui..."></textarea>
+      <textarea id="numbers-box" class="input mono" rows="8" readonly placeholder="Numero e nome aparecerao aqui..."></textarea>
       <button id="btn-copy-numbers" class="btn btn-small" disabled>Copiar numeros</button>
     </section>
 
@@ -70,8 +70,31 @@
       <h2>4. Mensagem</h2>
       <label class="field">
         <span>Texto</span>
-        <textarea id="msg-text" class="input" rows="5" placeholder="Escreva a mensagem que sera enviada no privado..."></textarea>
+        <textarea id="msg-text" class="input" rows="5" placeholder="Ex.: Oi {primeiro_nome}, tudo bem? Passando para te convidar..."></textarea>
       </label>
+
+      <div class="tokens">
+        <span>Inserir:</span>
+        <button type="button" class="chip" data-token="{primeiro_nome}">{primeiro_nome}</button>
+        <button type="button" class="chip" data-token="{nome}">{nome}</button>
+        <button type="button" class="chip" data-token="{numero}">{numero}</button>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="opt-personalize" checked>
+        <span>Personalizar com o nome de cada contato</span>
+      </label>
+
+      <label class="field" id="fallback-field">
+        <span>Quando o contato nao tiver nome</span>
+        <input type="text" id="fallback-name" class="input" value="" maxlength="40" placeholder="deixe vazio para omitir o nome (ex.: &quot;Oi, tudo bem?&quot;)">
+        <small class="muted">Ou escreva algo como <em>amigo(a)</em> para usar no lugar do nome.</small>
+      </label>
+
+      <div class="preview">
+        <span class="preview-label">Previa &mdash; <em id="preview-target">primeiro destinatario</em></span>
+        <p id="preview-text" class="preview-text">Escreva a mensagem para ver a previa.</p>
+      </div>
 
       <label class="field">
         <span>Midia (imagem ou video) &mdash; opcional</span>

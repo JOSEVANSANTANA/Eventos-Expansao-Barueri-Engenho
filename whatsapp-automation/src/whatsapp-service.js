@@ -7,6 +7,7 @@ const qrcode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
 const { ensureVoiceFormat } = require('./audio');
+const { resolveContactName } = require('./contact-name');
 
 /**
  * Estados possiveis da sessao. O frontend usa isso para decidir qual tela mostrar.
@@ -223,56 +224,88 @@ class WhatsAppService extends EventEmitter {
 
   /**
    * Extrai os participantes de um grupo, ja no formato pronto para envio.
-   * Remove o proprio numero e duplicados.
+   * Busca tambem o nome de cada contato (para personalizar a mensagem),
+   * remove o proprio numero e elimina duplicados.
    */
   async getGroupParticipants(groupId) {
     this.assertReady();
     const chat = await this.client.getChatById(groupId);
     if (!chat || !chat.isGroup) throw new Error('O chat informado nao e um grupo.');
 
+    const raw = (chat.participants || [])
+      .map((participant) => {
+        const wid = participant.id || {};
+        const serialized = wid._serialized || (wid.user ? `${wid.user}@c.us` : null);
+        return serialized
+          ? { serialized, isAdmin: Boolean(participant.isAdmin || participant.isSuperAdmin) }
+          : null;
+      })
+      .filter(Boolean);
+
+    this.logger.info(`Lendo os dados de ${raw.length} participante(s) de "${chat.name}"...`);
+
     const myId = this.me?.id || null;
     const seen = new Set();
     const participants = [];
     let skippedUnresolved = 0;
+    let named = 0;
 
-    for (const participant of chat.participants || []) {
-      const wid = participant.id || {};
-      let serialized = wid._serialized || (wid.user ? `${wid.user}@c.us` : null);
-      if (!serialized) continue;
+    // Buscar contato a contato e em serie ficaria lento em grupos grandes;
+    // processamos em blocos para equilibrar velocidade e carga na sessao.
+    const CHUNK = 12;
+    for (let i = 0; i < raw.length; i += CHUNK) {
+      const chunk = raw.slice(i, i + CHUNK);
 
-      // Contas novas podem vir como @lid (identificador opaco). Tentamos
-      // resolver o telefone real pelo contato; se nao der, pulamos.
-      if (serialized.endsWith('@lid')) {
-        try {
-          const contact = await this.client.getContactById(serialized);
-          const realNumber = contact?.number || contact?.id?.user;
-          serialized = realNumber ? `${realNumber}@c.us` : null;
-        } catch (_) {
-          serialized = null;
-        }
-        if (!serialized) {
+      const resolved = await Promise.all(
+        chunk.map(async (entry) => {
+          let contact = null;
+          try {
+            contact = await this.client.getContactById(entry.serialized);
+          } catch (_) {
+            contact = null;
+          }
+
+          // Contas novas aparecem como @lid (identificador opaco); o telefone
+          // real so vem pelo contato.
+          let serialized = entry.serialized;
+          if (serialized.endsWith('@lid')) {
+            const realNumber = contact?.number || contact?.id?.user;
+            serialized = realNumber ? `${realNumber}@c.us` : null;
+          }
+          if (!serialized) return null;
+
+          const number = serialized.split('@')[0];
+          const { name, firstName } = resolveContactName(contact, number);
+          return { id: serialized, number, name, firstName, isAdmin: entry.isAdmin };
+        })
+      );
+
+      for (const item of resolved) {
+        if (!item) {
           skippedUnresolved += 1;
           continue;
         }
+        if (item.id === myId || seen.has(item.id)) continue;
+        seen.add(item.id);
+        if (item.name) named += 1;
+        participants.push(item);
       }
 
-      if (serialized === myId) continue;
-      if (seen.has(serialized)) continue;
-      seen.add(serialized);
-
-      participants.push({
-        id: serialized,
-        number: serialized.split('@')[0],
-        isAdmin: Boolean(participant.isAdmin || participant.isSuperAdmin),
-      });
+      if (raw.length > 50 && (i + CHUNK) % 60 < CHUNK) {
+        this.logger.info(`Extraindo... ${Math.min(i + CHUNK, raw.length)} de ${raw.length}`);
+      }
     }
 
     if (skippedUnresolved > 0) {
       this.logger.warn(`${skippedUnresolved} participante(s) sem telefone visivel foram ignorados.`);
     }
-    this.logger.ok(`Grupo "${chat.name}": ${participants.length} numero(s) extraido(s).`);
+    this.logger.ok(
+      `Grupo "${chat.name}": ${participants.length} numero(s) extraido(s), ` +
+        `${named} com nome identificado` +
+        `${participants.length - named > 0 ? ` e ${participants.length - named} sem nome` : ''}.`
+    );
 
-    return { groupId, groupName: chat.name, participants };
+    return { groupId, groupName: chat.name, participants, named };
   }
 
   /** Confere se o numero tem WhatsApp e devolve o id canonico de envio. */

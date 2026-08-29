@@ -3,6 +3,8 @@
 const fs = require('fs');
 const { EventEmitter } = require('events');
 
+const { renderTemplate } = require('./contact-name');
+
 const DEFAULT_MIN_DELAY = 5000;
 const DEFAULT_MAX_DELAY = 10000;
 
@@ -106,6 +108,8 @@ class CampaignRunner extends EventEmitter {
       maxDelay = DEFAULT_MAX_DELAY,
       validateNumbers = true,
       dryRun = false,
+      personalize = true,
+      fallbackName = '',
       onFinish = null,
     } = config;
 
@@ -138,6 +142,17 @@ class CampaignRunner extends EventEmitter {
       audioPath = prepared.path;
     }
 
+    const usesTemplate = /\{(nome|primeiro_nome|numero)\}/i.test(text);
+    if (usesTemplate) {
+      const comNome = recipients.filter((r) => r.name).length;
+      this.logger.info(
+        personalize
+          ? `Personalizacao ligada: ${comNome} de ${recipients.length} destinatario(s) tem nome; ` +
+            `os demais recebem a mensagem sem o nome${fallbackName ? ` ("${fallbackName}")` : ''}.`
+          : `Personalizacao desligada: ninguem recebe o proprio nome${fallbackName ? ` (usando "${fallbackName}")` : ''}.`
+      );
+    }
+
     this.logger.info(
       `Campanha iniciada${groupName ? ` para o grupo "${groupName}"` : ''}: ` +
         `${recipients.length} destinatario(s), intervalo de ${min / 1000}s a ${max / 1000}s` +
@@ -156,10 +171,19 @@ class CampaignRunner extends EventEmitter {
         this.emitProgress();
 
         try {
-          await this.sendToRecipient(recipient, { text, mediaPath, audioPath, validateNumbers, dryRun });
+          await this.sendToRecipient(recipient, {
+            text,
+            mediaPath,
+            audioPath,
+            validateNumbers,
+            dryRun,
+            personalize,
+            fallbackName,
+          });
           this.state.sent += 1;
+          const label = recipient.name ? `${recipient.name} (+${recipient.number})` : `+${recipient.number}`;
           this.logger.ok(
-            `Enviado ${this.state.sent} de ${recipients.length} -> +${recipient.number}` +
+            `Enviado ${this.state.sent} de ${recipients.length} -> ${label}` +
               `${dryRun ? ' (simulado)' : ''}`
           );
         } catch (err) {
@@ -217,20 +241,24 @@ class CampaignRunner extends EventEmitter {
     return this.getState();
   }
 
-  async sendToRecipient(recipient, { text, mediaPath, audioPath, validateNumbers, dryRun }) {
+  async sendToRecipient(recipient, opts) {
+    const { text, mediaPath, audioPath, validateNumbers, dryRun, personalize, fallbackName } = opts;
     let chatId = recipient.id;
 
     if (validateNumbers) {
       chatId = await this.whatsapp.resolveRecipient(recipient.number);
     }
 
+    // Cada destinatario recebe o texto com os marcadores ja substituidos.
+    const body = renderTemplate(text, recipient, { personalize, fallbackName });
+
     if (dryRun) return;
 
     if (mediaPath) {
       // Texto vira legenda da midia para nao duplicar mensagens.
-      await this.whatsapp.sendMedia(chatId, mediaPath, text || undefined);
-    } else if (text) {
-      await this.whatsapp.sendText(chatId, text);
+      await this.whatsapp.sendMedia(chatId, mediaPath, body || undefined);
+    } else if (body) {
+      await this.whatsapp.sendText(chatId, body);
     }
 
     if (audioPath) {

@@ -137,6 +137,8 @@ app.post(
       const validateNumbers = !(body.validateNumbers === 'false' || body.validateNumbers === false);
       const minDelay = Number(body.minDelay) || DEFAULT_MIN_DELAY;
       const maxDelay = Number(body.maxDelay) || DEFAULT_MAX_DELAY;
+      const personalize = !(body.personalize === 'false' || body.personalize === false);
+      const fallbackName = (body.fallbackName || '').trim();
 
       // A UI pode mandar a lista ja filtrada; senao, extraimos do grupo na hora.
       let recipients = [];
@@ -146,7 +148,13 @@ app.post(
         const parsed = typeof body.numbers === 'string' ? JSON.parse(body.numbers) : body.numbers;
         recipients = (Array.isArray(parsed) ? parsed : [])
           .map((item) => (typeof item === 'string' ? { number: item.split('@')[0], id: item } : item))
-          .filter((item) => item && item.number);
+          .filter((item) => item && item.number)
+          .map((item) => ({
+            id: item.id || `${item.number}@c.us`,
+            number: String(item.number),
+            name: item.name || null,
+            firstName: item.firstName || null,
+          }));
       } else if (groupId) {
         const data = await whatsapp.getGroupParticipants(groupId);
         recipients = data.participants;
@@ -169,6 +177,8 @@ app.post(
           maxDelay,
           validateNumbers,
           dryRun,
+          personalize,
+          fallbackName,
           onFinish: () => removeFiles(uploaded),
         })
         .catch((err) => {
