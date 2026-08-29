@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Automation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2325d366'/%3E%3Cpath d='M16 6a10 10 0 00-8.6 15.1L6 26l5-1.3A10 10 0 1016 6z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot" id="status-dot"></span>
+      <h1>WhatsApp Automation</h1>
+    </div>
+    <div class="session">
+      <span id="status-label" class="status-label">Desconectado</span>
+      <button id="btn-connect" class="btn btn-primary">Conectar WhatsApp</button>
+      <button id="btn-logout" class="btn btn-ghost" hidden>Sair da sessao</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ETAPA 1: autenticacao -->
+    <section class="card" id="card-auth">
+      <h2>1. Autenticacao</h2>
+      <div id="auth-idle" class="auth-state">
+        <p class="muted">Clique em <strong>Conectar WhatsApp</strong> para iniciar a sessao e gerar o QR Code.</p>
+      </div>
+      <div id="auth-loading" class="auth-state" hidden>
+        <div class="spinner"></div>
+        <p class="muted">Iniciando o navegador e carregando o WhatsApp Web...</p>
+      </div>
+      <div id="auth-qr" class="auth-state" hidden>
+        <img id="qr-image" alt="QR Code do WhatsApp" width="280" height="280">
+        <p class="muted">
+          No celular: <strong>WhatsApp &rarr; Aparelhos conectados &rarr; Conectar aparelho</strong>.
+        </p>
+      </div>
+      <div id="auth-ready" class="auth-state" hidden>
+        <p class="connected">Conectado como <strong id="me-name">-</strong> (<span id="me-number">-</span>)</p>
+      </div>
+    </section>
+
+    <!-- ETAPA 2: grupos -->
+    <section class="card" id="card-groups">
+      <div class="card-head">
+        <h2>2. Grupos</h2>
+        <button id="btn-refresh-groups" class="btn btn-small" disabled>Atualizar lista</button>
+      </div>
+      <input type="search" id="group-filter" class="input" placeholder="Filtrar grupos pelo nome..." disabled>
+      <ul id="group-list" class="group-list">
+        <li class="empty">Conecte-se para listar os grupos.</li>
+      </ul>
+    </section>
+
+    <!-- ETAPA 3: extracao -->
+    <section class="card" id="card-extract">
+      <div class="card-head">
+        <h2>3. Numeros extraidos</h2>
+        <span id="extract-count" class="badge">0</span>
+      </div>
+      <p id="extract-group" class="muted">Selecione um grupo para extrair os participantes.</p>
+      <textarea id="numbers-box" class="input mono" rows="8" readonly placeholder="Os numeros aparecerao aqui..."></textarea>
+      <button id="btn-copy-numbers" class="btn btn-small" disabled>Copiar numeros</button>
+    </section>
+
+    <!-- ETAPA 4: mensagem -->
+    <section class="card" id="card-message">
+      <h2>4. Mensagem</h2>
+      <label class="field">
+        <span>Texto</span>
+        <textarea id="msg-text" class="input" rows="5" placeholder="Escreva a mensagem que sera enviada no privado..."></textarea>
+      </label>
+
+      <label class="field">
+        <span>Midia (imagem ou video) &mdash; opcional</span>
+        <input type="file" id="msg-media" class="input" accept="image/*,video/*">
+        <small class="muted">Se houver texto e midia, o texto vira a legenda da midia.</small>
+      </label>
+
+      <label class="field">
+        <span>Audio (enviado como mensagem de voz / PTT) &mdash; opcional</span>
+        <input type="file" id="msg-audio" class="input" accept="audio/*,.ogg,.mp3,.m4a,.wav">
+        <small class="muted">Com ffmpeg instalado, o arquivo e convertido para OGG/Opus e chega como audio gravado na hora.</small>
+      </label>
+
+      <div class="grid-2">
+        <label class="field">
+          <span>Intervalo minimo (s)</span>
+          <input type="number" id="min-delay" class="input" value="5" min="1" step="1">
+        </label>
+        <label class="field">
+          <span>Intervalo maximo (s)</span>
+          <input type="number" id="max-delay" class="input" value="10" min="1" step="1">
+        </label>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="opt-validate" checked>
+        <span>Validar se o numero tem WhatsApp antes de enviar</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="opt-dry-run">
+        <span>Modo simulacao (percorre a lista sem enviar nada)</span>
+      </label>
+    </section>
+
+    <!-- ETAPA 5: disparo -->
+    <section class="card" id="card-campaign">
+      <div class="card-head">
+        <h2>5. Disparo</h2>
+        <div class="actions">
+          <button id="btn-start" class="btn btn-primary" disabled>Iniciar disparo</button>
+          <button id="btn-stop" class="btn btn-danger" disabled>Parar</button>
+        </div>
+      </div>
+
+      <div class="progress">
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <p id="progress-text" class="progress-text">Enviado 0 de 0</p>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span id="stat-sent">0</span><small>Enviadas</small></div>
+        <div class="stat"><span id="stat-failed">0</span><small>Erros</small></div>
+        <div class="stat"><span id="stat-skipped">0</span><small>Puladas</small></div>
+        <div class="stat"><span id="stat-total">0</span><small>Total</small></div>
+      </div>
+    </section>
+
+    <!-- LOGS -->
+    <section class="card card-wide" id="card-logs">
+      <div class="card-head">
+        <h2>Logs</h2>
+        <button id="btn-clear-logs" class="btn btn-small">Limpar</button>
+      </div>
+      <div id="log-box" class="log-box"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
