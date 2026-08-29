@@ -15,7 +15,7 @@ const multer = require('multer');
 const { Server } = require('socket.io');
 
 const { createLogger } = require('./src/logger');
-const { WhatsAppService, STATUS } = require('./src/whatsapp-service');
+const { WhatsAppService, STATUS, describeError } = require('./src/whatsapp-service');
 const { CampaignRunner, DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY } = require('./src/campaign-runner');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -204,7 +204,7 @@ app.get('/api/campaign/status', (_req, res) => {
 // Handler de erros unico: devolve JSON e loga no terminal + frontend.
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
-  const message = err instanceof multer.MulterError ? `Upload: ${err.message}` : err.message;
+  const message = err instanceof multer.MulterError ? `Upload: ${err.message}` : describeError(err);
   logger.error(`API: ${message}`);
   res.status(400).json({ error: message });
 });

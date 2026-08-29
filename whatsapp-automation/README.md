@@ -138,6 +138,28 @@ CHROME_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe" npm start
 O Chromium morreu, normalmente por falta de memoria compartilhada em Docker.
 Suba o container com `--shm-size=1g` (a flag `--disable-dev-shm-usage` ja esta ativa).
 
+**"Nao foi possivel listar os grupos: r" (ou outro erro de uma letra)**
+
+Erro vindo de dentro da pagina do WhatsApp Web, ja minificado. Acontece quando o
+`getChats()` do whatsapp-web.js quebra: ele monta o modelo de todas as conversas
+de uma vez e, para cada grupo, chama `groupMetadata.update()` e modulos internos
+do WhatsApp que mudam de nome entre versoes; um unico grupo problematico derruba
+a lista inteira.
+
+A aplicacao ja trata isso: quando a API padrao falha, ela passa a ler os grupos e
+os participantes direto do WhatsApp Web, buscando so o necessario (id, nome e
+participantes) com tratamento item a item. Voce vera no log:
+
+```
+A leitura padrao de conversas falhou (...). Usando leitura direta do WhatsApp Web...
+```
+
+Se ainda assim falhar, fixe uma versao conhecida do WhatsApp Web:
+
+```bash
+WWEBJS_VERSION_URL="https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/<versao>.html" npm start
+```
+
 **Fica preso em "Sincronizando..." ou o QR nao aparece**
 
 Apague a sessao e leia o QR de novo:

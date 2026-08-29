@@ -12,7 +12,7 @@
 
 set -uo pipefail
 
-APP_VERSION="1.1.0"
+APP_VERSION="1.1.1"
 APP_NAME="WhatsApp Automation"
 BUNDLE_ID="br.com.expansaobarueri.whatsapp-automation"
 

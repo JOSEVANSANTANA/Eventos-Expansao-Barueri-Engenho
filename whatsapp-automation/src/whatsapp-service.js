@@ -10,6 +10,19 @@ const { ensureVoiceFormat } = require('./audio');
 const { resolveContactName } = require('./contact-name');
 
 /**
+ * Erros vindos de dentro da pagina do WhatsApp Web chegam minificados ("r", "b")
+ * ou como objeto solto. Aqui tentamos extrair algo que ajude no diagnostico.
+ */
+function describeError(err) {
+  if (!err) return 'erro desconhecido';
+  const message = typeof err === 'string' ? err : err.message || err.name || String(err);
+  // Mensagens de 1-2 caracteres sao nome de funcao minificada: sem valor sozinhas.
+  if (message.length > 2) return message;
+  const firstFrame = (err.stack || '').split('\n')[1];
+  return firstFrame ? `${message} (${firstFrame.trim()})` : `${message} (erro interno do WhatsApp Web)`;
+}
+
+/**
  * Estados possiveis da sessao. O frontend usa isso para decidir qual tela mostrar.
  * DISCONNECTED -> STARTING -> QR -> AUTHENTICATED -> READY
  */
@@ -41,6 +54,14 @@ class WhatsAppService extends EventEmitter {
     this.starting = false;
   }
 
+  /** Evita repetir o mesmo aviso a cada destinatario em grupos grandes. */
+  warnOnce(key, message) {
+    if (!this._warned) this._warned = new Set();
+    if (this._warned.has(key)) return;
+    this._warned.add(key);
+    this.logger.warn(message);
+  }
+
   getStatus() {
     return {
       status: this.status,
@@ -51,9 +72,12 @@ class WhatsAppService extends EventEmitter {
   }
 
   setStatus(status, extra = {}) {
+    // O whatsapp-web.js reemite 'authenticated' varias vezes; nao poluimos o log
+    // nem o socket quando nada mudou de fato.
+    const unchanged = this.status === status && Object.keys(extra).length === 0;
     this.status = status;
     Object.assign(this, extra);
-    this.emit('status', this.getStatus());
+    if (!unchanged) this.emit('status', this.getStatus());
   }
 
   /** Sobe o cliente do whatsapp-web.js e registra todos os listeners. */
@@ -132,7 +156,9 @@ class WhatsAppService extends EventEmitter {
 
     client.on('authenticated', () => {
       this.qrDataUrl = null;
-      this.logger.ok('Autenticado. Sincronizando conversas...');
+      if (this.status !== STATUS.AUTHENTICATED && this.status !== STATUS.READY) {
+        this.logger.ok('Autenticado. Sincronizando conversas...');
+      }
       this.setStatus(STATUS.AUTHENTICATED);
     });
 
@@ -156,6 +182,13 @@ class WhatsAppService extends EventEmitter {
       }
       this.logger.ok(`Conectado como ${this.me?.name || 'usuario'} (${this.me?.number || 'numero desconhecido'}).`);
       this.setStatus(STATUS.READY);
+
+      try {
+        const webVersion = await client.getWWebVersion();
+        this.logger.info(`WhatsApp Web ${webVersion} | whatsapp-web.js ${require('whatsapp-web.js/package.json').version}`);
+      } catch (_) {
+        /* diagnostico opcional */
+      }
     });
 
     client.on('disconnected', async (reason) => {
@@ -203,23 +236,206 @@ class WhatsAppService extends EventEmitter {
     }
   }
 
-  /** Lista todos os grupos em que o numero conectado participa. */
+  // ---------------------------------------------------------------------------
+  // Leitura direta da pagina do WhatsApp Web.
+  //
+  // O client.getChats() do whatsapp-web.js monta o modelo completo de TODAS as
+  // conversas de uma vez e, para cada grupo, dispara um groupMetadata.update()
+  // e usa modulos internos do WhatsApp (WAWebLidMigrationUtils). Tudo isso roda
+  // dentro de um Promise.all: basta um grupo falhar, ou um modulo ter mudado de
+  // nome na versao do WhatsApp Web servida naquele dia, para a lista inteira ser
+  // rejeitada com um erro minificado ("r").
+  //
+  // Para listar grupos nao precisamos de nada disso: id, nome e contagem bastam.
+  // Estes metodos leem o minimo necessario, com try/catch por item.
+  // ---------------------------------------------------------------------------
+
+  /** @returns {Promise<{groups: Array, failed: number}>} */
+  async listGroupsRaw() {
+    return this.client.pupPage.evaluate(() => {
+      const collections = () => {
+        try {
+          return window.require('WAWebCollections');
+        } catch (_) {
+          return null;
+        }
+      };
+
+      let chats = null;
+      const store = collections();
+      try {
+        chats = store ? store.Chat.getModelsArray() : window.Store.Chat.getModelsArray();
+      } catch (err) {
+        throw new Error(`Nao consegui acessar a lista de conversas do WhatsApp Web (${err && err.message}).`);
+      }
+
+      const groups = [];
+      let failed = 0;
+
+      for (const chat of chats || []) {
+        try {
+          const id = chat?.id?._serialized || (chat?.id?.toString ? chat.id.toString() : null);
+          // Grupo se identifica pelo sufixo do id: dispensa carregar metadados.
+          if (!id || !id.endsWith('@g.us')) continue;
+
+          let name = null;
+          try {
+            name = chat.formattedTitle || chat.name || null;
+          } catch (_) {
+            name = null;
+          }
+
+          let participants = null;
+          try {
+            const list = chat.groupMetadata?.participants;
+            participants = list?.length ?? list?.getModelsArray?.().length ?? null;
+          } catch (_) {
+            participants = null;
+          }
+
+          groups.push({ id, name, participants, archived: Boolean(chat.archive) });
+        } catch (_) {
+          failed += 1;
+        }
+      }
+
+      return { groups, failed };
+    });
+  }
+
+  /** Metadados de UM grupo, sem passar pelo modelo completo da lib. */
+  async getGroupParticipantsRaw(groupId) {
+    return this.client.pupPage.evaluate(async (gid) => {
+      const collections = window.require('WAWebCollections');
+      const wid = window.require('WAWebWidFactory').createWid(gid);
+      const GroupMetadata = collections.GroupMetadata || collections.WAWebGroupMetadataCollection;
+
+      // Pode falhar por rede ou por mudanca interna; o cache local ainda serve.
+      try {
+        await GroupMetadata.update(wid);
+      } catch (_) {
+        /* segue com o que ja estiver carregado */
+      }
+
+      const chat = collections.Chat.get(wid);
+      let meta = null;
+      try {
+        meta = chat?.groupMetadata || GroupMetadata.get(wid);
+      } catch (_) {
+        meta = null;
+      }
+      if (!meta) throw new Error('Metadados do grupo indisponiveis nesta sessao.');
+
+      // Converte @lid para o telefone real quando o modulo existir.
+      let toPn = null;
+      try {
+        toPn = window.require('WAWebLidMigrationUtils').toPn;
+      } catch (_) {
+        toPn = null;
+      }
+
+      const raw = meta.participants?.getModelsArray?.() || meta.participants || [];
+      const participants = [];
+
+      for (const participant of raw) {
+        try {
+          let pid = participant.id;
+          if (toPn) {
+            try {
+              pid = toPn(pid) ?? pid;
+            } catch (_) {
+              /* mantem o id original */
+            }
+          }
+          const id = pid?._serialized || (pid?.toString ? pid.toString() : null);
+          if (!id) continue;
+          participants.push({ id, isAdmin: Boolean(participant.isAdmin || participant.isSuperAdmin) });
+        } catch (_) {
+          /* participante problematico nao derruba os demais */
+        }
+      }
+
+      let name = null;
+      try {
+        name = chat?.formattedTitle || chat?.name || null;
+      } catch (_) {
+        name = null;
+      }
+
+      return { name, participants };
+    }, groupId);
+  }
+
+  /**
+   * Lista os grupos do numero conectado.
+   * Tenta a API oficial da lib e, se ela quebrar, cai na leitura direta.
+   */
   async listGroups() {
     this.assertReady();
-    const chats = await this.client.getChats();
-    const groups = chats
-      .filter((chat) => chat.isGroup)
-      .map((chat) => ({
-        id: chat.id?._serialized,
-        name: chat.name || 'Grupo sem nome',
-        participants: Array.isArray(chat.participants) ? chat.participants.length : null,
-        archived: Boolean(chat.archived),
-      }))
+
+    let groups = [];
+    try {
+      const chats = await this.client.getChats();
+      groups = chats
+        .filter((chat) => chat.isGroup)
+        .map((chat) => ({
+          id: chat.id?._serialized,
+          name: chat.name || 'Grupo sem nome',
+          participants: Array.isArray(chat.participants) ? chat.participants.length : null,
+          archived: Boolean(chat.archived),
+        }));
+    } catch (err) {
+      this.logger.warn(
+        `A leitura padrao de conversas falhou (${describeError(err)}). ` +
+          'Usando leitura direta do WhatsApp Web...'
+      );
+      const raw = await this.listGroupsRaw();
+      if (raw.failed > 0) {
+        this.logger.warn(`${raw.failed} conversa(s) nao puderam ser lidas e foram ignoradas.`);
+      }
+      groups = raw.groups.map((group) => ({
+        id: group.id,
+        name: group.name || 'Grupo sem nome',
+        participants: group.participants,
+        archived: group.archived,
+      }));
+    }
+
+    groups = groups
       .filter((group) => Boolean(group.id))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
     this.logger.info(`${groups.length} grupo(s) encontrado(s).`);
     return groups;
+  }
+
+  /** Ids dos participantes de um grupo, pela API da lib ou pela leitura direta. */
+  async fetchGroupMembers(groupId) {
+    try {
+      const chat = await this.client.getChatById(groupId);
+      if (!chat || !chat.isGroup) throw new Error('O chat informado nao e um grupo.');
+
+      const members = (chat.participants || [])
+        .map((participant) => {
+          const wid = participant.id || {};
+          const id = wid._serialized || (wid.user ? `${wid.user}@c.us` : null);
+          return id ? { id, isAdmin: Boolean(participant.isAdmin || participant.isSuperAdmin) } : null;
+        })
+        .filter(Boolean);
+
+      if (members.length) return { groupName: chat.name, members };
+      this.logger.warn('A API padrao nao retornou participantes; tentando leitura direta...');
+    } catch (err) {
+      this.logger.warn(
+        `A leitura padrao do grupo falhou (${describeError(err)}). Usando leitura direta...`
+      );
+    }
+
+    const raw = await this.getGroupParticipantsRaw(groupId);
+    return {
+      groupName: raw.name || 'Grupo',
+      members: raw.participants.map((p) => ({ id: p.id, isAdmin: p.isAdmin })),
+    };
   }
 
   /**
@@ -229,20 +445,9 @@ class WhatsAppService extends EventEmitter {
    */
   async getGroupParticipants(groupId) {
     this.assertReady();
-    const chat = await this.client.getChatById(groupId);
-    if (!chat || !chat.isGroup) throw new Error('O chat informado nao e um grupo.');
 
-    const raw = (chat.participants || [])
-      .map((participant) => {
-        const wid = participant.id || {};
-        const serialized = wid._serialized || (wid.user ? `${wid.user}@c.us` : null);
-        return serialized
-          ? { serialized, isAdmin: Boolean(participant.isAdmin || participant.isSuperAdmin) }
-          : null;
-      })
-      .filter(Boolean);
-
-    this.logger.info(`Lendo os dados de ${raw.length} participante(s) de "${chat.name}"...`);
+    const { groupName, members } = await this.fetchGroupMembers(groupId);
+    this.logger.info(`Lendo os dados de ${members.length} participante(s) de "${groupName}"...`);
 
     const myId = this.me?.id || null;
     const seen = new Set();
@@ -253,21 +458,31 @@ class WhatsAppService extends EventEmitter {
     // Buscar contato a contato e em serie ficaria lento em grupos grandes;
     // processamos em blocos para equilibrar velocidade e carga na sessao.
     const CHUNK = 12;
-    for (let i = 0; i < raw.length; i += CHUNK) {
-      const chunk = raw.slice(i, i + CHUNK);
+    const contactLookups = { ok: 0, fail: 0 };
+    let contactsBroken = false;
+    let lastContactError = null;
+
+    for (let i = 0; i < members.length; i += CHUNK) {
+      const chunk = members.slice(i, i + CHUNK);
 
       const resolved = await Promise.all(
         chunk.map(async (entry) => {
           let contact = null;
-          try {
-            contact = await this.client.getContactById(entry.serialized);
-          } catch (_) {
-            contact = null;
+          // Se a leitura de contatos estiver quebrada nesta sessao, nao adianta
+          // insistir 200 vezes: seguimos so com os numeros.
+          if (!contactsBroken) {
+            try {
+              contact = await this.client.getContactById(entry.id);
+              contactLookups.ok += 1;
+            } catch (err) {
+              contactLookups.fail += 1;
+              lastContactError = err;
+            }
           }
 
           // Contas novas aparecem como @lid (identificador opaco); o telefone
           // real so vem pelo contato.
-          let serialized = entry.serialized;
+          let serialized = entry.id;
           if (serialized.endsWith('@lid')) {
             const realNumber = contact?.number || contact?.id?.user;
             serialized = realNumber ? `${realNumber}@c.us` : null;
@@ -291,8 +506,18 @@ class WhatsAppService extends EventEmitter {
         participants.push(item);
       }
 
-      if (raw.length > 50 && (i + CHUNK) % 60 < CHUNK) {
-        this.logger.info(`Extraindo... ${Math.min(i + CHUNK, raw.length)} de ${raw.length}`);
+      // Dez tentativas, nenhuma bem-sucedida: a API de contatos nao esta
+      // funcionando nesta versao do WhatsApp Web. Seguimos sem os nomes.
+      if (!contactsBroken && contactLookups.ok === 0 && contactLookups.fail >= 10) {
+        contactsBroken = true;
+        this.logger.warn(
+          `Nao foi possivel ler os nomes dos contatos (${describeError(lastContactError)}). ` +
+            'A extracao continua apenas com os numeros.'
+        );
+      }
+
+      if (members.length > 50 && (i + CHUNK) % 60 < CHUNK) {
+        this.logger.info(`Extraindo... ${Math.min(i + CHUNK, members.length)} de ${members.length}`);
       }
     }
 
@@ -300,19 +525,33 @@ class WhatsAppService extends EventEmitter {
       this.logger.warn(`${skippedUnresolved} participante(s) sem telefone visivel foram ignorados.`);
     }
     this.logger.ok(
-      `Grupo "${chat.name}": ${participants.length} numero(s) extraido(s), ` +
+      `Grupo "${groupName}": ${participants.length} numero(s) extraido(s), ` +
         `${named} com nome identificado` +
         `${participants.length - named > 0 ? ` e ${participants.length - named} sem nome` : ''}.`
     );
 
-    return { groupId, groupName: chat.name, participants, named };
+    return { groupId, groupName, participants, named };
   }
 
   /** Confere se o numero tem WhatsApp e devolve o id canonico de envio. */
   async resolveRecipient(numberOrId) {
     const raw = String(numberOrId).split('@')[0].replace(/\D/g, '');
     if (!raw) throw new Error('Numero invalido.');
-    const numberId = await this.client.getNumberId(raw);
+
+    let numberId;
+    try {
+      numberId = await this.client.getNumberId(raw);
+    } catch (err) {
+      // Uma falha tecnica na verificacao nao significa que o numero e invalido;
+      // pular o contato por causa disso seria pior do que tentar o envio.
+      this.warnOnce(
+        'number-validation',
+        `A verificacao previa de numeros nao esta funcionando (${describeError(err)}). ` +
+          'Os envios seguem sem essa checagem.'
+      );
+      return `${raw}@c.us`;
+    }
+
     if (!numberId) throw new Error('Numero nao possui WhatsApp.');
     return numberId._serialized;
   }
@@ -343,7 +582,7 @@ class WhatsAppService extends EventEmitter {
   }
 }
 
-module.exports = { WhatsAppService, STATUS };
+module.exports = { WhatsAppService, STATUS, describeError };
 
 // Mantido por conveniencia para scripts externos que queiram limpar a sessao.
 module.exports.clearSession = function clearSession(sessionPath) {
