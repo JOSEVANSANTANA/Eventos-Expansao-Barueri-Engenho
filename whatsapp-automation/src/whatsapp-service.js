@@ -180,8 +180,12 @@ class WhatsAppService extends EventEmitter {
       } catch (_) {
         this.me = null;
       }
-      this.logger.ok(`Conectado como ${this.me?.name || 'usuario'} (${this.me?.number || 'numero desconhecido'}).`);
+      // A lib reemite 'ready' varias vezes; so registramos a primeira.
+      const jaEstavaPronto = this.status === STATUS.READY;
       this.setStatus(STATUS.READY);
+      if (jaEstavaPronto) return;
+
+      this.logger.ok(`Conectado como ${this.me?.name || 'usuario'} (${this.me?.number || 'numero desconhecido'}).`);
 
       try {
         const webVersion = await client.getWWebVersion();
@@ -292,6 +296,9 @@ class WhatsAppService extends EventEmitter {
           } catch (_) {
             participants = null;
           }
+          // Voce sempre e membro do proprio grupo, entao zero aqui quer dizer
+          // "metadados ainda nao sincronizados", nao "grupo vazio".
+          if (!participants) participants = null;
 
           groups.push({ id, name, participants, archived: Boolean(chat.archive) });
         } catch (_) {
@@ -310,21 +317,54 @@ class WhatsAppService extends EventEmitter {
       const wid = window.require('WAWebWidFactory').createWid(gid);
       const GroupMetadata = collections.GroupMetadata || collections.WAWebGroupMetadataCollection;
 
-      // Pode falhar por rede ou por mudanca interna; o cache local ainda serve.
-      try {
-        await GroupMetadata.update(wid);
-      } catch (_) {
-        /* segue com o que ja estiver carregado */
+      const chat = collections.Chat.get(wid);
+
+      const readMeta = () => {
+        try {
+          return chat?.groupMetadata || GroupMetadata.get(wid) || null;
+        } catch (_) {
+          return null;
+        }
+      };
+
+      const hasParticipants = (m) => {
+        if (!m) return false;
+        try {
+          const list = m.participants;
+          return Boolean(list?.length || list?.getModelsArray?.().length);
+        } catch (_) {
+          return false;
+        }
+      };
+
+      // 1) o que ja esta em memoria (instantaneo e o caso comum)
+      let meta = readMeta();
+
+      // 2) forca a atualizacao pelo servidor
+      if (!hasParticipants(meta)) {
+        try {
+          await GroupMetadata.update(wid);
+        } catch (_) {
+          /* segue para a proxima tentativa */
+        }
+        meta = readMeta();
       }
 
-      const chat = collections.Chat.get(wid);
-      let meta = null;
-      try {
-        meta = chat?.groupMetadata || GroupMetadata.get(wid);
-      } catch (_) {
-        meta = null;
+      // 3) ultimo recurso: carrega a colecao do zero
+      if (!hasParticipants(meta)) {
+        try {
+          meta = (await GroupMetadata.find(wid)) || meta;
+        } catch (_) {
+          /* mantem o que tiver */
+        }
       }
-      if (!meta) throw new Error('Metadados do grupo indisponiveis nesta sessao.');
+
+      if (!hasParticipants(meta)) {
+        throw new Error(
+          'Nao consegui carregar os participantes deste grupo. ' +
+            'Abra a conversa no WhatsApp do celular uma vez e tente de novo.'
+        );
+      }
 
       // Converte @lid para o telefone real quando o modulo existir.
       let toPn = null;
@@ -595,6 +635,48 @@ class WhatsAppService extends EventEmitter {
         throw new Error('nenhuma das duas colecoes existe');
       });
       await probe('WWebJS.getChats() (API da lib)', async () => `${(await window.WWebJS.getChats()).length} chats`);
+
+      // As duas sondas abaixo cobrem exatamente o que a extracao de
+      // participantes faz, para saber se ela vai funcionar antes de tentar.
+      const primeiroGrupo = () => {
+        const alvo = chats().find((chat) => {
+          try {
+            return String(chat.id._serialized).endsWith('@g.us');
+          } catch (_) {
+            return false;
+          }
+        });
+        if (!alvo) throw new Error('nenhum grupo carregado');
+        return alvo;
+      };
+
+      await probe('metadados de um grupo', async () => {
+        const grupo = primeiroGrupo();
+        const collections = window.require('WAWebCollections');
+        const wid = window.require('WAWebWidFactory').createWid(grupo.id._serialized);
+        const GroupMetadata = collections.GroupMetadata || collections.WAWebGroupMetadataCollection;
+        let meta = grupo.groupMetadata || GroupMetadata.get(wid);
+        if (!meta) {
+          await GroupMetadata.update(wid);
+          meta = grupo.groupMetadata || GroupMetadata.get(wid);
+        }
+        const lista = meta?.participants;
+        const total = lista?.length ?? lista?.getModelsArray?.().length ?? 0;
+        return `${total} participantes em "${grupo.formattedTitle || grupo.name}"`;
+      });
+
+      await probe('leitura de nome de contato', async () => {
+        const grupo = primeiroGrupo();
+        const collections = window.require('WAWebCollections');
+        const wid = window.require('WAWebWidFactory').createWid(grupo.id._serialized);
+        const GroupMetadata = collections.GroupMetadata || collections.WAWebGroupMetadataCollection;
+        const meta = grupo.groupMetadata || GroupMetadata.get(wid);
+        const lista = meta?.participants?.getModelsArray?.() || meta?.participants || [];
+        if (!lista.length) throw new Error('grupo sem participantes carregados');
+        const alvo = lista[0].id?._serialized || String(lista[0].id);
+        const contato = await window.WWebJS.getContact(alvo);
+        return contato ? `ok (${contato.pushname || contato.name || 'sem nome publico'})` : 'contato nao encontrado';
+      });
 
       return results;
     });

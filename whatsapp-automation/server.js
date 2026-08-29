@@ -246,7 +246,14 @@ async function shutdown(signal) {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('unhandledRejection', (reason) => {
-  logger.error(`Promise rejeitada sem tratamento: ${reason && reason.message ? reason.message : reason}`);
+  const message = describeError(reason);
+  // Ao desconectar/reconectar, operacoes em voo morrem junto com a pagina.
+  // Isso e esperado e nao merece alarme na tela do usuario.
+  if (/Execution context was destroyed|Target closed|Session closed|Protocol error/i.test(message)) {
+    logger.info(`Operacao interrompida pelo encerramento da sessao (${message}).`);
+    return;
+  }
+  logger.error(`Promise rejeitada sem tratamento: ${message}`);
 });
 
 server.listen(PORT, HOST, () => {

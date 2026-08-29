@@ -203,7 +203,8 @@
 
       const count = document.createElement('span');
       count.className = 'count';
-      count.textContent = group.participants != null ? `${group.participants} membros` : '';
+      // Sem contagem = metadados ainda nao sincronizados pelo WhatsApp.
+      count.textContent = group.participants ? `${group.participants} membros` : '';
 
       li.append(name, count);
       li.addEventListener('click', () => selectGroup(group));
