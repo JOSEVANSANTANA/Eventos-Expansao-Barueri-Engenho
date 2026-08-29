@@ -305,12 +305,14 @@ radar-institucional/
 ├── index.html              telas e layout
 ├── manifest.json  sw.js    PWA (instalável, abre offline)
 ├── css/app.css             interface
+├── servidor.py             coletor de manchetes + servidor local
 └── js/
     ├── knowledge.js        mestres, concorrência, esteira de produtos
     ├── config.js           preferências e histórico (localStorage)
-    ├── data.js             BCB, Focus, IBGE
+    ├── data.js             BCB, Focus, IBGE, e a coleta do servidor
     ├── prompts.js          engenharia de prompt e regras anti-alucinação
-    ├── openrouter.js       cliente da API, streaming e citações
+    ├── ia.js               os três provedores de IA, com reserva automática
+    ├── catalogo.js         catálogo vivo de modelos da OpenRouter
     ├── teleprompter.js     rolagem, espelho, velocidade
     └── app.js              orquestração e renderização
 ```

@@ -6,7 +6,7 @@ import pathlib
 base = pathlib.Path(__file__).parent
 html = (base / 'index.html').read_text(encoding='utf-8')
 css = (base / 'css' / 'app.css').read_text(encoding='utf-8')
-ordem = ['knowledge', 'config', 'data', 'prompts', 'openrouter', 'ia', 'teleprompter', 'app']
+ordem = ['knowledge', 'config', 'data', 'prompts', 'catalogo', 'ia', 'teleprompter', 'app']
 js = {n: (base / 'js' / f'{n}.js').read_text(encoding='utf-8') for n in ordem}
 
 html = html.replace('<link rel="stylesheet" href="css/app.css">', '<style>\n' + css + '\n</style>')

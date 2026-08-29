@@ -307,6 +307,33 @@ const OPENROUTER = {
   }
 };
 
+/* -------------------------------------------------------------------------
+   Parse tolerante de JSON. Modelos as vezes envolvem em cerca de codigo
+   ou escrevem uma frase antes. Aqui a gente resgata o objeto mesmo assim.
+   ------------------------------------------------------------------------- */
+function extrairJSON(texto) {
+  if (!texto) return null;
+  let t = texto.trim();
+
+  // Remove cerca de codigo ```json ... ```
+  const cerca = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (cerca) t = cerca[1].trim();
+
+  try { return JSON.parse(t); } catch (e) { /* tenta recorte */ }
+
+  // Recorta do primeiro { ate o ultimo } equilibrado
+  const ini = t.indexOf('{');
+  const fim = t.lastIndexOf('}');
+  if (ini !== -1 && fim > ini) {
+    const recorte = t.slice(ini, fim + 1);
+    try { return JSON.parse(recorte); } catch (e) { /* segue */ }
+
+    // Ultima tentativa: remove virgulas penduradas antes de } ou ]
+    try { return JSON.parse(recorte.replace(/,\s*([}\]])/g, '$1')); } catch (e) { /* desiste */ }
+  }
+  return null;
+}
+
 const PROVEDORES = { anthropic: ANTHROPIC, gemini: GEMINI, openrouter: OPENROUTER };
 const ORDEM_PROVEDORES = ['anthropic', 'gemini', 'openrouter'];
 
@@ -398,6 +425,6 @@ async function testarChave(cfg, id) {
 if (typeof window !== 'undefined') {
   window.IA = {
     PROVEDORES, ORDEM_PROVEDORES, provedoresProntos, modeloEscolhido,
-    chamarIA, testarChave, limparChave, ErroIA
+    chamarIA, testarChave, limparChave, extrairJSON, ErroIA
   };
 }

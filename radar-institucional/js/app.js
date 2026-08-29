@@ -255,7 +255,7 @@ async function rodarVarredura() {
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
-    const j = window.OR.extrairJSON(r.texto);
+    const j = window.IA.extrairJSON(r.texto);
     if (!j || !Array.isArray(j.pautas) || !j.pautas.length) {
       throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu, mas fora do formato `
         + 'esperado. Tente de novo, ou escolha outro provedor em Configurações. '
@@ -575,7 +575,7 @@ async function gerarPacote(pauta, provedorEscolhido) {
       aoReceberToken: (_, acc) => { stream.textContent = acc.slice(-1400); stream.scrollTop = stream.scrollHeight; }
     });
 
-    const j = window.OR.extrairJSON(r.texto);
+    const j = window.IA.extrairJSON(r.texto);
     if (!j) throw new Error(`${r.provedorUsado} (${r.modeloUsado}) respondeu fora do formato `
       + 'esperado. Tente de novo, ou escolha outro provedor. Claude e Gemini são mais '
       + 'confiáveis neste JSON longo do que os modelos gratuitos.');
@@ -1046,7 +1046,7 @@ async function preencherModelosOpenRouter(c) {
   const aviso = $('#avisoCatalogo');
   if (!sel) return;
   try {
-    const cat = APP.catalogo || (APP.catalogo = await window.OR.catalogoModelos());
+    const cat = APP.catalogo || (APP.catalogo = await window.CATALOGO.catalogoModelos());
     const grupo = (rot, itens) => itens.length
       ? `<optgroup label="${esc(rot)}">` + itens.map(m =>
           `<option value="${esc(m.id)}">${esc(m.nome)}</option>`).join('') + '</optgroup>'
