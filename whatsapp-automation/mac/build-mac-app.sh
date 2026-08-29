@@ -13,6 +13,16 @@ DIST="$ROOT/dist"
 APP="$DIST/WhatsApp Automation.app"
 ZIP="$DIST/WhatsApp-Automation-mac.zip"
 
+# As duas versoes precisam bater: o launcher usa a dele para decidir se reinicia
+# uma instancia antiga, e o servidor publica a do package.json em /api/status.
+LAUNCHER_VERSION="$(sed -n 's/^APP_VERSION="\(.*\)"/\1/p' "$BUNDLE_SRC/Contents/MacOS/launcher")"
+PKG_VERSION="$(node -p "require('$ROOT/package.json').version")"
+if [[ "$LAUNCHER_VERSION" != "$PKG_VERSION" ]]; then
+  echo "ERRO: launcher esta em $LAUNCHER_VERSION e package.json em $PKG_VERSION." >&2
+  exit 1
+fi
+echo "==> Versao $PKG_VERSION"
+
 echo "==> Limpando $DIST"
 rm -rf "$DIST"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/app"

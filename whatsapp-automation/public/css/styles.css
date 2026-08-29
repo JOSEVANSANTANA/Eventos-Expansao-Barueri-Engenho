@@ -54,6 +54,16 @@ body {
 .dot.error { background: var(--red); }
 
 .session { display: flex; align-items: center; gap: 10px; }
+
+.version {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 1px 8px;
+}
 .status-label { color: var(--muted); font-size: 13px; }
 
 /* -------------------------------------------------------------- layout */

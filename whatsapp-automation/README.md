@@ -154,7 +154,11 @@ participantes) com tratamento item a item. Voce vera no log:
 A leitura padrao de conversas falhou (...). Usando leitura direta do WhatsApp Web...
 ```
 
-Se ainda assim falhar, fixe uma versao conhecida do WhatsApp Web:
+Se ainda assim falhar, clique em **Diagnostico** (ao lado de "Atualizar lista").
+Ele sonda o WhatsApp Web de dentro da pagina e escreve nos logs qual modulo
+falhou, com a mensagem real em vez do `r` minificado.
+
+Como ultimo recurso, fixe uma versao conhecida do WhatsApp Web:
 
 ```bash
 WWEBJS_VERSION_URL="https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/<versao>.html" npm start
@@ -190,6 +194,11 @@ Detalhes:
   download do Chromium do Puppeteer e dispensado.
 - Log do launcher: `~/Library/Logs/WhatsApp Automation.log`.
 - Abrir o app com o servidor ja rodando so traz a aba do navegador de volta.
+  Se a versao em execucao for mais antiga que a do app, ele encerra a instancia
+  antiga e sobe a nova (sem isso, o codigo novo era copiado para o disco mas o
+  usuario continuava usando o servidor velho que ainda estava no ar).
+- A versao em execucao aparece no cabecalho da interface, ao lado do titulo.
+  E por ela que voce confirma que uma atualizacao realmente entrou.
 
 Para reconstruir o bundle depois de mexer no codigo:
 

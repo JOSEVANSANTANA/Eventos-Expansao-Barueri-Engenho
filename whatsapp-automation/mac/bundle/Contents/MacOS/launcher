@@ -12,7 +12,7 @@
 
 set -uo pipefail
 
-APP_VERSION="1.1.1"
+APP_VERSION="1.1.2"
 APP_NAME="WhatsApp Automation"
 BUNDLE_ID="br.com.expansaobarueri.whatsapp-automation"
 
@@ -25,6 +25,7 @@ APP_HOME="$SUPPORT_DIR/app"
 LOG_DIR="$HOME/Library/Logs"
 LOG_FILE="$LOG_DIR/$APP_NAME.log"
 VERSION_FILE="$APP_HOME/.installed-version"
+PID_FILE="$SUPPORT_DIR/server.pid"
 
 mkdir -p "$SUPPORT_DIR" "$APP_HOME" "$LOG_DIR"
 
@@ -166,18 +167,62 @@ if [[ -z "${CHROME_PATH:-}" && ! -d "$HOME/.cache/puppeteer" ]]; then
 fi
 
 # ------------------------------------------------------------------- porta livre
-server_responds() {
-  curl -fsS --max-time 2 "http://127.0.0.1:$1/api/status" 2>/dev/null | grep -q '"status"'
+status_json() {
+  curl -fsS --max-time 2 "http://127.0.0.1:$1/api/status" 2>/dev/null
+}
+
+# "campaign" aparece no /api/status de todas as versoes deste app: serve para
+# distinguir uma instancia nossa de qualquer outro processo na mesma porta.
+is_our_server() {
+  status_json "$1" | grep -q '"campaign"'
+}
+
+# Versoes anteriores a 1.1.2 nao publicavam a versao; ficam com string vazia.
+running_version() {
+  status_json "$1" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1
+}
+
+# Encerra uma instancia desatualizada para que a versao nova assuma a porta.
+stop_stale_server() {
+  local port="$1" pid
+
+  pid="$(cat "$PID_FILE" 2>/dev/null)"
+  [[ -n "$pid" ]] && kill "$pid" 2>/dev/null
+
+  # Instancias antigas nao gravavam PID: descobre quem escuta a porta.
+  for pid in $(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null); do
+    kill "$pid" 2>/dev/null
+  done
+
+  for _ in $(seq 1 20); do
+    is_our_server "$port" || { rm -f "$PID_FILE"; return 0; }
+    sleep 0.5
+  done
+  return 1
 }
 
 PORT=""
 for candidate in 3000 3001 3002 3003 3004 3005; do
-  if server_responds "$candidate"; then
-    # Ja existe uma instancia rodando: so traz a janela do navegador de volta.
-    log "Instancia ja ativa na porta $candidate; abrindo o navegador"
-    open "http://127.0.0.1:$candidate"
-    exit 0
+  if is_our_server "$candidate"; then
+    RUNNING_VERSION="$(running_version "$candidate")"
+
+    if [[ "$RUNNING_VERSION" == "$APP_VERSION" ]]; then
+      log "Instancia $APP_VERSION ja ativa na porta $candidate; abrindo o navegador"
+      open "http://127.0.0.1:$candidate"
+      exit 0
+    fi
+
+    # Aqui esta o ponto critico: sem isso o app copia o codigo novo para o disco
+    # e, em seguida, entrega ao usuario o servidor antigo que ainda esta no ar.
+    log "Instancia desatualizada (${RUNNING_VERSION:-anterior a 1.1.2}) na porta $candidate; reiniciando com $APP_VERSION"
+    notify "Atualizando para a versao $APP_VERSION..."
+    stop_stale_server "$candidate" || fatal "Uma versao antiga continua rodando na porta $candidate e nao consegui encerra-la.
+
+Feche o app antigo (ou o Terminal onde ele esta rodando) e abra este novamente."
+    PORT="$candidate"
+    break
   fi
+
   if ! nc -z 127.0.0.1 "$candidate" >/dev/null 2>&1; then
     PORT="$candidate"
     break
@@ -191,9 +236,11 @@ export PORT HOST="127.0.0.1"
 
 "$NODE_BIN" "$APP_HOME/server.js" >> "$LOG_FILE" 2>&1 &
 NODE_PID=$!
+printf '%s' "$NODE_PID" > "$PID_FILE"
 
 cleanup() {
   log "Encerrando o servidor (pid $NODE_PID)"
+  rm -f "$PID_FILE"
   kill "$NODE_PID" 2>/dev/null
   # Da 5s para o shutdown gracioso do server.js antes do -9
   for _ in 1 2 3 4 5; do
@@ -207,7 +254,7 @@ trap cleanup EXIT INT TERM
 # Espera o servidor responder antes de abrir o navegador (ate 30s)
 READY=0
 for _ in $(seq 1 60); do
-  if server_responds "$PORT"; then READY=1; break; fi
+  if is_our_server "$PORT"; then READY=1; break; fi
   kill -0 "$NODE_PID" 2>/dev/null || break
   sleep 0.5
 done

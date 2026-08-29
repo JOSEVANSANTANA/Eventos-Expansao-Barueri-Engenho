@@ -366,6 +366,20 @@ class WhatsAppService extends EventEmitter {
     }, groupId);
   }
 
+  /** Normaliza o retorno da leitura direta para o mesmo formato da API. */
+  async listGroupsFromPage() {
+    const raw = await this.listGroupsRaw();
+    if (raw.failed > 0) {
+      this.logger.warn(`${raw.failed} conversa(s) nao puderam ser lidas e foram ignoradas.`);
+    }
+    return raw.groups.map((group) => ({
+      id: group.id,
+      name: group.name || 'Grupo sem nome',
+      participants: group.participants,
+      archived: group.archived,
+    }));
+  }
+
   /**
    * Lista os grupos do numero conectado.
    * Tenta a API oficial da lib e, se ela quebrar, cai na leitura direta.
@@ -384,21 +398,18 @@ class WhatsAppService extends EventEmitter {
           participants: Array.isArray(chat.participants) ? chat.participants.length : null,
           archived: Boolean(chat.archived),
         }));
+      // A API pode nao lancar erro e ainda assim devolver nada: nesse caso a
+      // leitura direta e a unica forma de saber se existem grupos mesmo.
+      if (groups.length === 0) {
+        this.logger.warn('A leitura padrao nao encontrou grupos; conferindo direto no WhatsApp Web...');
+        groups = await this.listGroupsFromPage();
+      }
     } catch (err) {
       this.logger.warn(
         `A leitura padrao de conversas falhou (${describeError(err)}). ` +
           'Usando leitura direta do WhatsApp Web...'
       );
-      const raw = await this.listGroupsRaw();
-      if (raw.failed > 0) {
-        this.logger.warn(`${raw.failed} conversa(s) nao puderam ser lidas e foram ignoradas.`);
-      }
-      groups = raw.groups.map((group) => ({
-        id: group.id,
-        name: group.name || 'Grupo sem nome',
-        participants: group.participants,
-        archived: group.archived,
-      }));
+      groups = await this.listGroupsFromPage();
     }
 
     groups = groups
@@ -531,6 +542,72 @@ class WhatsAppService extends EventEmitter {
     );
 
     return { groupId, groupName, participants, named };
+  }
+
+  /**
+   * Sonda o WhatsApp Web de dentro da pagina e devolve um relatorio.
+   *
+   * Erros atravessam a fronteira do Puppeteer perdendo mensagem e pilha (viram
+   * "r"). Rodando as sondas dentro da pagina conseguimos o erro real, com o
+   * nome do modulo que falhou.
+   */
+  async runDiagnostics() {
+    this.assertReady();
+
+    const report = await this.client.pupPage.evaluate(async () => {
+      const results = [];
+
+      const probe = async (label, fn) => {
+        try {
+          results.push({ label, ok: true, detail: String(await fn()) });
+        } catch (err) {
+          const message = (err && err.message) || String(err);
+          const frames = String((err && err.stack) || '')
+            .split('\n')
+            .slice(1, 3)
+            .map((line) => line.trim())
+            .join(' <- ');
+          results.push({ label, ok: false, detail: frames ? `${message} | ${frames}` : message });
+        }
+      };
+
+      const chats = () => window.require('WAWebCollections').Chat.getModelsArray();
+
+      await probe('window.require', () => typeof window.require);
+      await probe('WAWebCollections', () => `${Object.keys(window.require('WAWebCollections')).length} colecoes`);
+      await probe('Chat.getModelsArray()', () => `${chats().length} conversas`);
+      await probe('grupos visiveis', () => {
+        const total = chats().filter((chat) => {
+          try {
+            return String(chat.id._serialized).endsWith('@g.us');
+          } catch (_) {
+            return false;
+          }
+        }).length;
+        return `${total} grupos`;
+      });
+      await probe('WAWebWidFactory.createWid', () => typeof window.require('WAWebWidFactory').createWid);
+      await probe('WAWebLidMigrationUtils.toPn', () => typeof window.require('WAWebLidMigrationUtils').toPn);
+      await probe('colecao GroupMetadata', () => {
+        const c = window.require('WAWebCollections');
+        if (c.GroupMetadata) return 'GroupMetadata';
+        if (c.WAWebGroupMetadataCollection) return 'WAWebGroupMetadataCollection';
+        throw new Error('nenhuma das duas colecoes existe');
+      });
+      await probe('WWebJS.getChats() (API da lib)', async () => `${(await window.WWebJS.getChats()).length} chats`);
+
+      return results;
+    });
+
+    this.logger.info('--- Diagnostico do WhatsApp Web ---');
+    for (const item of report) {
+      const line = `${item.ok ? 'OK' : 'FALHOU'}  ${item.label}: ${item.detail}`;
+      if (item.ok) this.logger.info(line);
+      else this.logger.error(line);
+    }
+    this.logger.info('--- fim do diagnostico ---');
+
+    return report;
   }
 
   /** Confere se o numero tem WhatsApp e devolve o id canonico de envio. */

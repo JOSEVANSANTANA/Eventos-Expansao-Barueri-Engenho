@@ -25,6 +25,8 @@
     meName: el('me-name'),
     meNumber: el('me-number'),
 
+    appVersion: el('app-version'),
+    btnDiagnostics: el('btn-diagnostics'),
     btnRefreshGroups: el('btn-refresh-groups'),
     groupFilter: el('group-filter'),
     groupList: el('group-list'),
@@ -120,6 +122,7 @@
 
   function renderStatus(payload) {
     state.status = payload.status;
+    if (payload.version) ui.appVersion.textContent = `v${payload.version}`;
     ui.statusLabel.textContent = STATUS_LABEL[payload.status] || payload.status;
 
     ui.statusDot.className = 'dot';
@@ -136,6 +139,7 @@
     ui.btnLogout.hidden = !ready;
 
     ui.btnRefreshGroups.disabled = !ready;
+    ui.btnDiagnostics.disabled = !ready;
     ui.groupFilter.disabled = !ready;
 
     if (payload.status === 'QR' && payload.qr) {
@@ -417,6 +421,17 @@
   });
 
   ui.btnRefreshGroups.addEventListener('click', loadGroups);
+
+  ui.btnDiagnostics.addEventListener('click', async () => {
+    ui.btnDiagnostics.disabled = true;
+    localLog('Rodando diagnostico... o resultado aparece abaixo.', 'info');
+    try {
+      await api('/api/diagnostics', { method: 'POST' });
+    } catch (err) {
+      localLog(`Diagnostico falhou: ${err.message}`, 'error');
+    }
+    ui.btnDiagnostics.disabled = state.status !== 'READY';
+  });
   ui.groupFilter.addEventListener('input', renderGroups);
 
   ui.btnCopyNumbers.addEventListener('click', async () => {
@@ -461,7 +476,7 @@
   socket.on('bootstrap', (payload) => {
     ui.logBox.innerHTML = '';
     (payload.logs || []).forEach(appendLog);
-    renderStatus(payload.status);
+    renderStatus({ ...payload.status, version: payload.version });
     renderProgress(payload.campaign);
   });
 

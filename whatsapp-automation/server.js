@@ -18,6 +18,7 @@ const { createLogger } = require('./src/logger');
 const { WhatsAppService, STATUS, describeError } = require('./src/whatsapp-service');
 const { CampaignRunner, DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY } = require('./src/campaign-runner');
 
+const APP_VERSION = require('./package.json').version;
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -87,8 +88,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 app.get('/api/status', (_req, res) => {
-  res.json({ ...whatsapp.getStatus(), campaign: campaign.getState() });
+  res.json({
+    app: 'whatsapp-automation',
+    version: APP_VERSION,
+    ...whatsapp.getStatus(),
+    campaign: campaign.getState(),
+  });
 });
+
+app.post('/api/diagnostics', asyncRoute(async (_req, res) => {
+  const report = await whatsapp.runDiagnostics();
+  res.json({ version: APP_VERSION, report });
+}));
 
 app.post('/api/session/start', asyncRoute(async (_req, res) => {
   const status = await whatsapp.start();
@@ -212,6 +223,7 @@ app.use((err, _req, res, _next) => {
 // ------------------------------------------------------------------ sockets
 io.on('connection', (socket) => {
   socket.emit('bootstrap', {
+    version: APP_VERSION,
     status: whatsapp.getStatus(),
     campaign: campaign.getState(),
     logs: logger.history(),
@@ -238,6 +250,6 @@ process.on('unhandledRejection', (reason) => {
 });
 
 server.listen(PORT, HOST, () => {
-  logger.ok(`Servidor rodando em http://${HOST}:${PORT}`);
+  logger.ok(`Servidor rodando em http://${HOST}:${PORT} (versao ${APP_VERSION})`);
   logger.info('Abra o endereco no navegador e clique em "Conectar WhatsApp" para gerar o QR Code.');
 });

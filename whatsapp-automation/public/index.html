@@ -12,6 +12,7 @@
     <div class="brand">
       <span class="dot" id="status-dot"></span>
       <h1>WhatsApp Automation</h1>
+      <span id="app-version" class="version" title="Versao em execucao">-</span>
     </div>
     <div class="session">
       <span id="status-label" class="status-label">Desconectado</span>
@@ -46,7 +47,10 @@
     <section class="card" id="card-groups">
       <div class="card-head">
         <h2>2. Grupos</h2>
-        <button id="btn-refresh-groups" class="btn btn-small" disabled>Atualizar lista</button>
+        <div class="actions">
+          <button id="btn-diagnostics" class="btn btn-small" disabled title="Testa o acesso ao WhatsApp Web e escreve o resultado nos logs">Diagnostico</button>
+          <button id="btn-refresh-groups" class="btn btn-small" disabled>Atualizar lista</button>
+        </div>
       </div>
       <input type="search" id="group-filter" class="input" placeholder="Filtrar grupos pelo nome..." disabled>
       <ul id="group-list" class="group-list">
