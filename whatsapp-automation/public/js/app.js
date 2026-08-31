@@ -49,6 +49,26 @@
     optValidate: el('opt-validate'),
     optDryRun: el('opt-dry-run'),
 
+    riskBadge: el('risk-badge'),
+    riskNotes: el('risk-notes'),
+    sfToday: el('sf-today'),
+    sfRemaining: el('sf-remaining'),
+    sfHour: el('sf-hour'),
+    sfOptouts: el('sf-optouts'),
+    sfDaily: el('sf-daily'),
+    sfHourly: el('sf-hourly'),
+    sfBatch: el('sf-batch'),
+    sfBatchPause: el('sf-batch-pause'),
+    sfWindowStart: el('sf-window-start'),
+    sfWindowEnd: el('sf-window-end'),
+    sfCooldown: el('sf-cooldown'),
+    sfWindow: el('sf-window'),
+    sfWarmup: el('sf-warmup'),
+    sfOptoutFooter: el('sf-optout-footer'),
+    sfOptoutCount: el('sf-optout-count'),
+    sfOptoutList: el('sf-optout-list'),
+    sfOptoutInput: el('sf-optout-input'),
+    sfOptoutAdd: el('sf-optout-add'),
     btnStart: el('btn-start'),
     btnStop: el('btn-stop'),
     progressFill: el('progress-fill'),
@@ -68,6 +88,7 @@
     selectedGroup: null,
     recipients: [],
     running: false,
+    safety: null,
   };
 
   // ------------------------------------------------------------- helpers
@@ -329,6 +350,148 @@
     updateStartButton();
   }
 
+  // -------------------------------------------------------------- seguranca
+  function safetyConfig() {
+    return {
+      dailyLimit: Number(ui.sfDaily.value) || 80,
+      hourlyLimit: Number(ui.sfHourly.value) || 20,
+      batchSize: Number(ui.sfBatch.value) || 0,
+      batchPauseMin: (Number(ui.sfBatchPause.value) || 0) * 60000,
+      batchPauseMax: Math.round((Number(ui.sfBatchPause.value) || 0) * 60000 * 1.6),
+      windowStart: Number(ui.sfWindowStart.value) || 0,
+      windowEnd: Number(ui.sfWindowEnd.value) || 23,
+      respectWindow: ui.sfWindow.checked,
+      cooldownDays: Number(ui.sfCooldown.value) || 0,
+      warmup: ui.sfWarmup.checked,
+    };
+  }
+
+  function renderSafety(payload) {
+    if (!payload) return;
+    state.safety = payload;
+
+    const { stats = {}, policy = {} } = payload;
+    ui.sfToday.textContent = stats.today ?? 0;
+    ui.sfHour.textContent = stats.lastHour ?? 0;
+    ui.sfOptouts.textContent = stats.optOuts ?? 0;
+    ui.sfRemaining.textContent = policy.remainingToday ?? '-';
+    ui.sfOptoutCount.textContent = stats.optOuts ?? 0;
+    updateRisk();
+  }
+
+  /** Combina os sinais que de fato pesam numa restricao de conta. */
+  function updateRisk() {
+    const notes = [];
+    let score = 0;
+
+    const min = Number(ui.minDelay.value) || 0;
+    if (min < 15) {
+      score += 3;
+      notes.push('intervalo minimo abaixo de 15s');
+    } else if (min < 30) {
+      score += 1;
+      notes.push('intervalo minimo curto');
+    }
+
+    const daily = Number(ui.sfDaily.value) || 0;
+    if (daily > 200) {
+      score += 3;
+      notes.push('mais de 200 mensagens por dia');
+    } else if (daily > 100) {
+      score += 1;
+      notes.push('volume diario alto');
+    }
+
+    const texto = ui.msgText.value;
+    const variantes = contarCombinacoes(texto);
+    if (texto.trim() && variantes <= 1 && state.recipients.length > 10) {
+      score += 2;
+      notes.push('texto identico para todos');
+    }
+
+    if (!ui.sfOptoutFooter.value.trim()) {
+      score += 1;
+      notes.push('sem linha de descadastro');
+    }
+
+    if (!ui.sfWindow.checked) {
+      score += 1;
+      notes.push('sem janela de horario');
+    }
+
+    if (state.recipients.length) {
+      const semNome = state.recipients.filter((r) => !r.name).length;
+      const proporcao = semNome / state.recipients.length;
+      if (proporcao > 0.7) {
+        score += 2;
+        notes.push(`${Math.round(proporcao * 100)}% sao desconhecidos`);
+      }
+    }
+
+    const nivel = score >= 5 ? 'alto' : score >= 2 ? 'medio' : 'baixo';
+    ui.riskBadge.textContent = `risco ${nivel}`;
+    ui.riskBadge.className = `badge risk-${nivel}`;
+    ui.riskNotes.textContent = notes.length
+      ? `Pontos de atencao: ${notes.join('; ')}.`
+      : 'Configuracao conservadora. Mesmo assim, aumente o volume aos poucos.';
+  }
+
+  /** Espelha countCombinations() de src/message-variants.js. */
+  function contarCombinacoes(text) {
+    if (!text) return 0;
+    const variantes = String(text).split(/^\s*-{3,}\s*$/m).map((p) => p.trim()).filter(Boolean);
+    let total = 0;
+    for (const variante of variantes) {
+      let combos = 1;
+      for (const trecho of variante.match(/\{[^{}]*\|[^{}]*\}/g) || []) {
+        combos *= trecho.slice(1, -1).split('|').length;
+      }
+      total += combos;
+    }
+    return total;
+  }
+
+  async function loadOptOuts() {
+    try {
+      const data = await api('/api/optouts');
+      renderOptOuts(data.optOuts || []);
+    } catch (_) {
+      /* lista opcional */
+    }
+  }
+
+  function renderOptOuts(list) {
+    ui.sfOptoutCount.textContent = list.length;
+    ui.sfOptoutList.innerHTML = '';
+
+    for (const item of list) {
+      const li = document.createElement('li');
+
+      const number = document.createElement('span');
+      number.textContent = `+${item.number}`;
+
+      const reason = document.createElement('span');
+      reason.className = 'reason';
+      reason.textContent = item.reason || '';
+
+      const remove = document.createElement('button');
+      remove.className = 'remove';
+      remove.textContent = 'x';
+      remove.title = 'Remover da lista';
+      remove.addEventListener('click', async () => {
+        try {
+          const data = await api(`/api/optouts/${item.number}`, { method: 'DELETE' });
+          renderOptOuts(data.optOuts || []);
+        } catch (err) {
+          localLog(`Nao foi possivel remover: ${err.message}`, 'error');
+        }
+      });
+
+      li.append(number, reason, remove);
+      ui.sfOptoutList.appendChild(li);
+    }
+  }
+
   // ------------------------------------------------------------ campanha
   function updateStartButton() {
     const hasContent = Boolean(ui.msgText.value.trim() || ui.msgMedia.files.length || ui.msgAudio.files.length);
@@ -365,11 +528,17 @@
       return;
     }
     const totalMin = ((state.recipients.length - 1) * min) / 60;
+    const porDia = Number(ui.sfDaily.value) || 0;
+    const restam = state.safety?.policy?.remainingToday;
     const named = state.recipients.filter((r) => r.name).length;
     const usaNome = /\{(nome|primeiro_nome)\}/i.test(ui.msgText.value);
     const confirmMsg =
       `Enviar para ${state.recipients.length} numero(s) do grupo "${state.selectedGroup?.name || '-'}"?\n` +
       `Tempo minimo estimado: ~${totalMin.toFixed(1)} minuto(s).` +
+      (restam != null && state.recipients.length > restam
+        ? `\n\nAtencao: so restam ${restam} envio(s) no limite de hoje. ` +
+          `A campanha vai pausar sozinha ao atingir o teto e voce retoma amanha.`
+        : '') +
       (usaNome && ui.optPersonalize.checked
         ? `\n\n${named} recebera(o) a mensagem com o proprio nome; ` +
           `${state.recipients.length - named} recebera(o) "${ui.fallbackName.value.trim() || 'tudo bem'}".`
@@ -386,6 +555,8 @@
     form.append('validateNumbers', ui.optValidate.checked ? 'true' : 'false');
     form.append('personalize', ui.optPersonalize.checked ? 'true' : 'false');
     form.append('fallbackName', ui.fallbackName.value);
+    form.append('optOutFooter', ui.sfOptoutFooter.value);
+    for (const [chave, valor] of Object.entries(safetyConfig())) form.append(chave, String(valor));
     form.append('dryRun', ui.optDryRun.checked ? 'true' : 'false');
     if (ui.msgMedia.files[0]) form.append('media', ui.msgMedia.files[0]);
     if (ui.msgAudio.files[0]) form.append('audio', ui.msgAudio.files[0]);
@@ -457,6 +628,28 @@
     chip.addEventListener('click', () => insertToken(chip.dataset.token));
   });
 
+  [ui.sfDaily, ui.sfHourly, ui.sfOptoutFooter, ui.minDelay, ui.maxDelay].forEach((input) =>
+    input.addEventListener('input', updateRisk)
+  );
+  [ui.sfWindow, ui.sfWarmup].forEach((input) => input.addEventListener('change', updateRisk));
+  ui.msgText.addEventListener('input', updateRisk);
+
+  ui.sfOptoutAdd.addEventListener('click', async () => {
+    const number = ui.sfOptoutInput.value.replace(/\D/g, '');
+    if (!number) return;
+    try {
+      const data = await api('/api/optouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number }),
+      });
+      ui.sfOptoutInput.value = '';
+      renderOptOuts(data.optOuts || []);
+    } catch (err) {
+      localLog(`Nao foi possivel adicionar: ${err.message}`, 'error');
+    }
+  });
+
   ui.btnStart.addEventListener('click', startCampaign);
 
   ui.btnStop.addEventListener('click', async () => {
@@ -478,10 +671,13 @@
     ui.logBox.innerHTML = '';
     (payload.logs || []).forEach(appendLog);
     renderStatus({ ...payload.status, version: payload.version });
+    renderSafety(payload.safety);
     renderProgress(payload.campaign);
+    loadOptOuts();
   });
 
   socket.on('status', renderStatus);
+  socket.on('safety', renderSafety);
   socket.on('log', appendLog);
   socket.on('campaign:progress', renderProgress);
 
@@ -496,6 +692,7 @@
   socket.on('disconnect', () => localLog('Conexao com o servidor perdida. Reconectando...', 'warn'));
 
   updatePreview();
+  updateRisk();
 
   // Estado inicial caso o socket demore a responder.
   api('/api/status')

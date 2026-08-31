@@ -17,14 +17,18 @@ const { Server } = require('socket.io');
 const { createLogger } = require('./src/logger');
 const { WhatsAppService, STATUS, describeError } = require('./src/whatsapp-service');
 const { CampaignRunner, DEFAULT_MIN_DELAY, DEFAULT_MAX_DELAY } = require('./src/campaign-runner');
+const { Ledger } = require('./src/ledger');
+const { SafetyPolicy, DEFAULTS: SAFETY_DEFAULTS } = require('./src/safety');
 
 const APP_VERSION = require('./package.json').version;
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const SESSION_DIR = path.join(__dirname, '.wwebjs_auth');
+const DATA_DIR = path.join(__dirname, 'data');
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // ---------------------------------------------------------------- infra base
 const app = express();
@@ -32,17 +36,29 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 const logger = createLogger(io);
+const ledger = new Ledger({ filePath: path.join(DATA_DIR, 'ledger.json'), logger });
 const whatsapp = new WhatsAppService({
   logger,
   sessionPath: SESSION_DIR,
   headless: process.env.HEADLESS !== 'false',
   executablePath: process.env.CHROME_PATH || null,
+  ledger,
 });
 const campaign = new CampaignRunner({ whatsapp, logger });
 
 whatsapp.on('status', (status) => io.emit('status', status));
+whatsapp.on('optout', () => io.emit('safety', safetySnapshot()));
 campaign.on('progress', (state) => io.emit('campaign:progress', state));
-campaign.on('finished', (state) => io.emit('campaign:finished', state));
+campaign.on('finished', (state) => {
+  io.emit('campaign:finished', state);
+  io.emit('safety', safetySnapshot());
+});
+
+/** Estado dos limites, para a interface mostrar antes do disparo. */
+function safetySnapshot(config = {}) {
+  const policy = new SafetyPolicy(config, { ledger, logger });
+  return { defaults: SAFETY_DEFAULTS, policy: policy.describe(), stats: ledger.stats() };
+}
 
 // ------------------------------------------------------------------- uploads
 const storage = multer.diskStorage({
@@ -112,6 +128,29 @@ app.post('/api/session/logout', asyncRoute(async (_req, res) => {
   res.json(status);
 }));
 
+app.get('/api/safety', (_req, res) => {
+  res.json(safetySnapshot());
+});
+
+app.get('/api/optouts', (_req, res) => {
+  res.json({ optOuts: ledger.optOutList() });
+});
+
+app.post('/api/optouts', (req, res) => {
+  const number = String(req.body?.number || '').replace(/\D/g, '');
+  if (!number) return res.status(400).json({ error: 'Informe um numero valido.' });
+  const added = ledger.addOptOut(number, 'adicionado manualmente');
+  logger.info(`+${number} ${added ? 'adicionado a' : 'ja estava na'} lista de descadastro.`);
+  res.json({ added, optOuts: ledger.optOutList() });
+});
+
+app.delete('/api/optouts/:number', (req, res) => {
+  const number = String(req.params.number || '').replace(/\D/g, '');
+  const removed = ledger.removeOptOut(number);
+  if (removed) logger.info(`+${number} removido da lista de descadastro.`);
+  res.json({ removed, optOuts: ledger.optOutList() });
+});
+
 app.get('/api/groups', asyncRoute(async (_req, res) => {
   const groups = await whatsapp.listGroups();
   res.json({ groups });
@@ -150,6 +189,25 @@ app.post(
       const maxDelay = Number(body.maxDelay) || DEFAULT_MAX_DELAY;
       const personalize = !(body.personalize === 'false' || body.personalize === false);
       const fallbackName = (body.fallbackName || '').trim();
+      const optOutFooter = (body.optOutFooter || '').trim();
+
+      const safety = new SafetyPolicy(
+        {
+          minDelay,
+          maxDelay,
+          dailyLimit: body.dailyLimit,
+          hourlyLimit: body.hourlyLimit,
+          batchSize: body.batchSize,
+          batchPauseMin: body.batchPauseMin,
+          batchPauseMax: body.batchPauseMax,
+          windowStart: body.windowStart,
+          windowEnd: body.windowEnd,
+          respectWindow: body.respectWindow,
+          cooldownDays: body.cooldownDays,
+          warmup: body.warmup,
+        },
+        { ledger, logger }
+      );
 
       // A UI pode mandar a lista ja filtrada; senao, extraimos do grupo na hora.
       let recipients = [];
@@ -190,7 +248,14 @@ app.post(
           dryRun,
           personalize,
           fallbackName,
-          onFinish: () => removeFiles(uploaded),
+          groupId,
+          safety,
+          ledger,
+          optOutFooter,
+          onFinish: () => {
+            removeFiles(uploaded);
+            io.emit('safety', safetySnapshot());
+          },
         })
         .catch((err) => {
           logger.error(`Campanha abortada: ${err.message}`);
@@ -225,6 +290,7 @@ io.on('connection', (socket) => {
   socket.emit('bootstrap', {
     version: APP_VERSION,
     status: whatsapp.getStatus(),
+    safety: safetySnapshot(),
     campaign: campaign.getState(),
     logs: logger.history(),
   });

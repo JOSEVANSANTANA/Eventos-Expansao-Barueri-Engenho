@@ -16,6 +16,9 @@ whatsapp-automation/
 │   ├── whatsapp-service.js    # Sessao, grupos, participantes e envios
 │   ├── campaign-runner.js     # Loop de disparo, delay aleatorio e erros
 │   ├── contact-name.js        # Nomes dos contatos e marcadores {nome} etc.
+│   ├── safety.js              # Limites, ritmo e janela de envio
+│   ├── ledger.js              # Historico persistente e lista de descadastro
+│   ├── message-variants.js    # Variantes e spintax
 │   └── audio.js               # Conversao para OGG/Opus (mensagem de voz)
 ├── mac/                       # Fontes do app do macOS (.app)
 │   ├── build-mac-app.sh
@@ -212,6 +215,85 @@ macOS reclama. Resolva com **clique direito no app > Abrir > Abrir**, ou:
 ```bash
 xattr -dr com.apple.quarantine "/Applications/WhatsApp Automation.app"
 ```
+
+## Estrategia anti-bloqueio
+
+Uma restricao ("Sua conta esta restringida no momento") nao vem de um unico
+gatilho. O classificador do WhatsApp combina sinais, e eles tem pesos bem
+diferentes:
+
+| Peso | Sinal | Como o app trata |
+| --- | --- | --- |
+| Altissimo | Bloqueios e denuncias de quem recebeu | linha de descadastro + lista de exclusao automatica |
+| Alto | Volume por janela de tempo | limite diario e por hora, com historico persistente |
+| Alto | Proporcao de destinatarios que nao te conhecem | painel de risco alerta acima de 70% |
+| Medio | Cadencia regular demais | intervalo variavel, pausas longas e pausa entre lotes |
+| Medio | Texto identico repetido | variantes e spintax |
+| Medio | Mensagens fora de horario | janela de envio configuravel |
+| Baixo | Conta nova ou recem-conectada | modo aquecimento |
+
+### Os tres niveis de decisao
+
+**1. Reduzir o dano real, nao so o sinal.** O que mais restringe conta e gente
+denunciando. A linha de descadastro no fim da mensagem e a resposta automatica a
+quem manda "SAIR" atacam a causa, nao o sintoma. Quem nao quer receber para de
+receber, e nao denuncia.
+
+**2. Separar os numeros.** Nunca use o numero principal (pessoal ou da empresa)
+para prospeccao fria. Um chip so para captacao isola o risco: se ele for
+restringido, sua operacao continua. O numero principal fica para quem ja
+respondeu e virou conversa.
+
+**3. Ter a saida oficial pronta.** Para volume comercial recorrente existe a
+**WhatsApp Business Platform (Cloud API)**, da Meta. E o unico caminho sancionado
+para envio em massa: mensagens de modelo aprovadas, cobranca por conversa,
+opt-in obrigatorio e uma nota de qualidade que voce acompanha. Nao ha risco de
+banimento por automacao porque a automacao e o produto. O custo e a
+formalizacao: conta comercial verificada e templates aprovados.
+
+Esta ferramenta **nao** e um substituto disso. Ela e apropriada para volume
+baixo, listas mornas (pessoas que ja interagiram com voce) e comunicacao com
+grupos dos quais voce participa. Qualquer automacao local viola os Termos do
+WhatsApp: o risco residual nunca chega a zero.
+
+### Limites padrao
+
+| Parametro | Padrao | Por que |
+| --- | --- | --- |
+| Intervalo | 45s a 120s | 5-10s e ~8 msg/min: cadencia impossivel para uma pessoa |
+| Por dia | 80 | com aquecimento, comeca em 20 e sobe ao longo de 2 semanas |
+| Por hora | 20 | evita concentrar o volume do dia em minutos |
+| Lote | 15 envios, pausa de 20-32 min | simula sessoes de trabalho, nao um fluxo continuo |
+| Janela | 9h as 20h | mensagem de madrugada gera bloqueio |
+| Repeticao | 7 dias | a mesma pessoa nao recebe duas vezes na semana |
+
+Os limites valem por **conta**, nao por campanha: o historico fica em
+`data/ledger.json` e sobrevive a reinicios. Se a campanha atingir o teto, ela
+pausa e informa quantos ficaram de fora - retome depois, ninguem recebe duas vezes.
+
+### Variacao de texto
+
+Duas formas, combinaveis:
+
+```
+{Oi|Ola|Bom dia} {primeiro_nome}, {tudo bem|como vai}?
+---
+E ai {primeiro_nome}! {Beleza|Tudo certo} por ai?
+```
+
+`---` separa variantes completas; `{a|b|c}` sorteia dentro do texto. O exemplo
+acima gera 8 mensagens diferentes. Marcadores como `{nome}` continuam
+funcionando: so viram sorteio quando ha `|` dentro das chaves.
+
+### Se a conta for restringida
+
+1. **Pare tudo.** Nao tente reconectar nem enviar durante a restricao - insistir
+   costuma estender o prazo.
+2. Espere o contador zerar (normalmente 24h).
+3. Ao voltar, **ative o modo aquecimento** e recomece por 20 mensagens no dia.
+4. Envie primeiro para quem ja conversou com voce; deixe a lista fria para depois.
+5. Se restringir uma segunda vez, o proximo passo e a Cloud API - o numero ja
+   esta marcado.
 
 ## Avisos
 

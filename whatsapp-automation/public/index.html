@@ -112,17 +112,6 @@
         <small class="muted">Com ffmpeg instalado, o arquivo e convertido para OGG/Opus e chega como audio gravado na hora.</small>
       </label>
 
-      <div class="grid-2">
-        <label class="field">
-          <span>Intervalo minimo (s)</span>
-          <input type="number" id="min-delay" class="input" value="5" min="1" step="1">
-        </label>
-        <label class="field">
-          <span>Intervalo maximo (s)</span>
-          <input type="number" id="max-delay" class="input" value="10" min="1" step="1">
-        </label>
-      </div>
-
       <label class="check">
         <input type="checkbox" id="opt-validate" checked>
         <span>Validar se o numero tem WhatsApp antes de enviar</span>
@@ -154,6 +143,88 @@
         <div class="stat"><span id="stat-skipped">0</span><small>Puladas</small></div>
         <div class="stat"><span id="stat-total">0</span><small>Total</small></div>
       </div>
+    </section>
+
+    <!-- ETAPA 6: seguranca -->
+    <section class="card" id="card-safety">
+      <div class="card-head">
+        <h2>6. Protecao anti-bloqueio</h2>
+        <span id="risk-badge" class="badge">-</span>
+      </div>
+
+      <div class="stats stats-4">
+        <div class="stat"><span id="sf-today">0</span><small>Hoje</small></div>
+        <div class="stat"><span id="sf-remaining">0</span><small>Restam hoje</small></div>
+        <div class="stat"><span id="sf-hour">0</span><small>Ultima hora</small></div>
+        <div class="stat"><span id="sf-optouts">0</span><small>Descadastros</small></div>
+      </div>
+
+      <p id="risk-notes" class="muted"></p>
+
+      <div class="grid-2">
+        <label class="field">
+          <span>Intervalo minimo (s)</span>
+          <input type="number" id="min-delay" class="input" value="45" min="3" step="1">
+        </label>
+        <label class="field">
+          <span>Intervalo maximo (s)</span>
+          <input type="number" id="max-delay" class="input" value="120" min="3" step="1">
+        </label>
+        <label class="field">
+          <span>Maximo por dia</span>
+          <input type="number" id="sf-daily" class="input" value="80" min="1" step="1">
+        </label>
+        <label class="field">
+          <span>Maximo por hora</span>
+          <input type="number" id="sf-hourly" class="input" value="20" min="1" step="1">
+        </label>
+        <label class="field">
+          <span>Envios por lote</span>
+          <input type="number" id="sf-batch" class="input" value="15" min="0" step="1">
+        </label>
+        <label class="field">
+          <span>Pausa entre lotes (min)</span>
+          <input type="number" id="sf-batch-pause" class="input" value="20" min="0" step="1">
+        </label>
+        <label class="field">
+          <span>Enviar a partir das</span>
+          <input type="number" id="sf-window-start" class="input" value="9" min="0" max="23" step="1">
+        </label>
+        <label class="field">
+          <span>Ate as</span>
+          <input type="number" id="sf-window-end" class="input" value="20" min="0" max="23" step="1">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Nao repetir a mesma pessoa por (dias)</span>
+        <input type="number" id="sf-cooldown" class="input" value="7" min="0" step="1">
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="sf-window" checked>
+        <span>Respeitar a janela de horario</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="sf-warmup" checked>
+        <span>Modo aquecimento (sobe o limite diario aos poucos)</span>
+      </label>
+
+      <label class="field">
+        <span>Linha de descadastro no fim da mensagem</span>
+        <input type="text" id="sf-optout-footer" class="input" maxlength="120"
+               value="Se nao quiser mais receber, responda SAIR." placeholder="deixe vazio para nao incluir">
+        <small class="muted">Quem responder SAIR, PARAR ou STOP entra na lista e nunca mais recebe.</small>
+      </label>
+
+      <details class="optout-box">
+        <summary>Lista de descadastro (<span id="sf-optout-count">0</span>)</summary>
+        <div class="optout-add">
+          <input type="text" id="sf-optout-input" class="input" placeholder="5511999999999">
+          <button type="button" id="sf-optout-add" class="btn btn-small">Adicionar</button>
+        </div>
+        <ul id="sf-optout-list" class="optout-list"></ul>
+      </details>
     </section>
 
     <!-- LOGS -->

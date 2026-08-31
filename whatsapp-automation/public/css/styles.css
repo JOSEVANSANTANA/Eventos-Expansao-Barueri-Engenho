@@ -257,3 +257,41 @@ textarea.input { resize: vertical; }
 .preview-label em { color: var(--green); font-style: normal; text-transform: none; letter-spacing: 0; }
 .preview-text { margin: 5px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
 .preview-text.placeholder { color: var(--muted); font-style: italic; }
+
+/* ------------------------------------------------ protecao anti-bloqueio */
+.stats-4 .stat span { font-size: 16px; }
+
+.badge.risk-baixo { color: var(--green); border-color: var(--green); }
+.badge.risk-medio { color: var(--yellow); border-color: var(--yellow); }
+.badge.risk-alto { color: var(--red); border-color: var(--red); }
+
+.optout-box {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.optout-box summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.optout-add { display: flex; gap: 6px; margin-top: 10px; }
+.optout-add .input { flex: 1; }
+
+.optout-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.optout-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.optout-list li:last-child { border-bottom: none; }
+.optout-list .remove { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.optout-list .reason { color: var(--muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -23,6 +23,13 @@ function describeError(err) {
 }
 
 /**
+ * Palavras que caracterizam pedido de descadastro. A mensagem precisa ser curta
+ * e conter o termo isolado: "sair" dentro de uma frase longa quase sempre e
+ * outra coisa ("vou sair mais tarde").
+ */
+const OPT_OUT_PATTERN = /^(sair|parar|pare|stop|remover|descadastrar|cancelar|nao quero|nao enviar|me tira|me remova|sair da lista)\b[\s.!]*$/;
+
+/**
  * Estados possiveis da sessao. O frontend usa isso para decidir qual tela mostrar.
  * DISCONNECTED -> STARTING -> QR -> AUTHENTICATED -> READY
  */
@@ -39,9 +46,10 @@ class WhatsAppService extends EventEmitter {
   /**
    * @param {{ logger: any, sessionPath: string, headless?: boolean, executablePath?: string }} options
    */
-  constructor({ logger, sessionPath, headless = true, executablePath = null }) {
+  constructor({ logger, sessionPath, headless = true, executablePath = null, ledger = null }) {
     super();
     this.logger = logger;
+    this.ledger = ledger;
     this.sessionPath = sessionPath;
     this.headless = headless;
     this.executablePath = executablePath;
@@ -192,6 +200,33 @@ class WhatsAppService extends EventEmitter {
         this.logger.info(`WhatsApp Web ${webVersion} | whatsapp-web.js ${require('whatsapp-web.js/package.json').version}`);
       } catch (_) {
         /* diagnostico opcional */
+      }
+    });
+
+    // Quem pede para parar de receber e o sinal mais barato de respeitar - e o
+    // que mais evita denuncia, que e o que de fato restringe a conta.
+    client.on('message', async (message) => {
+      try {
+        if (!this.ledger) return;
+        if (message.fromMe || message.isStatus) return;
+        const from = String(message.from || '');
+        if (!from.endsWith('@c.us')) return; // so conversas privadas
+
+        const body = String(message.body || '')
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+        if (!OPT_OUT_PATTERN.test(body)) return;
+
+        const number = from.split('@')[0];
+        if (this.ledger.addOptOut(number, `respondeu "${String(message.body).trim().slice(0, 40)}"`)) {
+          this.logger.warn(`+${number} pediu para nao receber mais mensagens e foi adicionado a lista de descadastro.`);
+          this.emit('optout', { number, total: this.ledger.optOutList().length });
+        }
+      } catch (err) {
+        this.logger.warn(`Erro ao processar resposta recebida: ${describeError(err)}`);
       }
     });
 

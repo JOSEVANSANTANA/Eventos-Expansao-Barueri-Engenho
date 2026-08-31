@@ -4,6 +4,7 @@ const fs = require('fs');
 const { EventEmitter } = require('events');
 
 const { renderTemplate } = require('./contact-name');
+const { pickVariant, appendOptOut, countCombinations } = require('./message-variants');
 
 const DEFAULT_MIN_DELAY = 5000;
 const DEFAULT_MAX_DELAY = 10000;
@@ -43,6 +44,7 @@ class CampaignRunner extends EventEmitter {
       startedAt: null,
       finishedAt: null,
       dryRun: false,
+      stoppedReason: null,
       failures: [],
     };
   }
@@ -110,6 +112,9 @@ class CampaignRunner extends EventEmitter {
       dryRun = false,
       personalize = true,
       fallbackName = '',
+      safety = null,
+      ledger = null,
+      optOutFooter = '',
       onFinish = null,
     } = config;
 
@@ -153,6 +158,25 @@ class CampaignRunner extends EventEmitter {
       );
     }
 
+    const combos = countCombinations(text);
+    if (text && combos <= 1 && recipients.length > 10) {
+      this.logger.warn(
+        'A mensagem nao tem variacao: todos receberao um texto identico, ' +
+          'que e um dos sinais mais faceis de detectar. Considere usar {opcao A|opcao B}.'
+      );
+    } else if (combos > 1) {
+      this.logger.info(`Mensagem com ${combos} combinacao(oes) possiveis de texto.`);
+    }
+
+    if (safety) {
+      const limite = safety.effectiveDailyLimit();
+      this.logger.info(
+        `Limites ativos: ${safety.remainingToday()} envio(s) restantes hoje ` +
+          `(teto ${limite === Infinity ? 'sem teto' : limite}), ` +
+          `${safety.config.hourlyLimit}/hora, lote de ${safety.config.batchSize}.`
+      );
+    }
+
     this.logger.info(
       `Campanha iniciada${groupName ? ` para o grupo "${groupName}"` : ''}: ` +
         `${recipients.length} destinatario(s), intervalo de ${min / 1000}s a ${max / 1000}s` +
@@ -170,6 +194,28 @@ class CampaignRunner extends EventEmitter {
         this.state.current = recipient.number;
         this.emitProgress();
 
+        // A politica decide antes de qualquer chamada ao WhatsApp.
+        if (safety) {
+          const verdict = safety.evaluate(recipient);
+          if (!verdict.allowed) {
+            if (verdict.stop) {
+              this.state.stoppedReason = verdict.reason;
+              this.logger.warn(`Campanha pausada: ${verdict.reason}.`);
+              this.logger.info(
+                `${recipients.length - i} destinatario(s) nao foram contatados. ` +
+                  'Retome mais tarde: o historico e preservado e ninguem recebe duas vezes.'
+              );
+              break;
+            }
+            this.state.skipped += 1;
+            this.state.processed += 1;
+            this.logger.info(`Pulado +${recipient.number}: ${verdict.reason}.`);
+            this.state.failures.push({ number: recipient.number, reason: verdict.reason });
+            this.emitProgress();
+            continue;
+          }
+        }
+
         try {
           await this.sendToRecipient(recipient, {
             text,
@@ -179,8 +225,11 @@ class CampaignRunner extends EventEmitter {
             dryRun,
             personalize,
             fallbackName,
+            optOutFooter,
           });
           this.state.sent += 1;
+          if (safety) safety.registerSent();
+          if (ledger && !dryRun) ledger.record(recipient.number, { groupId: config.groupId || null });
           const label = recipient.name ? `${recipient.name} (+${recipient.number})` : `+${recipient.number}`;
           this.logger.ok(
             `Enviado ${this.state.sent} de ${recipients.length} -> ${label}` +
@@ -195,6 +244,18 @@ class CampaignRunner extends EventEmitter {
           } else {
             this.state.failed += 1;
             this.logger.error(`Falha ao enviar para +${recipient.number}: ${reason}`);
+
+            // Falhas em sequencia sao o primeiro sintoma de uma conta restringida.
+            if (safety && safety.registerFailure()) {
+              this.state.stoppedReason = 'falhas consecutivas - possivel restricao na conta';
+              this.logger.error(
+                `${safety.config.maxConsecutiveFailures} falhas seguidas. Parando por seguranca: ` +
+                  'isso costuma indicar restricao na conta. Confira o WhatsApp no celular antes de tentar de novo.'
+              );
+              this.state.processed += 1;
+              this.emitProgress();
+              break;
+            }
           }
           this.state.failures.push({ number: recipient.number, reason });
         }
@@ -204,9 +265,15 @@ class CampaignRunner extends EventEmitter {
 
         const isLast = i === recipients.length - 1;
         if (!isLast && !this.cancelRequested) {
-          const wait = randomDelay(min, max);
-          this.logger.info(`Aguardando ${(wait / 1000).toFixed(1)}s antes do proximo envio (anti-spam).`);
-          await this.sleep(wait);
+          const next = safety ? safety.nextDelay() : { ms: randomDelay(min, max), kind: 'normal' };
+          const segundos = next.ms / 1000;
+          const texto = segundos >= 90 ? `${(segundos / 60).toFixed(1)} min` : `${segundos.toFixed(1)}s`;
+          this.logger.info(
+            next.kind === 'lote'
+              ? `Fim do lote. Pausa longa de ${texto} antes de continuar.`
+              : `Aguardando ${texto} antes do proximo envio${next.kind === 'pausa longa' ? ' (pausa estendida)' : ''}.`
+          );
+          await this.sleep(next.ms);
         }
       }
     } finally {
@@ -226,7 +293,8 @@ class CampaignRunner extends EventEmitter {
 
       this.logger.ok(
         `Campanha finalizada: ${this.state.sent} enviada(s), ` +
-          `${this.state.failed} com erro, ${this.state.skipped} pulada(s).`
+          `${this.state.failed} com erro, ${this.state.skipped} pulada(s)` +
+          `${this.state.stoppedReason ? ` - interrompida: ${this.state.stoppedReason}` : ''}.`
       );
       this.emit('finished', this.getState());
       if (typeof onFinish === 'function') {
@@ -249,8 +317,11 @@ class CampaignRunner extends EventEmitter {
       chatId = await this.whatsapp.resolveRecipient(recipient.number);
     }
 
-    // Cada destinatario recebe o texto com os marcadores ja substituidos.
-    const body = renderTemplate(text, recipient, { personalize, fallbackName });
+    // Ordem importa: sorteia a variante, resolve os marcadores e so entao
+    // acrescenta o descadastro, que nunca deve ser sorteado fora.
+    const variant = pickVariant(text);
+    const rendered = renderTemplate(variant, recipient, { personalize, fallbackName });
+    const body = appendOptOut(rendered, opts.optOutFooter);
 
     if (dryRun) return;
 
