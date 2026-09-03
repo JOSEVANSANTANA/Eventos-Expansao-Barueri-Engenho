@@ -1,1 +1,3 @@
 memoria-coletas.json
+__pycache__/
+*.pyc

@@ -27,6 +27,11 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 import ssl
 import subprocess
+import threading
+
+# Tudo que o servidor le e serve sai daqui, nunca do diretorio de trabalho:
+# duplo clique costuma comecar com o CWD em outro lugar, principalmente no Windows.
+RAIZ = os.path.dirname(os.path.abspath(__file__))
 
 PORTA_PADRAO = 8080
 UA = 'Mozilla/5.0 (compatible; RadarInstitucional/1.0)'
@@ -607,8 +612,7 @@ _cache = {'em': 0, 'dados': None}
 # ontem e anteontem. Guardamos o volume de cada assunto por coleta, e isso
 # permite responder as duas perguntas que importam para escolher pauta:
 # "isso e novo?" e "isso esta acelerando ou so se repetindo?".
-ARQUIVO_MEMORIA = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               'memoria-coletas.json')
+ARQUIVO_MEMORIA = os.path.join(RAIZ, 'memoria-coletas.json')
 MAX_MEMORIA = 20          # coletas guardadas
 MIN_HORAS_ENTRE_REGISTROS = 4   # nao registra recoletas do mesmo periodo
 
@@ -781,9 +785,49 @@ def coletar(forcar=False):
 # SERVIDOR
 # --------------------------------------------------------------------------
 
+# Tipos fixados no codigo, de proposito. O SimpleHTTPRequestHandler pergunta o tipo
+# do arquivo para a configuracao da maquina - /etc/apache2/mime.types no Unix e o
+# registro do Windows (HKEY_CLASSES_ROOT\.css). Nos dois casos um programa instalado
+# pode ter reescrito .css ou .js para text/plain, e no Windows isso e comum. O Chrome
+# se recusa a aplicar folha de estilo que nao chegue como text/css: a pagina abre com
+# o HTML cru e o navegador nao reclama. Fixar aqui tira a maquina da conta.
+TIPOS = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.webmanifest': 'application/manifest+json; charset=utf-8',
+    '.md': 'text/markdown; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.ico': 'image/x-icon',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+}
+
+
 class Handler(SimpleHTTPRequestHandler):
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, **TIPOS}
+
+    def __init__(self, *args, **kwargs):
+        # A pasta servida e a do proprio arquivo, nao o diretorio de trabalho.
+        # Duplo clique no Windows costuma comecar com o CWD em outro lugar.
+        kwargs['directory'] = RAIZ
+        super().__init__(*args, **kwargs)
+
     def log_message(self, formato, *args):
-        if '/api/' in (args[0] if args else ''):
+        # args[0] e a linha da requisicao no log normal, mas um INTEIRO (o codigo)
+        # quando vem de log_error. Sem o str(), um simples 404 levantava TypeError
+        # aqui dentro e derrubava a thread no meio da resposta - o navegador via a
+        # conexao cair em vez de receber o erro.
+        alvo = str(args[0]) if args else ''
+        if '/api/' in alvo:
             sys.stderr.write("  coleta solicitada\n")
 
     def _json(self, obj, status=200):
@@ -834,9 +878,49 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', '*')
         self.end_headers()
 
+def autoteste(porta):
+    """Pede ao proprio servidor os arquivos do casco e confere o que voltou.
+
+    As duas falhas possiveis aqui sao silenciosas: arquivo faltando depois de uma
+    extracao incompleta, e tipo errado no cabecalho. Nos dois casos a pagina abre -
+    so que sem estilo nenhum, e o navegador nao reclama. Melhor a ferramenta dizer
+    o que houve do que o usuario descobrir na hora de gravar.
+    """
+    import http.client
+    alvos = [('/index.html', 'text/html'), ('/css/app.css', 'text/css'),
+             ('/js/app.js', 'javascript'), ('/manifest.json', 'json')]
+    problemas = []
+    for caminho, esperado in alvos:
+        try:
+            con = http.client.HTTPConnection('127.0.0.1', porta, timeout=5)
+            con.request('GET', caminho)
+            resp = con.getresponse()
+            tipo = resp.getheader('Content-Type') or '(sem tipo)'
+            tamanho = len(resp.read())
+            con.close()
+            if resp.status != 200:
+                problemas.append(f'{caminho}  ->  HTTP {resp.status}: nao esta na pasta')
+            elif not tamanho:
+                problemas.append(f'{caminho}  ->  chegou vazio')
+            elif esperado not in tipo:
+                problemas.append(f'{caminho}  ->  servido como "{tipo}", devia ser {esperado}')
+        except Exception as e:
+            problemas.append(f'{caminho}  ->  {type(e).__name__}: {e}')
+    return problemas
+
+
 def main():
-    porta = int(sys.argv[1]) if len(sys.argv) > 1 else PORTA_PADRAO
-    srv = ThreadingHTTPServer(('127.0.0.1', porta), Handler)
+    argumentos = [a for a in sys.argv[1:] if not a.startswith('-')]
+    porta = int(argumentos[0]) if argumentos else PORTA_PADRAO
+    try:
+        srv = ThreadingHTTPServer(('127.0.0.1', porta), Handler)
+    except OSError as e:
+        print()
+        print(f'  Nao consegui abrir a porta {porta}: {e}')
+        print('  Provavelmente ja existe um Radar rodando. Feche a outra janela,')
+        print(f'  ou rode em outra porta:   python servidor.py {porta + 1}')
+        print()
+        return
     print()
     print('  ================================================')
     print('   RADAR INSTITUCIONAL')
@@ -853,8 +937,36 @@ def main():
     print('   NAO FECHE ESTA JANELA enquanto estiver usando.')
     print('   Ctrl+C encerra.')
     print()
+    fio = threading.Thread(target=srv.serve_forever, daemon=True)
+    fio.start()
+
+    falhas = autoteste(porta)
+    if falhas:
+        print('   ATENCAO - o casco da aplicacao nao esta sendo servido direito:')
+        for f in falhas:
+            print(f'     {f}')
+        print()
+        print('   Se disser "nao esta na pasta", a extracao do zip ficou incompleta:')
+        print('   apague a pasta e extraia de novo. Enquanto isso, o arquivo')
+        print('   Radar-Institucional-STANDALONE.html abre com duplo clique.')
+        print()
+    else:
+        print('   Casco conferido: HTML, CSS e JS com o tipo certo.')
+        print()
+
+    # O navegador so abre depois do autoteste - ou seja, depois que a porta ja
+    # respondeu de verdade. Abrir antes disso e o que faz o Chrome mostrar
+    # "conexao recusada" e o usuario achar que a ferramenta nao subiu.
+    if '--sem-navegador' not in sys.argv:
+        try:
+            import webbrowser
+            webbrowser.open(f'http://localhost:{porta}')
+        except Exception:
+            pass   # sem navegador padrao: o endereco ja esta impresso acima
+
     try:
-        srv.serve_forever()
+        while fio.is_alive():
+            fio.join(0.5)
     except KeyboardInterrupt:
         print('\n  Encerrado.\n')
 

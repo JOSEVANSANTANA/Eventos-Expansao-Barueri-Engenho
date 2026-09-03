@@ -16,6 +16,11 @@
    ========================================================================= */
 
 :root{
+  /* Sentinela: o index.html le esta variavel para saber se a folha de estilo
+     realmente foi aplicada. Sem ela, a pagina abre como HTML cru e o navegador
+     nao reclama de nada. Nao remova. */
+  --css-carregado:1;
+
   --bg:#080B11;
   --bg-2:#0D121B;
   --surf:#121926;
@@ -5062,6 +5067,79 @@ window.gerarPacote = gerarPacote;
 
 document.addEventListener('DOMContentLoaded', iniciar);
 
+</script>
+
+<script>
+/* Guarda contra a falha mais silenciosa desta ferramenta: a folha de estilo nao
+   ser aplicada. O Chrome descarta <link rel=stylesheet> que nao chegue como
+   text/css e nao mostra nada na tela - a pagina simplesmente aparece como HTML
+   cru. Aqui a gente percebe, descobre o motivo de verdade e diz o que fazer. */
+(function () {
+  function aplicou() {
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--css-carregado');
+    return String(v).trim() === '1';
+  }
+
+  function avisar(motivo, detalhe) {
+    var d = document.createElement('div');
+    d.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#0D121B;color:#E9EEF7;'
+      + 'font:15px/1.65 -apple-system,Segoe UI,Roboto,sans-serif;padding:9vh 7vw;overflow:auto');
+    d.innerHTML = '<div style="max-width:720px">'
+      + '<div style="color:#F0525F;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">A interface nao carregou</div>'
+      + '<h1 style="font-size:27px;line-height:1.2;margin:0 0 16px;font-weight:750">O arquivo de estilo nao foi aplicado</h1>'
+      + '<p style="margin:0 0 12px;color:#A9B6CA">A ferramenta esta funcionando — o que falhou foi so a aparencia. '
+      + 'Voce esta vendo o HTML sem formatacao.</p>'
+      + '<p style="margin:0 0 18px;padding:13px 15px;background:#121926;border-left:3px solid #E5B75C;border-radius:6px;'
+      + 'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#E5B75C">' + motivo + '</p>'
+      + (detalhe ? '<p style="margin:0 0 18px;color:#6E7D95;font-size:13px">' + detalhe + '</p>' : '')
+      + '<div style="border-top:1px solid #26344A;padding-top:18px;margin-top:6px">'
+      + '<b style="display:block;margin-bottom:9px">O que resolve, nesta ordem:</b>'
+      + '<ol style="margin:0 0 0 19px;padding:0;color:#A9B6CA">'
+      + '<li style="margin-bottom:7px">Recarregue segurando <b>Shift</b> (Cmd+Shift+R no Mac, Ctrl+Shift+R no Windows) — limpa o cache do navegador.</li>'
+      + '<li style="margin-bottom:7px">Feche a janela preta do servidor e abra de novo pelo atalho. Ele confere o casco no arranque e escreve o problema ali.</li>'
+      + '<li style="margin-bottom:7px">Se disser que o arquivo nao esta na pasta, a extracao do zip ficou incompleta: apague a pasta e extraia de novo.</li>'
+      + '<li>Enquanto isso, o <b>Radar-Institucional-STANDALONE.html</b> abre com duplo clique e nao depende de servidor nenhum.</li>'
+      + '</ol></div>'
+      + '<button id="ignorarAviso" style="margin-top:22px;background:#182231;color:#E9EEF7;border:1px solid #33455F;'
+      + 'border-radius:9px;padding:9px 17px;font-size:14px;cursor:pointer">Usar assim mesmo</button>'
+      + '</div>';
+    document.body.appendChild(d);
+    d.querySelector('#ignorarAviso').onclick = function () { d.remove(); };
+  }
+
+  function conferir() {
+    if (aplicou()) return;
+    // Nao aplicou: vai atras do motivo real em vez de chutar.
+    // A query unica existe para furar o service worker: sem ela ele responde do
+    // cache uma copia boa, o diagnostico diz que esta tudo certo, e a folha de
+    // estilo de verdade recebeu outra coisa.
+    var sw = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    var extra = sw ? ' O cache offline do app esta ativo e pode estar servindo uma versao'
+                   + ' antiga: recarregar segurando Shift resolve.' : '';
+    fetch('css/app.css?diagnostico=' + Date.now(), { cache: 'no-store' }).then(function (r) {
+      var tipo = r.headers.get('content-type') || '(sem tipo)';
+      if (!r.ok) {
+        avisar('css/app.css respondeu HTTP ' + r.status,
+               'O arquivo nao esta na pasta que o servidor esta servindo.' + extra);
+      } else if (tipo.indexOf('text/css') === -1) {
+        avisar('css/app.css chegou como "' + tipo + '"',
+               'O navegador so aplica folha de estilo servida como text/css, e descarta '
+               + 'o resto sem avisar. Costuma ser configuracao de tipo de arquivo da maquina — '
+               + 'a versao nova do servidor forca o tipo certo.' + extra);
+      } else {
+        avisar('css/app.css chegou certo, mas nao foi aplicado',
+               'Normalmente e cache antigo do navegador ou uma extensao bloqueando. '
+               + 'Tente recarregar com Shift, ou abrir numa janela anonima.' + extra);
+      }
+    }).catch(function (e) {
+      avisar('nao consegui nem buscar css/app.css: ' + e.message,
+             'O servidor pode ter sido encerrado. Abra de novo pelo atalho.' + extra);
+    });
+  }
+
+  if (document.readyState === 'complete') setTimeout(conferir, 300);
+  else window.addEventListener('load', function () { setTimeout(conferir, 300); });
+})();
 </script>
 </body>
 </html>

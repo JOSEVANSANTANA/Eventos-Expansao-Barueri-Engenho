@@ -8,20 +8,51 @@ audiovisual, SEO e prompt de thumbnail.
 
 ## Como abrir
 
-**Opção 1 — servidor local (recomendado):**
+Roda em **Windows, macOS e Linux**. Precisa de Python 3.7 ou mais novo — e só dele,
+nenhuma biblioteca externa.
+
+**Windows:** duplo clique em `ABRIR-WINDOWS.bat`.
+**macOS e Linux:** duplo clique em `ABRIR-MAC-LINUX.command`.
+
+O navegador abre sozinho, e só depois que o servidor confirmou que está de pé — não
+antes, para você nunca ver "conexão recusada" achando que a ferramenta não subiu.
+
+Se preferir a linha de comando:
 
 ```bash
 cd radar-institucional
-python3 -m http.server 8080
+python3 servidor.py 8080          # Windows:  py -3 servidor.py 8080
 ```
 
-Abra `http://localhost:8080` no Chrome.
+`--sem-navegador` sobe o servidor sem abrir o Chrome.
 
-**Opção 2 — arquivo direto:** dê duplo clique em `index.html`.
-Funciona, mas o service worker e a área de transferência ficam limitados no `file://`.
+**Sem instalar nada:** dê duplo clique em `Radar-Institucional-STANDALONE.html`.
+É a ferramenta inteira num arquivo só. Funciona tudo, menos o coletor de manchetes —
+esse precisa do servidor, porque os sites de notícia bloqueiam leitura direta do
+navegador (CORS).
 
 **Instalar como app:** com o servidor rodando, clique no ícone de instalação na
 barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
+
+### Se a página abrir sem formatação
+
+Aconteceu uma vez e não deve mais: a tela aparece como texto cru, fonte serifada,
+botões cinzentos do sistema. **A ferramenta está funcionando — o que falhou foi só a
+folha de estilo**, e o Chrome não avisa quando descarta uma.
+
+A causa era o servidor perguntando à máquina qual o tipo do arquivo `.css`. Essa
+resposta vem de `/etc/apache2/mime.types` no Unix e do **registro do Windows**, onde
+qualquer programa instalado pode ter reescrito `.css` para `text/plain`. O Chrome se
+recusa a aplicar folha de estilo que não chegue como `text/css`, e descarta em
+silêncio. Agora os tipos são fixados no código do servidor, então a configuração da
+máquina não entra na conta.
+
+Duas redes de proteção foram junto:
+
+- O servidor **confere o próprio casco no arranque** e escreve na janela preta o que
+  encontrou de errado — arquivo faltando, tipo errado, resposta vazia.
+- A página **percebe que está sem estilo** e mostra uma tela explicando o motivo real
+  (ela vai buscar o arquivo de novo para descobrir), em vez de aparecer torta e calada.
 
 ---
 
@@ -430,3 +461,6 @@ da OpenRouter de qualquer forma.
 - **Histórico e configurações** ficam neste navegador. Use *Exportar tudo* para backup.
 - A **série 432 (Selic meta)** exibe a data final de vigência da meta, que pode ser
   futura — é assim que o BCB publica, e o link no card permite auditar.
+- No **Windows anterior ao 10 (1803)** não existe `curl.exe`. O coletor usa `curl`
+  apenas como plano B, quando o SSL do Python falha — situação típica do macOS. Se as
+  duas rotas falharem, a aba Fontes mostra o motivo fonte a fonte.

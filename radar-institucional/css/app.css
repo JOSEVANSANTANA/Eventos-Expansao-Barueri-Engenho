@@ -3,6 +3,11 @@
    ========================================================================= */
 
 :root{
+  /* Sentinela: o index.html le esta variavel para saber se a folha de estilo
+     realmente foi aplicada. Sem ela, a pagina abre como HTML cru e o navegador
+     nao reclama de nada. Nao remova. */
+  --css-carregado:1;
+
   --bg:#080B11;
   --bg-2:#0D121B;
   --surf:#121926;
