@@ -13,6 +13,7 @@ Uso:  python3 servidor.py  [porta]
 """
 
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -104,7 +105,16 @@ TRENDS = [
     ('EUA',    'https://trends.google.com/trending/rss?geo=US'),
 ]
 
+# Sem operador de tempo, o Google News devolve os melhores resultados de TODOS
+# os tempos para a consulta - e esses nao mudam nunca. Medido: a consulta de
+# tributos sem filtro trazia mediana de 98 dias de idade, com 1 item em 60 nas
+# ultimas 24h. Com when:1d, 100% nas ultimas 24h. Era esta a razao de a
+# ferramenta repetir as mesmas pautas dia apos dia.
+JANELA_NOTICIA = 'when:2d'
+
 def url_news(consulta, idioma='pt'):
+    if 'when:' not in consulta:
+        consulta = f'{consulta} {JANELA_NOTICIA}'
     if idioma == 'en':
         return ('https://news.google.com/rss/search?q=' + quote(consulta)
                 + '&hl=en-US&gl=US&ceid=US:en')
@@ -278,6 +288,10 @@ noticia noticias analise dados numero numeros semana segunda terca quarta
 quinta sexta sabado domingo manha tarde noite fechamento abertura
 2024 2025 2026 2027 2028
 banco bancos central bolsa risco riscos queda quedas alta altas sobe cai caiu subiu
+janeiro fevereiro marco abril maio junho julho agosto setembro outubro novembro dezembro
+january february march april june july august september october november december
+higher lower growth rising falling gains losses ahead amid despite after before
+today yesterday tomorrow morning session close open futures
 the and for with from that this what when where which will would could should
 have has had been being are was were says said say new news more most than
 about after before over under into out off down here there they them their
@@ -335,10 +349,32 @@ proibicao veto derrota vitoria recorde historico inedito choque surpresa
 susto medo panico euforia bolha estouro colapso quebra falencia
 """.split())
 
+# As palavras das minhas proprias consultas nao podem virar assunto: se eu
+# busco por "inflacao", achar "inflacao" no resultado e tautologia, nao
+# descoberta. Derivar isso das consultas mantem a lista correta sozinha
+# quando alguem editar CONSULTAS_BR ou CONSULTAS_INT.
+def _stopwordsDasConsultas():
+    fora = set()
+    for _, q in list(CONSULTAS_BR) + list(CONSULTAS_INT):
+        limpo = re.sub(r'\b(OR|AND|site|when)\b|[":\d]', ' ', q)
+        for palavra in _semAcento(limpo).split():
+            if len(palavra) > 3:
+                fora.add(palavra)
+    for frente, _ in list(CONSULTAS_BR) + list(CONSULTAS_INT):
+        fora.add(_semAcento(frente))
+    return fora
+
+def _semAcento(txt):
+    t = unicodedata.normalize('NFD', txt.lower())
+    t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
+    return re.sub(r'[^a-z0-9\s]', ' ', t)
+
 def normalizar(txt):
     t = unicodedata.normalize('NFD', txt.lower())
     t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
     return re.sub(r'[^a-z0-9\s]', ' ', t)
+
+STOPWORDS |= _stopwordsDasConsultas()
 
 def termos(titulo):
     """Palavras significativas de um titulo, ja normalizadas."""
@@ -372,14 +408,41 @@ def peso_recencia(horas):
 # Acima desta fracao do total de manchetes, o termo deixou de ser assunto e
 # virou pano de fundo. "mercado" aparece em 40% das materias de economia -
 # isso nao e pauta, e o nome da editoria.
+TETO_DISTINTIVO = 0.035  # palavra acima disso e comum demais para carregar assunto
+
+# Verbos e marcadores de manchete. Ao contrario de "assuntos", esta e uma
+# classe FECHADA: o jornalismo economico brasileiro usa sempre os mesmos verbos
+# de titulo. Um bigrama feito so destas palavras ("atinge maior", "nesta
+# feira") descreve a construcao da frase, nao o que aconteceu.
+RECHEIO = set("""
+atinge atingiu chega chegou passa passou fica ficou segue seguiu volta voltou
+sobe subiu cai caiu dispara disparou despenca despencou avanca avancou recua
+recuou salta saltou cresce cresceu encolhe encolheu mantem manteve prepara
+preparou anuncia anunciou define definiu aprova aprovou rejeita rejeitou
+apresenta apresentou defende defendeu afirma afirmou diz disse conta contou
+revela revelou aponta apontou indica indicou mostra mostrou registra registrou
+acende acendeu amplia ampliou reduz reduziu eleva elevou baixa baixou
+comeca comecou termina terminou lanca lancou abre abriu fecha fechou
+maior menor melhor pior novo nova novos novas ultimo ultima ultimos ultimas
+proximo proxima primeiro primeira segundo segunda terceiro
+desde entre sobre contra apos antes durante ainda agora hoje ontem amanha
+nesta neste nessa nesse feira semana quinzena periodo
+pode podem deve devem vai vao tem tende passam
+frente parte forma modo caso ponto nivel meio meta base
+holds keeps rises falls jumps drops gains loses adds cuts raises
+says said sees expects plans moves seeks eyes weighs
+""".split())
+IDADE_MAXIMA_H = 60      # materia mais velha que isso nao entra na analise
 TETO_FREQUENCIA = 0.14
 MIN_MANCHETES = 3
 
 # Uma palavra que encabeca muitos bigramas diferentes ("juros" puxa alta juros,
 # corte juros, juros altos...) e categoria, nao assunto. Medido, nao arbitrado.
 MAX_BIGRAMAS_POR_CABECA = 3
+# O minimo de manchetes para um bigrama contar precisa acompanhar o tamanho do
+# corpus. Com limiar fixo, um corpus menor deixava passar palavra generica.
 
-def agrupar(noticias, trends, minimo=MIN_MANCHETES):
+def agrupar(noticias, trends, memoria=None, minimo=MIN_MANCHETES):
     """Agrupa manchetes por assunto e mede a temperatura de cada grupo.
 
     Duas passadas: a primeira descobre quais palavras sao cabeca de categoria,
@@ -394,9 +457,16 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
         for b in set(bi):
             freqBigrama[b] += 1
 
+    # Frequencia de cada palavra no corpus, para medir o que e distintivo.
+    freqPalavra = defaultdict(int)
+    for n in noticias:
+        for t in set(termos(n['titulo'])):
+            freqPalavra[t] += 1
+
+    limiarBigrama = max(2, round(total * 0.0015))
     cabecas = defaultdict(set)
     for b, f in freqBigrama.items():
-        if f < minimo:
+        if f < limiarBigrama:
             continue
         a, c = b.split(' ', 1)
         cabecas[a].add(b)
@@ -404,11 +474,16 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
     categorias = {w for w, bs in cabecas.items() if len(bs) >= MAX_BIGRAMAS_POR_CABECA}
 
     # --- passada 2: monta os grupos ----------------------------------------
+    # SO BIGRAMAS viram assunto. Palavra solta e sempre uma de duas coisas:
+    # categoria ("credito", "inflacao") ou verbo de manchete ("dispara",
+    # "alerta", "defende"). Nenhuma das duas e pauta. Tentar filtrar isso com
+    # lista de stopwords e jogo perdido - some uma, aparece outra. Exigir duas
+    # palavras resolve por construcao: "ibovespa dispara" e assunto,
+    # "dispara" sozinho nao e.
     porChave = defaultdict(list)
     for n in noticias:
-        bi, uni = chaves(n['titulo'])
-        candidatos = set(bi) | {u for u in uni if u not in categorias}
-        for c in candidatos:
+        bi, _ = chaves(n['titulo'])
+        for c in set(bi):
             porChave[c].append(n)
 
     trendsNorm = {normalizar(t['termo']): t for t in trends}
@@ -419,10 +494,19 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
             continue
 
         freq = len(itens) / total
-        ehBigrama = ' ' in chave
         if freq > TETO_FREQUENCIA:
             continue
-        if not ehBigrama and freq > TETO_FREQUENCIA * 0.45:
+
+        # Um bigrama de duas palavras comuns ("atinge maior", "nesta feira")
+        # e ruido de construcao de manchete, nao assunto. Exigir que ao menos
+        # uma das palavras seja distintiva no corpus separa isso de
+        # "treasury yields" ou "pesquisa quaest" - e a medida vem do proprio
+        # material do dia, sem lista fixa para manter.
+        palavras = chave.split()
+        if all(p in RECHEIO for p in palavras):
+            continue
+        raras = [freqPalavra[p] / total for p in palavras]
+        if raras and min(raras) > TETO_DISTINTIVO:
             continue
 
         veiculos = {i['veiculo'] for i in itens}
@@ -439,7 +523,6 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
 
         grupos.append({
             'termo': chave,
-            'bigrama': ehBigrama,
             'volume': len(itens),
             'veiculos': len(veiculos),
             'listaVeiculos': sorted(veiculos)[:8],
@@ -449,6 +532,9 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
             'atrito': atrito,
             'trafegoBusca': trafego,
             'raridade': round((1 - freq / TETO_FREQUENCIA) * 100),
+            'idadeMediana': round(sorted(
+                [i['horas'] for i in itens if i['horas'] is not None] or [0]
+            )[len([i for i in itens if i['horas'] is not None]) // 2], 1),
             'manchetes': [
                 {'titulo': i['titulo'], 'veiculo': i['veiculo'], 'url': i['url'],
                  'horas': i['horas'], 'frente': i['frente']}
@@ -472,12 +558,17 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
         tensao = g['atrito'] / matr if matr else 0
         busca = g['trafegoBusca'] / mtra if mtra else 0
 
-        nota = (amplitude * 28 + velocidade * 26 + volume * 16
-                + tensao * 16 + busca * 8)
+        nota = (amplitude * 26 + velocidade * 24 + volume * 14
+                + tensao * 14 + busca * 7)
         if len(g['frentes']) > 1:
             nota += 6
-        if g['bigrama']:
-            nota += 6
+        # Novidade e aceleracao entram DEPOIS dos componentes de cobertura.
+        # E o que separa "o noticiario continua publicando sobre isso" de
+        # "isso mudou hoje" - e o unico jeito de um assunto perene parar de
+        # ocupar o topo todo dia.
+        nov = classificarNovidade(g['termo'], g['volume'], memoria or [])
+        g['novidade'] = nov
+        nota += nov['ajuste']
 
         g['temperatura'] = max(0, min(100, round(nota)))
         g['componentes'] = {
@@ -493,7 +584,7 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
     finais, vistos = [], []
     for g in grupos:
         titulos = {m['titulo'] for m in g['manchetes']}
-        if any(len(titulos & v) >= max(2, len(titulos) * 0.5) for v in vistos):
+        if any(len(titulos & v) >= max(2, len(titulos) * 0.34) for v in vistos):
             continue
         vistos.append(titulos)
         finais.append(g)
@@ -508,6 +599,84 @@ def agrupar(noticias, trends, minimo=MIN_MANCHETES):
 # Coleta e cara (19 fontes) e o conteudo nao muda de minuto em minuto.
 # O termometro e a varredura pedem em sequencia - sem cache, colheria duas vezes.
 _cache = {'em': 0, 'dados': None}
+
+# ---------------------------------------------------------------------------
+# MEMORIA ENTRE COLETAS
+# ---------------------------------------------------------------------------
+# Sem memoria, a ferramenta nao tem como saber que um assunto ja apareceu
+# ontem e anteontem. Guardamos o volume de cada assunto por coleta, e isso
+# permite responder as duas perguntas que importam para escolher pauta:
+# "isso e novo?" e "isso esta acelerando ou so se repetindo?".
+ARQUIVO_MEMORIA = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               'memoria-coletas.json')
+MAX_MEMORIA = 20          # coletas guardadas
+MIN_HORAS_ENTRE_REGISTROS = 4   # nao registra recoletas do mesmo periodo
+
+def lerMemoria():
+    try:
+        with open(ARQUIVO_MEMORIA, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def gravarMemoria(memoria, grupos):
+    agora = datetime.now(timezone.utc)
+    if memoria:
+        try:
+            ultima = datetime.fromisoformat(memoria[-1]['em'])
+            if (agora - ultima).total_seconds() / 3600 < MIN_HORAS_ENTRE_REGISTROS:
+                memoria = memoria[:-1]   # substitui o registro do mesmo periodo
+        except Exception:
+            pass
+    memoria.append({
+        'em': agora.isoformat(),
+        'termos': {g['termo']: g['volume'] for g in grupos}
+    })
+    memoria = memoria[-MAX_MEMORIA:]
+    try:
+        with open(ARQUIVO_MEMORIA, 'w', encoding='utf-8') as f:
+            json.dump(memoria, f, ensure_ascii=False)
+    except Exception:
+        pass
+    return memoria
+
+def classificarNovidade(termo, volume, memoria):
+    """Compara o assunto com o que ja foi visto. Devolve estado e ajuste.
+
+    Casa por sobreposicao de palavras, nao por texto exato: entre uma coleta e
+    outra o mesmo assunto aparece como "treasury yields" ou "bond yields", e
+    comparacao literal trataria os dois como novidade.
+    """
+    partes = set(termo.split())
+
+    aparicoes = []
+    for m in memoria:
+        melhor = 0
+        for t, v in m['termos'].items():
+            if partes & set(t.split()):
+                melhor = max(melhor, v)
+        if melhor:
+            aparicoes.append(melhor)
+
+    if not aparicoes:
+        return {'estado': 'novo', 'vezes': 0, 'aceleracao': None, 'ajuste': 26}
+
+    anterior = sorted(aparicoes)[len(aparicoes) // 2] or 1
+    aceleracao = round(volume / anterior, 2)
+    vezes = len(aparicoes)
+
+    if aceleracao >= 1.4:
+        return {'estado': 'alta', 'vezes': vezes, 'aceleracao': aceleracao,
+                'ajuste': round(min(15 * (aceleracao - 1), 22))}
+
+    # Aqui mora a regua que faltava: assunto que aparece coleta apos coleta sem
+    # crescer e pauta velha, por mais que o noticiario continue publicando.
+    if vezes >= 3 and aceleracao < 1.15:
+        return {'estado': 'recorrente', 'vezes': vezes, 'aceleracao': aceleracao,
+                'ajuste': -min(10 + 5 * vezes, 32)}
+
+    return {'estado': 'estavel', 'vezes': vezes, 'aceleracao': aceleracao, 'ajuste': 0}
+
 VALIDADE_CACHE = 300  # segundos
 
 def coletar(forcar=False):
@@ -562,20 +731,33 @@ def coletar(forcar=False):
             relatorio.append({'fonte': rot, 'tipo': tipo, 'ok': True, 'itens': n,
                               'erro': None, 'segundos': seg})
 
-    unicas, vistos = [], set()
+    # Corte duro de idade. Ponderar recencia nao basta: materia velha ainda
+    # somava volume e amplitude, e um assunto perene acumulado ao longo de
+    # semanas vencia uma noticia de hoje.
+    unicas, vistos, velhas = [], set(), 0
     for n in noticias:
+        if n['horas'] is not None and n['horas'] > IDADE_MAXIMA_H:
+            velhas += 1
+            continue
         chave = normalizar(n['titulo'])[:90]
         if chave in vistos:
             continue
         vistos.add(chave)
         unicas.append(n)
 
-    grupos = agrupar(unicas, trends)
+    memoria = lerMemoria()
+    grupos = agrupar(unicas, trends, memoria)
+    gravarMemoria(memoria, grupos)
 
     oks = [r for r in relatorio if r['ok']]
     resultado = {
         'coletadoEm': datetime.now(timezone.utc).isoformat(),
         'totalManchetes': len(unicas),
+        'descartadasPorIdade': velhas,
+        'janelaHoras': IDADE_MAXIMA_H,
+        'coletasNaMemoria': len(memoria),
+        'novos': sum(1 for g in grupos if g['novidade']['estado'] == 'novo'),
+        'emAlta': sum(1 for g in grupos if g['novidade']['estado'] == 'alta'),
         'fontesConsultadas': len(tarefas),
         'fontesOk': len(oks),
         'fontesFalhas': len(relatorio) - len(oks),

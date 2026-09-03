@@ -430,6 +430,16 @@ function renderTermometro(alvo, limite) {
   }
 
   const nota = (t) => t >= 70 ? 'q' : t >= 45 ? 'm' : 'f';
+
+  // O selo responde a pergunta que decide pauta: isso é novo, está subindo,
+  // ou é o mesmo assunto de ontem?
+  const selo = (n) => {
+    if (!n) return '';
+    if (n.estado === 'novo') return '<span class="selo-nov novo">novo</span>';
+    if (n.estado === 'alta') return `<span class="selo-nov alta">em alta ${n.aceleracao}×</span>`;
+    if (n.estado === 'recorrente') return `<span class="selo-nov recorrente">recorrente · ${n.vezes} coletas</span>`;
+    return '';
+  };
   const barra = (rot, val, cls) => `
     <div class="barra ${cls || ''}">
       <div class="rot"><span>${rot}</span><b>${val}</b></div>
@@ -443,9 +453,10 @@ function renderTermometro(alvo, limite) {
       <div class="termo-cab">
         <div class="termo-nota ${nota(a.temperatura)}"><b>${a.temperatura}</b><span>medida</span></div>
         <div class="termo-titulo">
-          <h4>${esc(a.termo)}</h4>
+          <h4>${esc(a.termo)} ${selo(a.novidade)}</h4>
           <div class="meta">${a.volume} matérias · ${a.veiculos} veículos ·
-            ${a.recentes6h} nas últimas 6h · ${(a.frentes || []).join(', ')}</div>
+            ${a.recentes6h} nas últimas 6h${a.idadeMediana !== undefined
+              ? ` · mediana ${a.idadeMediana}h` : ''} · ${(a.frentes || []).join(', ')}</div>
         </div>
       </div>
       <div class="barras">
@@ -468,6 +479,9 @@ function renderTermometro(alvo, limite) {
   el.innerHTML = `
     <div class="cartao" style="margin-bottom:14px;padding:13px 16px;font-size:12.5px;color:var(--txt-2)">
       <b style="color:var(--ouro)">${c.totalManchetes} manchetes financeiras</b> ·
+      últimas ${c.janelaHoras || 60}h ·
+      ${c.novos ? `<b style="color:var(--verde)">${c.novos} novos</b> · ` : ''}
+      ${c.emAlta ? `<b style="color:var(--ouro)">${c.emAlta} em alta</b> · ` : ''}
       ${c.fontesOk || c.fontesConsultadas} de ${c.fontesConsultadas} fontes responderam ·
       ${(c.idiomas || []).join(' + ')} ·
       ${(c.frentes || []).length} frentes ·

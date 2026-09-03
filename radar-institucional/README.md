@@ -114,6 +114,55 @@ chaveiro do sistema e falha em toda conexão https até rodar
 `Install Certificates.command`. O coletor detecta isso, tenta o pacote `certifi`, e em
 último caso roda sem verificação — **avisando na tela**, com a instrução de correção.
 
+## Por que as pautas não repetem mais
+
+Três travas, e a primeira era um bug grave.
+
+**1. Janela de tempo na consulta.** As consultas temáticas iam ao Google News **sem
+operador de tempo**, e o Google devolve os melhores resultados de *todos os tempos* —
+que não mudam nunca. Medido: a consulta de tributos trazia mediana de **98 dias** de
+idade, com 1 item em 60 nas últimas 24h. Com `when:2d`, 100% nas últimas 24h. Era esta a
+razão de a ferramenta repetir imposto de renda, previdência e salário mínimo dia após dia.
+
+**2. Corte duro de idade.** Matéria com mais de 60h não entra na análise. Ponderar
+recência não bastava: material velho ainda somava volume e amplitude, e um assunto perene
+acumulado ao longo de semanas vencia uma notícia de hoje.
+
+**3. Memória entre coletas.** O servidor guarda o volume de cada assunto por coleta
+(`memoria-coletas.json`, últimas 20). Isso permite responder às duas perguntas que
+decidem pauta:
+
+| Selo | O que significa | Efeito na nota |
+|---|---|---|
+| **novo** | nunca apareceu nas coletas anteriores | +26 |
+| **em alta** | volume cresceu 1,4× ou mais | até +22 |
+| **recorrente** | apareceu em 3+ coletas sem crescer | **−10 a −32** |
+
+A penalidade de recorrência é a régua: um assunto que ocupa o topo há dias afunda sozinho,
+por mais que o noticiário continue publicando sobre ele.
+
+## Como um assunto é identificado
+
+**Só bigramas.** Palavra solta é sempre uma de duas coisas: categoria (*crédito*,
+*inflação*) ou verbo de manchete (*dispara*, *alerta*, *defende*). Nenhuma das duas é
+pauta. Exigir duas palavras resolve por construção — *"Ibovespa dispara"* é assunto,
+*"dispara"* sozinho não é.
+
+Sobre isso, três filtros medidos no próprio material do dia:
+
+- **Palavras das minhas consultas viram stopword automaticamente.** Se eu busco por
+  "inflação", achar "inflação" no resultado é tautologia. São 110 palavras derivadas
+  sozinhas — a lista se corrige quando alguém editar as consultas.
+- **Cabeça de categoria.** Palavra que encabeça 3+ bigramas frequentes (*juros* puxa
+  *alta de juros*, *corte de juros*…) é categoria e sai.
+- **Recheio de manchete.** Bigrama formado só de verbos e marcadores (*"atinge maior"*,
+  *"nesta feira"*) descreve a construção da frase, não o fato.
+
+O resultado, medido: onde antes vinham *imposto de renda*, *previdência* e *salário
+mínimo* todo dia, agora vêm *bond yields*, *banco central holandês move ouro*, *BC prepara
+medidas contra endividamento*, *Bank of Canada segura juros*, *pesquisa Quaest move o
+Ibovespa* e *tensões com o Irã*.
+
 ## Termômetro de viralização
 
 A nota **não é opinião do modelo**. É calculada a partir da cobertura real, com cinco
