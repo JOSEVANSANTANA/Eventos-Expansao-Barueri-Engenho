@@ -568,7 +568,7 @@ async function gerarPacote(pauta, provedorEscolhido) {
     const r = await window.IA.chamarIA(APP.cfg, {
       provedor,
       esperaJSON: true,
-      maxTokens: 16000,
+      maxTokens: 22000,
       mensagensPara: (comBusca) => ([{
         role: 'user',
         content: window.PROMPTS.promptPacote(APP.cfg, APP.panoramaTexto, pauta, {
@@ -619,6 +619,192 @@ async function gerarPacote(pauta, provedorEscolhido) {
     const b = $('#btnRetentar');
     if (b) b.onclick = () => gerarPacote(pauta);
   }
+}
+
+/* =========================================================================
+   GRAFICOS DA APRESENTACAO
+   -------------------------------------------------------------------------
+   SVG desenhado aqui, sem biblioteca externa: o arquivo roda em file:// e nao
+   pode depender de CDN. So desenha o que tem numero de verdade - serie sem
+   valor numerico e descartada antes de virar barra.
+   ========================================================================= */
+const CORES_GRAFICO = ['#E5B75C', '#4D8DF6', '#19C98B', '#9B7BF0', '#F0525F', '#B98F3C', '#6E7D95'];
+
+function numeroDaSerie(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  // aceita "14,00", "1.234,5", "-3,2%", "R$ 12,4 bi"
+  const limpo = v.replace(/[^\d,.\-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.');
+  const n = parseFloat(limpo);
+  return isFinite(n) ? n : null;
+}
+
+function seriesLimpas(g) {
+  return arr(g && g.series)
+    .map(s => ({ rotulo: String(s && s.rotulo || '').trim(), valor: numeroDaSerie(s && s.valor) }))
+    .filter(s => s.valor !== null && s.rotulo);
+}
+
+/* Casas decimais sao decididas UMA vez por grafico, a partir da serie inteira.
+   Sem isso a mesma escala sai com "71,0%" ao lado de "8,00%". */
+function casasDaSerie(dados) {
+  let casas = 0;
+  dados.forEach(d => {
+    const txt = String(d.valor);
+    const ponto = txt.indexOf('.');
+    if (ponto >= 0) casas = Math.max(casas, Math.min(2, txt.length - ponto - 1));
+  });
+  return casas;
+}
+
+function formatarValor(n, unidade, casas) {
+  if (casas === undefined) casas = Math.abs(n) >= 100 ? 0 : (Math.abs(n) >= 10 ? 1 : 2);
+  const txt = n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  const u = String(unidade || '').trim();
+  if (!u) return txt;
+  return u.startsWith('%') ? `${txt}${u}` : `${txt} ${u}`;
+}
+
+/* As tres funcoes recebem o corpo da fonte em unidades de viewBox e derivam TODA a
+   geometria dele. Sem isso a largura da coluna de rotulo e calculada para um tamanho
+   e desenhada em outro - foi assim que "Financiamento imobiliario" saiu cortado
+   dentro do card de slide, onde o SVG encolhe e a fonte precisa crescer. */
+function svgBarras(dados, unidade, f) {
+  const casas = casasDaSerie(dados);
+  const corta = (t) => t.length > 30 ? t.slice(0, 29) + '…' : t;
+  const rotulos = dados.map(d => corta(d.rotulo));
+  const valores = dados.map(d => formatarValor(d.valor, unidade, casas));
+
+  const larg = 620, linha = f * 2.46, topo = f * 0.5;
+  const colRotulo = Math.min(larg * 0.42, Math.max(f * 8, Math.max(...rotulos.map(t => t.length)) * f * 0.546 + f));
+  const colValor = Math.min(larg * 0.34, Math.max(f * 4.6, Math.max(...valores.map(t => t.length)) * f * 0.57 + f));
+  const areaBarra = Math.max(f * 3, larg - colRotulo - colValor - f);
+
+  const max = Math.max(0, ...dados.map(d => d.valor));
+  const min = Math.min(0, ...dados.map(d => d.valor));
+  const faixa = (max - min) || 1;
+  const x0 = colRotulo + (0 - min) / faixa * areaBarra;   // posicao do zero
+  const alt = dados.length * linha + topo * 2;
+
+  const linhas = dados.map((d, i) => {
+    const y = topo + i * linha;
+    const larguraBarra = Math.max(f * 0.15, Math.abs(d.valor) / faixa * areaBarra);
+    const x = d.valor >= 0 ? x0 : x0 - larguraBarra;
+    const base = y + linha * 0.63;
+    return `
+      <text x="${(colRotulo - f * 0.75).toFixed(1)}" y="${base.toFixed(1)}" text-anchor="end" font-size="${f}" class="g-rot">${esc(rotulos[i])}</text>
+      <rect x="${x.toFixed(1)}" y="${(y + linha * 0.22).toFixed(1)}" width="${larguraBarra.toFixed(1)}" height="${(f * 1.3).toFixed(1)}" rx="3" fill="${CORES_GRAFICO[i % CORES_GRAFICO.length]}" opacity=".88"/>
+      <text x="${(x + larguraBarra + f * 0.7).toFixed(1)}" y="${base.toFixed(1)}" font-size="${f}" class="g-val">${esc(valores[i])}</text>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${larg} ${alt.toFixed(0)}" class="grafico-svg" role="img">
+    <line x1="${x0.toFixed(1)}" y1="${topo}" x2="${x0.toFixed(1)}" y2="${(alt - topo).toFixed(1)}" stroke="#33455F" stroke-width="1"/>
+    ${linhas}
+  </svg>`;
+}
+
+function svgLinha(dados, unidade, f) {
+  const casas = casasDaSerie(dados);
+  const larg = 620, alt = Math.round(190 + f * 4.6);
+  const padE = f * 4.5, padD = f * 1.7, padT = f * 1.6, padB = f * 3.1;
+
+  const max = Math.max(...dados.map(d => d.valor));
+  const min = Math.min(...dados.map(d => d.valor));
+  const faixa = (max - min) || Math.abs(max) || 1;
+  const topoEscala = max + faixa * 0.12, baseEscala = min - faixa * 0.12;
+  const escalaY = (v) => padT + (topoEscala - v) / (topoEscala - baseEscala) * (alt - padT - padB);
+  const escalaX = (i) => padE + (dados.length === 1 ? (larg - padE - padD) / 2 : i * (larg - padE - padD) / (dados.length - 1));
+
+  const pontos = dados.map((d, i) => `${escalaX(i).toFixed(1)},${escalaY(d.valor).toFixed(1)}`).join(' ');
+  const grade = [0, 0.5, 1].map(fr => {
+    const v = baseEscala + (topoEscala - baseEscala) * fr;
+    const y = escalaY(v);
+    return `<line x1="${padE.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(larg - padD).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#26344A" stroke-width="1"/>
+            <text x="${(padE - f * 0.7).toFixed(1)}" y="${(y + f * 0.34).toFixed(1)}" text-anchor="end" font-size="${(f * 0.85).toFixed(1)}" class="g-eixo">${esc(formatarValor(v, '', casas))}</text>`;
+  }).join('');
+
+  const ancora = (i) => i === 0 ? 'start' : (i === dados.length - 1 ? 'end' : 'middle');
+
+  /* Rotulos de valor colidem quando os pontos ficam proximos. Mede a faixa
+     horizontal de cada um e joga para baixo do ponto o que invadiria o anterior. */
+  const rotuloValor = dados.map(d => formatarValor(d.valor, unidade, casas));
+  const desloca = [];
+  let fimAnterior = -Infinity, baixoAnterior = false;
+  dados.forEach((d, i) => {
+    const larguraTxt = rotuloValor[i].length * f * 0.56;
+    const x = escalaX(i);
+    const ini = ancora(i) === 'start' ? x : (ancora(i) === 'end' ? x - larguraTxt : x - larguraTxt / 2);
+    const colide = ini < fimAnterior + f * 0.4 && !baixoAnterior;
+    desloca.push(colide);
+    baixoAnterior = colide;
+    fimAnterior = ini + larguraTxt;
+  });
+
+  const marcas = dados.map((d, i) => `
+    <circle cx="${escalaX(i).toFixed(1)}" cy="${escalaY(d.valor).toFixed(1)}" r="${(f * 0.35).toFixed(1)}" fill="#E5B75C"/>
+    <text x="${escalaX(i).toFixed(1)}" y="${(escalaY(d.valor) + (desloca[i] ? f * 1.55 : -f)).toFixed(1)}" text-anchor="${ancora(i)}" font-size="${f}" class="g-val">${esc(rotuloValor[i])}</text>
+    <text x="${escalaX(i).toFixed(1)}" y="${(alt - f * 0.9).toFixed(1)}" text-anchor="${ancora(i)}" font-size="${(f * 0.85).toFixed(1)}" class="g-eixo">${esc(d.rotulo)}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${larg} ${alt}" class="grafico-svg" role="img">
+    ${grade}
+    <polyline points="${pontos}" fill="none" stroke="#E5B75C" stroke-width="${(f * 0.19).toFixed(1)}" stroke-linejoin="round"/>
+    ${marcas}
+  </svg>`;
+}
+
+function svgRosca(dados, unidade, f) {
+  const casas = casasDaSerie(dados);
+  const total = dados.reduce((a, d) => a + Math.abs(d.valor), 0);
+  if (!total) return '';
+
+  const larg = 620, r = f * 6.3, esp = f * 2.6, cx = r + esp / 2 + f, cy = Math.max(r + esp, f * 9.6);
+  const alt = Math.round(Math.max(cy * 2, f * 3.2 + dados.length * f * 2.1));
+  const circ = 2 * Math.PI * r;
+
+  let acumulado = 0;
+  const aneis = dados.map((d, i) => {
+    const fatia = Math.abs(d.valor) / total;
+    const el = `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="none"
+      stroke="${CORES_GRAFICO[i % CORES_GRAFICO.length]}" stroke-width="${esp.toFixed(1)}"
+      stroke-dasharray="${(fatia * circ).toFixed(2)} ${circ.toFixed(2)}"
+      stroke-dashoffset="${(-acumulado * circ).toFixed(2)}"
+      transform="rotate(-90 ${cx.toFixed(1)} ${cy.toFixed(1)})"/>`;
+    acumulado += fatia;
+    return el;
+  }).join('');
+
+  const xLeg = cx + r + esp / 2 + f * 1.6, passo = f * 2.1, y0 = (alt - dados.length * passo) / 2 + f;
+
+  /* O valor fica encostado na direita: o rotulo precisa caber no que sobra,
+     senao "Custo de captacao" e "21%" se escrevem por cima um do outro. */
+  const valores = dados.map(d => formatarValor(d.valor, unidade, casas));
+  const espacoRotulo = larg - f * 0.5 - (xLeg + f * 1.5) - Math.max(...valores.map(t => t.length)) * f * 0.58 - f;
+  const maxCar = Math.max(6, Math.floor(espacoRotulo / (f * 0.56)));
+  const rotulos = dados.map(d => d.rotulo.length > maxCar ? d.rotulo.slice(0, maxCar - 1) + '…' : d.rotulo);
+
+  const legenda = dados.map((d, i) => `
+    <rect x="${xLeg.toFixed(1)}" y="${(y0 + i * passo - f * 0.75).toFixed(1)}" width="${(f * 0.85).toFixed(1)}" height="${(f * 0.85).toFixed(1)}" rx="2" fill="${CORES_GRAFICO[i % CORES_GRAFICO.length]}"/>
+    <text x="${(xLeg + f * 1.5).toFixed(1)}" y="${(y0 + i * passo).toFixed(1)}" font-size="${f}" class="g-rot">${esc(rotulos[i])}</text>
+    <text x="${larg - f * 0.5}" y="${(y0 + i * passo).toFixed(1)}" text-anchor="end" font-size="${f}" class="g-val">${esc(valores[i])}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${larg} ${alt}" class="grafico-svg" role="img">${aneis}${legenda}</svg>`;
+}
+
+function renderGrafico(g, fonte) {
+  const dados = seriesLimpas(g);
+  if (!dados.length) return '';
+  const f = fonte || 13;
+  const tipo = String(g.tipo || 'barra').toLowerCase();
+  const corpo = tipo.includes('linha') ? svgLinha(dados, g.unidade, f)
+    : tipo.includes('rosca') || tipo.includes('pizza') ? svgRosca(dados, g.unidade, f)
+      : svgBarras(dados, g.unidade, f);
+  if (!corpo) return '';
+  return `<figure class="grafico">
+    ${g.titulo ? `<figcaption class="grafico-tit">${esc(g.titulo)}</figcaption>` : ''}
+    ${corpo}
+    ${g.leitura ? `<div class="grafico-leitura">${esc(g.leitura)}</div>` : ''}
+    <div class="grafico-fonte">${g.fonte ? `Fonte: ${esc(g.fonte)}` : '<span style="color:var(--vermelho)">Sem fonte declarada — confira antes de usar</span>'}</div>
+  </figure>`;
 }
 
 /* ---------- render de um bloco sanfonado --------------------------------- */
@@ -756,10 +942,63 @@ function renderPacote(j) {
     `, false);
   }
 
-  /* --- 9. Fontes e checagem --- */
+  /* --- 9. Apresentacao, slides e graficos --- */
+  const ap = j.apresentacao;
+  if (ap && (arr(ap.slides).length || arr(ap.graficos).length || ap.promptCanva || ap.promptGemini || ap.promptGPT)) {
+    const slides = arr(ap.slides);
+    const graficos = arr(ap.graficos);
+    const porId = {};
+    graficos.forEach(g => { if (g && g.id) porId[g.id] = g; });
+    const usados = new Set();
+
+    const cartoes = slides.map((sl, i) => {
+      const g = sl.graficoId && porId[sl.graficoId];
+      if (g) usados.add(sl.graficoId);
+      const dd = sl.dadoDestaque || {};
+      return `<article class="slide">
+        <div class="slide-n">${esc(sl.n || i + 1)}</div>
+        <h4>${esc(sl.titulo)}</h4>
+        ${arr(sl.bullets).length ? `<ul>${arr(sl.bullets).map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+        ${dd.valor ? `<div class="slide-dado"><b>${esc(dd.valor)}</b><span>${esc(dd.rotulo)}</span>${dd.fonte ? `<cite>${esc(dd.fonte)}</cite>` : ''}</div>` : ''}
+        ${g ? renderGrafico(g, 21) : ''}
+        ${sl.visual ? `<div class="slide-visual">Visual: ${esc(sl.visual)}</div>` : ''}
+        ${sl.notaDoApresentador ? `<div class="slide-nota"><span>Você fala</span>${esc(sl.notaDoApresentador)}</div>` : ''}
+      </article>`;
+    }).join('');
+
+    const soltos = graficos.filter(g => g && !usados.has(g.id)).map(renderGrafico).join('');
+
+    const promptBox = (rotulo, campo, dica) => {
+      const txt = ap[campo];
+      if (!txt) return '';
+      return `<div class="campo">
+        <div class="rotulo">${esc(rotulo)}
+          <button class="btn btn-sm btn-fantasma" onclick="copiar(APP.pacote.apresentacao.${campo},'${esc(rotulo)}')">Copiar</button>
+        </div>
+        <div class="prompt-en" style="font-family:inherit;font-size:13px">${esc(txt)}</div>
+        ${dica ? `<div class="dica">${esc(dica)}</div>` : ''}
+      </div>`;
+    };
+
+    h += bloco(9, `Apresentação — ${slides.length || '?'} slides`, `
+      ${ap.titulo ? `<div class="campo"><div class="rotulo">Título</div><div style="font-size:19px;font-weight:750;letter-spacing:-.4px;color:var(--ouro)">${esc(ap.titulo)}</div>${ap.subtitulo ? `<div style="font-size:13.5px;color:var(--txt-2);margin-top:4px">${esc(ap.subtitulo)}</div>` : ''}</div>` : ''}
+      ${(ap.usoRecomendado || ap.duracaoEstimadaMin) ? `<div class="dica" style="margin:-8px 0 15px">${esc(ap.usoRecomendado || '')}${ap.duracaoEstimadaMin ? ` · ${esc(ap.duracaoEstimadaMin)} min de apresentação` : ''}</div>` : ''}
+      ${cartoes ? `<div class="campo"><div class="rotulo">Roteiro visual — slide a slide
+        <button class="btn btn-sm btn-fantasma" onclick="baixarSlides(APP.pacote)">Baixar deck .html</button>
+      </div><div class="slides">${cartoes}</div></div>` : ''}
+      ${soltos ? `<div class="campo"><div class="rotulo">Gráficos avulsos</div>${soltos}</div>` : ''}
+      ${promptBox('Prompt para o Canva (Magic Design)', 'promptCanva', 'Cole no campo de texto do Canva em Apresentação > Magic Design, ou em Docs to Deck.')}
+      ${promptBox('Prompt para o Gemini', 'promptGemini', 'O prompt já carrega os números e as fontes dentro dele — a IA que receber não precisa buscar nada.')}
+      ${promptBox('Prompt para o ChatGPT / GPT', 'promptGPT', '')}
+      ${promptBox('Prompt para carrossel de Instagram', 'promptCarrossel', '')}
+      <div class="dica">O deck .html abre no navegador, avança com as setas e imprime em PDF (Ctrl+P) — serve para apresentar sem depender de ferramenta nenhuma.</div>
+    `, false);
+  }
+
+  /* --- 10. Fontes e checagem --- */
   const temFontes = arr(j.fontes).length || arr(j._citacoes).length || arr(j.checagem).length;
   if (temFontes) {
-    h += bloco(9, 'Fontes e Checagem', `
+    h += bloco(10, 'Fontes e Checagem', `
       ${arr(j.checagem).length ? `<div class="campo"><div class="rotulo">Checagem dado a dado</div>${arr(j.checagem).map(c => {
         const nao = String(c.status || '').toUpperCase().includes('NAO') || String(c.status || '').toUpperCase().includes('NÃO');
         return `<div class="check ${nao ? 'nao' : 'ok'}"><span class="check-i">${nao ? '✕' : '✓'}</span><div><b>${esc(c.dado)}</b><br><span style="opacity:.85">${esc(c.onde)}</span></div></div>`;
@@ -854,8 +1093,40 @@ function pacoteParaMarkdown(j) {
     if (j.thumbnail.textoNaCapa) L.push(`\n**Texto na capa:** ${j.thumbnail.textoNaCapa}`);
   }
 
+  const ap = j.apresentacao;
+  if (ap && (arr(ap.slides).length || arr(ap.graficos).length || ap.promptCanva || ap.promptGemini || ap.promptGPT)) {
+    secao('9. Apresentação');
+    if (ap.titulo) L.push(`**${ap.titulo}**${ap.subtitulo ? ` — ${ap.subtitulo}` : ''}`);
+    if (ap.usoRecomendado) L.push(`\n_${ap.usoRecomendado}${ap.duracaoEstimadaMin ? ` · ${ap.duracaoEstimadaMin} min` : ''}_`);
+
+    const porId = {};
+    arr(ap.graficos).forEach(g => { if (g && g.id) porId[g.id] = g; });
+
+    arr(ap.slides).forEach((sl, i) => {
+      L.push(`\n### Slide ${sl.n || i + 1} — ${sl.titulo || ''}`);
+      arr(sl.bullets).forEach(b => L.push(`- ${b}`));
+      const dd = sl.dadoDestaque || {};
+      if (dd.valor) L.push(`\n> **${dd.valor}** ${dd.rotulo || ''}${dd.fonte ? `  \n> _${dd.fonte}_` : ''}`);
+      const g = sl.graficoId && porId[sl.graficoId];
+      if (g) L.push(`\n${graficoParaMarkdown(g)}`);
+      if (sl.visual) L.push(`\n_Visual: ${sl.visual}_`);
+      if (sl.notaDoApresentador) L.push(`\n**Você fala:** ${sl.notaDoApresentador}`);
+    });
+
+    const usados = new Set(arr(ap.slides).map(sl => sl.graficoId).filter(Boolean));
+    const soltos = arr(ap.graficos).filter(g => g && !usados.has(g.id));
+    if (soltos.length) {
+      L.push('\n**Gráficos avulsos:**');
+      soltos.forEach(g => L.push(`\n${graficoParaMarkdown(g)}`));
+    }
+
+    [['Prompt — Canva', ap.promptCanva], ['Prompt — Gemini', ap.promptGemini],
+     ['Prompt — ChatGPT', ap.promptGPT], ['Prompt — Carrossel Instagram', ap.promptCarrossel]]
+      .forEach(([t, v]) => { if (v) L.push(`\n**${t}:**\n\n\`\`\`\n${v}\n\`\`\``); });
+  }
+
   if (arr(j.checagem).length) {
-    secao('9. Checagem');
+    secao('10. Checagem');
     arr(j.checagem).forEach(c => L.push(`- [${String(c.status).toUpperCase().includes('NA') || String(c.status).toUpperCase().includes('NÃ') ? ' ' : 'x'}] **${c.dado}** — ${c.onde}`));
   }
   if (arr(j.fontes).length) {
@@ -865,6 +1136,128 @@ function pacoteParaMarkdown(j) {
 
   L.push(`\n---\n\n_${window.KB.COMPLIANCE.disclaimerLongo}_`);
   return L.join('\n');
+}
+
+/* Grafico em tabela: markdown nao desenha, mas os numeros e a fonte tem que viajar. */
+function graficoParaMarkdown(g) {
+  const dados = seriesLimpas(g);
+  if (!dados.length) return '';
+  const L = [];
+  if (g.titulo) L.push(`**${g.titulo}**\n`);
+  L.push(`| ${' '.repeat(0)}Item | Valor |`);
+  L.push('| --- | ---: |');
+  const casas = casasDaSerie(dados);
+  dados.forEach(d => L.push(`| ${d.rotulo} | ${formatarValor(d.valor, g.unidade, casas)} |`));
+  if (g.leitura) L.push(`\n${g.leitura}`);
+  L.push(`\n_Fonte: ${g.fonte || 'NAO DECLARADA — confira antes de usar'}_`);
+  return L.join('\n');
+}
+
+/* =========================================================================
+   DECK .HTML AUTONOMO
+   -------------------------------------------------------------------------
+   Um arquivo so, sem CDN, que abre no navegador, anda com as setas e imprime
+   em PDF. Serve para apresentar sem depender de Canva, Google ou internet.
+   ========================================================================= */
+function baixarSlides(j) {
+  const ap = j && j.apresentacao;
+  if (!ap || !arr(ap.slides).length) { toast('Este pacote não tem slides.', 'err'); return; }
+
+  const porId = {};
+  arr(ap.graficos).forEach(g => { if (g && g.id) porId[g.id] = g; });
+
+  const capa = `<section class="s capa">
+    <div class="marca">${esc(window.CFG.lerCfg().marca || 'Radar Institucional')}</div>
+    <h1>${esc(ap.titulo || j.tema || 'Apresentação')}</h1>
+    ${ap.subtitulo ? `<p class="sub">${esc(ap.subtitulo)}</p>` : ''}
+    <div class="rodape">${new Date(j._geradoEm || Date.now()).toLocaleDateString('pt-BR')}</div>
+  </section>`;
+
+  const corpo = arr(ap.slides).map((sl, i) => {
+    const g = sl.graficoId && porId[sl.graficoId];
+    const dd = sl.dadoDestaque || {};
+    return `<section class="s">
+      <h2>${esc(sl.titulo)}</h2>
+      ${arr(sl.bullets).length ? `<ul>${arr(sl.bullets).map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+      ${dd.valor ? `<div class="dado"><b>${esc(dd.valor)}</b><span>${esc(dd.rotulo)}</span>${dd.fonte ? `<cite>${esc(dd.fonte)}</cite>` : ''}</div>` : ''}
+      ${g ? renderGrafico(g) : ''}
+      ${sl.notaDoApresentador ? `<aside class="nota">${esc(sl.notaDoApresentador)}</aside>` : ''}
+    </section>`;
+  }).join('');
+
+  const fecho = `<section class="s capa">
+    <h1 style="font-size:34px">${esc((j.cta && j.cta.produto) || 'Vamos conversar')}</h1>
+    ${j.cta && j.cta.textoNoLongo ? `<p class="sub">${esc(j.cta.textoNoLongo)}</p>` : ''}
+    <div class="legal">${esc(window.KB.COMPLIANCE.disclaimerLongo)}</div>
+  </section>`;
+
+  const doc = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(ap.titulo || j.tema || 'Apresentação')}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080B11;color:#E9EEF7;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;overflow:hidden}
+.s{display:none;width:100vw;height:100vh;padding:7vh 9vw;flex-direction:column;justify-content:center;position:relative;
+   background:radial-gradient(900px 520px at 84% -10%,rgba(229,183,92,.09),transparent 62%),#080B11}
+.s.on{display:flex}
+.capa{align-items:flex-start}
+.marca{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#E5B75C;margin-bottom:22px}
+h1{font-size:clamp(30px,5.4vw,62px);line-height:1.08;letter-spacing:-1.6px;font-weight:800;max-width:16ch}
+h2{font-size:clamp(24px,3.6vw,42px);line-height:1.15;letter-spacing:-1px;font-weight:750;margin-bottom:26px;max-width:20ch}
+.sub{margin-top:20px;font-size:clamp(15px,1.7vw,21px);color:#A9B6CA;max-width:44ch;line-height:1.55}
+ul{list-style:none;display:flex;flex-direction:column;gap:15px;max-width:40ch}
+li{font-size:clamp(15px,1.9vw,23px);line-height:1.45;color:#E9EEF7;padding-left:24px;position:relative}
+li::before{content:'';position:absolute;left:0;top:.62em;width:9px;height:9px;border-radius:2px;background:#E5B75C}
+.dado{margin-top:30px;border-left:3px solid #E5B75C;padding-left:20px}
+.dado b{display:block;font-size:clamp(34px,5vw,58px);font-weight:800;letter-spacing:-2px;color:#E5B75C;line-height:1}
+.dado span{display:block;font-size:15px;color:#A9B6CA;margin-top:6px}
+.dado cite{display:block;font-size:11.5px;color:#6E7D95;font-style:normal;margin-top:7px}
+.grafico{margin-top:26px;max-width:760px}
+.grafico-tit{font-size:13px;text-transform:uppercase;letter-spacing:1.3px;color:#A9B6CA;margin-bottom:9px}
+.grafico-svg{width:100%;height:auto;max-height:42vh}
+.g-rot{fill:#A9B6CA;font-family:inherit}
+.g-val{fill:#E9EEF7;font-weight:650;font-family:inherit}
+.g-eixo{fill:#6E7D95;font-family:inherit}
+.grafico-leitura{font-size:14px;color:#E9EEF7;margin-top:10px;line-height:1.5}
+.grafico-fonte{font-size:11px;color:#6E7D95;margin-top:6px}
+.nota{display:none;position:absolute;left:9vw;right:9vw;bottom:5vh;font-size:13px;color:#6E7D95;border-top:1px solid #26344A;padding-top:11px;line-height:1.5}
+.rodape,.legal{position:absolute;left:9vw;bottom:5vh;font-size:12px;color:#6E7D95}
+.legal{right:9vw;line-height:1.5;max-width:none}
+.barra{position:fixed;bottom:16px;right:20px;display:flex;gap:8px;align-items:center;font-size:12px;color:#6E7D95;z-index:9}
+.barra button{background:#182231;color:#E9EEF7;border:1px solid #33455F;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:13px}
+.barra button:hover{border-color:#E5B75C;color:#E5B75C}
+body.notas .nota{display:block}
+@media print{
+  body{overflow:visible;background:#fff}
+  .s{display:flex!important;page-break-after:always;height:auto;min-height:96vh;background:#080B11;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .barra{display:none}
+}
+</style></head><body>
+${capa}${corpo}${fecho}
+<div class="barra"><button data-ir="-1">◀</button><span id="pos"></span><button data-ir="1">▶</button><button id="bNotas">Notas</button><button onclick="print()">PDF</button></div>
+<script>
+var slides = document.querySelectorAll('.s'), i = 0;
+function mostrar(n){ i = Math.max(0, Math.min(slides.length-1, n));
+  slides.forEach(function(s,k){ s.classList.toggle('on', k===i); });
+  document.getElementById('pos').textContent = (i+1)+' / '+slides.length;
+  location.hash = i+1; }
+document.querySelectorAll('[data-ir]').forEach(function(b){
+  b.onclick = function(){ mostrar(i + Number(b.dataset.ir)); }; });
+function notas(){ document.body.classList.toggle('notas'); }
+document.getElementById('bNotas').onclick = notas;
+document.addEventListener('keydown', function(e){
+  if (e.key==='n'||e.key==='N') notas();
+  if (e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ') { e.preventDefault(); mostrar(i+1); }
+  if (e.key==='ArrowLeft'||e.key==='PageUp') { e.preventDefault(); mostrar(i-1); }
+  if (e.key==='Home') mostrar(0);
+  if (e.key==='End') mostrar(slides.length-1); });
+mostrar(Math.max(0, (parseInt(location.hash.slice(1),10)||1) - 1));
+<\/script></body></html>`;
+
+  const base = nomeArquivo(j).replace(/\.md$/, '');
+  baixar(`${base}-slides.html`, doc, 'text/html');
+  toast('Deck baixado. Abra no navegador e ande com as setas.', 'ok');
 }
 
 function baixar(nome, conteudo, tipo = 'text/markdown') {
@@ -1194,6 +1587,7 @@ function iniciar() {
 
   $('#btnCopiarTudo').onclick = () => copiar(pacoteParaMarkdown(APP.pacote), 'Pacote inteiro');
   $('#btnBaixar').onclick = () => baixar(nomeArquivo(APP.pacote), pacoteParaMarkdown(APP.pacote));
+  $('#btnSlides').onclick = () => baixarSlides(APP.pacote);
   $('#btnSalvar').onclick = () => {
     window.CFG.salvarNoHistorico(APP.pacote);
     toast('Pacote salvo no histórico.', 'ok');

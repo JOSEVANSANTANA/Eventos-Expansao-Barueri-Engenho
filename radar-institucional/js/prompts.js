@@ -355,6 +355,38 @@ real e datado -> mostrar a solucao -> deslizar para o CTA consultivo sem parecer
     "paleta": "",
     "expressaoFacial": ""
   },
+  "apresentacao": {
+    "titulo": "titulo da apresentacao, ate 8 palavras",
+    "subtitulo": "uma linha dizendo o que quem assiste leva no final",
+    "duracaoEstimadaMin": 0,
+    "usoRecomendado": "onde essa apresentacao serve melhor (reuniao 1a1 com cliente | live | webinar | aula | carrossel)",
+    "slides": [
+      {
+        "n": 1,
+        "titulo": "titulo do slide, ate 7 palavras",
+        "bullets": ["ate 3 bullets, cada um com no maximo 12 palavras"],
+        "dadoDestaque": { "valor": "", "rotulo": "", "fonte": "" },
+        "graficoId": "id de um grafico de graficos[] que entra neste slide, ou string vazia",
+        "notaDoApresentador": "o que voce FALA nesse slide, 1 a 2 frases em linguagem de fala",
+        "visual": "que imagem, icone ou layout esse slide pede"
+      }
+    ],
+    "graficos": [
+      {
+        "id": "g1",
+        "tipo": "barra | linha | rosca | comparativo",
+        "titulo": "",
+        "unidade": "% a.a. | % a.m. | R$ bi | pontos | x",
+        "series": [{ "rotulo": "", "valor": 0 }],
+        "fonte": "veiculo, serie e data - OBRIGATORIO",
+        "leitura": "a frase que esse grafico prova, em uma linha"
+      }
+    ],
+    "promptCanva": "",
+    "promptGemini": "",
+    "promptGPT": "",
+    "promptCarrossel": ""
+  },
   "fontes": [
     { "afirmacao": "qual afirmacao do roteiro isso sustenta", "veiculo": "", "url": "", "data": "" }
   ],
@@ -363,6 +395,27 @@ real e datado -> mostrar a solucao -> deslizar para o CTA consultivo sem parecer
   ],
   "disclaimer": "${window.KB.COMPLIANCE.disclaimerCurto}"
 }
+
+REGRAS DO BLOCO "apresentacao" - leia antes de preencher:
+- 8 a 12 slides quando o formato inclui video longo; 5 a 7 quando so tem short.
+  Slide 1 e a capa com o gancho. O ultimo e o CTA consultivo, adaptado para leitura.
+- Slide e apoio visual, nao roteiro. No maximo 3 bullets de ate 12 palavras cada.
+  O que voce fala em cima do slide vai em notaDoApresentador, nunca no bullet.
+- dadoDestaque so pode conter numero que esteja no array "checagem" com status
+  VERIFICADO, com a mesma fonte. Sem fonte, deixe os tres campos vazios.
+- graficos: use SOMENTE numeros reais dos dados macro injetados acima ou de fonte que
+  voce confirmou na busca. O campo valor tem que ser numero de verdade, nao texto.
+  Sem numero real, devolva "graficos": [] - grafico inventado e pior que grafico nenhum.
+- graficoId precisa bater com um id existente em graficos[], ou ficar vazio.
+- promptCanva: uma instrucao unica em portugues para o campo de texto do Canva
+  (Magic Design / Docs to Deck) - tema, numero de slides, estilo visual, paleta e o
+  texto resumido de cada slide.
+- promptGemini e promptGPT: prompts completos em portugues, prontos para colar. A IA
+  que receber NAO tem acesso a esta pesquisa, entao o prompt precisa carregar dentro
+  dele os numeros e as fontes, slide a slide, e terminar com a instrucao explicita
+  "use apenas os dados fornecidos acima; nao invente nem estime nenhum numero".
+- promptCarrossel: o mesmo conteudo em 7 a 10 cards quadrados de Instagram, com o
+  texto exato de cada card.
 
 LEMBRETE FINAL: o campo "texto" de cada roteiro e o produto mais importante. Ele vai direto
 para o teleprompter. Escreva como fala humana real, com ritmo, respiracao e as marcacoes no

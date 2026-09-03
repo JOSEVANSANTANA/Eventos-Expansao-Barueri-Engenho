@@ -264,12 +264,13 @@ Abrir  →  Rodar varredura  →  Escolher pauta  →  Gerar pacote  →  Telepr
    *Rodar varredura do dia*. A ferramenta busca na web o que está quente nas últimas
    72 horas e devolve 6 a 8 pautas ordenadas por temperatura viral.
 2. **Escolher a pauta** — clique no card. O pacote completo é gerado.
-3. **Revisar a checagem** — antes de gravar, olhe o bloco 9. Se houver dado marcado
+3. **Revisar a checagem** — antes de gravar, olhe o bloco 10. Se houver dado marcado
    como `NÃO VERIFICADO`, resolva ou corte a frase.
 4. **Teleprompter** — botão no topo. Espaço = play/pause, setas = velocidade, Esc = sair.
    Contagem regressiva de 3 antes de começar a rolar.
 5. **Publicar** — copie legenda, tags e descrição do bloco 7; gere a capa com o prompt
    do bloco 8.
+6. **Apresentar** — o bloco 9 traz a mesma pauta em slides, para reunião com cliente.
 
 **Injeção manual:** se você já viu algo no Google Trends ou no BuzzSumo, cole no campo
 antes de varrer. Vai ser tratado como pista e validado — nunca aceito como verdade.
@@ -302,6 +303,37 @@ O painel embaixo mostra a conta e **compara com a duração que o roteiro pediu*
   ritmo que ninguém consegue.
 
 **Manual.** Pixels por segundo direto, para quem prefere no olho.
+
+## Apresentação, slides e gráficos
+
+Todo pacote sai também em formato de apresentação — bloco 9. O mesmo conteúdo do
+roteiro, reorganizado para uma tela em vez de uma câmera. Serve para a reunião 1a1,
+para a live, para a aula.
+
+**O que vem pronto:**
+
+- **Roteiro visual slide a slide** — título, no máximo 3 bullets de 12 palavras,
+  o dado de destaque com a fonte, a sugestão de imagem, e a **nota do apresentador**
+  (o que você fala em cima do slide, que nunca vai escrito nele).
+- **Gráficos desenhados na própria ferramenta** — barra, linha e rosca, em SVG, sem
+  biblioteca externa e sem internet. Cada gráfico carrega a fonte embaixo.
+- **Deck `.html` para baixar** — um arquivo só, que abre no navegador, anda com as
+  setas, esconde e mostra as notas com a tecla `N` e imprime em PDF com `Ctrl+P`.
+  Não depende de Canva, Google, PowerPoint nem conexão.
+- **Quatro prompts prontos para colar** — Canva (Magic Design), Gemini, ChatGPT e
+  carrossel de Instagram. Cada um já carrega **os números e as fontes dentro do
+  próprio texto**, porque a IA que receber o prompt não tem acesso a esta pesquisa —
+  e todos terminam mandando usar só os dados fornecidos, sem estimar nada.
+
+**A regra anti-alucinação vale igual aqui.** O dado de destaque só pode ser um número
+que já apareceu na checagem como `VERIFICADO`, com a mesma fonte. Gráfico sem número
+real não é preenchido com estimativa: o modelo é instruído a devolver a lista de
+gráficos vazia. Um gráfico inventado é pior que gráfico nenhum — ele parece prova.
+
+Se um gráfico chegar sem fonte declarada, a ferramenta mostra o aviso em vermelho no
+lugar da fonte em vez de esconder o problema.
+
+---
 
 ## De onde vêm os números
 
