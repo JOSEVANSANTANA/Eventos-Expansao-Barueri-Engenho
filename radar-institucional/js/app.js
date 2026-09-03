@@ -297,17 +297,33 @@ function renderPautas(j, citacoes, resultado) {
         : ''}
     </div></div>`;
   } else if (resultado && resultado.buscaUsada === false) {
+    // A causa depende de QUEM rodou. Mandar o usuario por saldo na OpenRouter
+    // quando o trabalho saiu no Gemini e mandar consertar o que nao esta quebrado:
+    // Gemini e Claude nao tem busca web nesta ferramenta, ponto. Quem busca
+    // noticia aqui e o coletor local, e e ele que precisa estar de pe.
+    const provedorUsado = (resultado.provedorUsado || '').toLowerCase();
+    const naOpenRouter = provedorUsado === 'openrouter'
+      || /openrouter|\//.test(String(resultado.modeloUsado || ''));
+    const comoResolver = naOpenRouter
+      ? `<div style="margin-top:8px;font-size:12.5px"><b>Para resolver:</b> ligue o coletor local —
+         abra pelo atalho <b>ABRIR-WINDOWS.bat</b> ou <b>ABRIR-MAC-LINUX.command</b> e o selo do topo
+         vira <i>Coletor ativo</i>. Ele lê 47 fontes e é gratuito.
+         <div style="margin-top:5px;opacity:.85">A busca paga da OpenRouter é a outra via, mas
+         devolve página institucional no lugar de notícia — por isso vem desligada.</div></div>`
+      : `<div style="margin-top:8px;font-size:12.5px"><b>Para resolver:</b> ligue o coletor local —
+         abra pelo atalho <b>ABRIR-WINDOWS.bat</b> ou <b>ABRIR-MAC-LINUX.command</b> e o selo do topo
+         vira <i>Coletor ativo</i>. Ele lê 47 fontes, é gratuito, e é quem traz notícia nesta ferramenta.
+         <div style="margin-top:5px;opacity:.85">Não é problema da sua chave: ${esc(resultado.modeloUsado || 'o modelo escolhido')}
+         não faz busca na web por conta própria. Nenhuma configuração aqui muda isso.</div></div>`;
+
     html += `<div class="aviso alerta"><span class="aviso-i">▲</span><div>
       <b>Estas pautas saíram SEM busca web e SEM coletor.</b><br>
-      A busca da OpenRouter é cobrada por consulta e não pôde ser executada agora
-      — normalmente por falta de saldo. As pautas abaixo foram construídas apenas
-      com os dados do Banco Central que você vê no painel, que são reais e datados,
-      e não com notícia das últimas 72 horas.
+      Foram construídas apenas com os dados do Banco Central que você vê no painel — reais e
+      datados — e não com notícia das últimas 72 horas.
       <div style="margin-top:8px"><b>Na prática:</b> os ângulos são válidos e os
       números são verdadeiros, mas nada aqui é novidade do dia. Antes de gravar
       qualquer pauta que mencione fato recente, confirme na fonte.</div>
-      <div style="margin-top:8px;font-size:12px;opacity:.85">Para ligar a busca,
-      adicione saldo em openrouter.ai/credits — a partir de US$ 0,007 por consulta.</div>
+      ${comoResolver}
     </div></div>`;
   }
 
@@ -807,6 +823,147 @@ function renderGrafico(g, fonte) {
   </figure>`;
 }
 
+/* =========================================================================
+   APRESENTACAO DE RESERVA
+   -------------------------------------------------------------------------
+   O modelo as vezes ignora o bloco "apresentacao" do esquema - modelo pequeno,
+   resposta longa, ou simples desobediencia. Antes disso o bloco 9 sumia sem
+   dizer nada, e o usuario ficava sem o que pediu. Aqui a apresentacao e montada
+   a partir do que JA veio verificado no pacote: nada de numero novo, nada de
+   fato novo, so reorganizacao do proprio conteudo em slides.
+   ========================================================================= */
+function apresentacaoDeReserva(j) {
+  const ri = j.radarInstitucional || {};
+
+  /* Corta na primeira frase de VERDADE: dividir em qualquer ponto transforma
+     "A poupanca rendeu 0.6697% no mes" em "A poupanca rendeu 0". So conta como
+     fim de frase o ponto seguido de espaco, ou o fim do texto. */
+  const primeiraFrase = (t, max) => {
+    const txt = String(t || '').trim();
+    const corte = txt.split(/(?<=[.!?;])\s+/)[0].replace(/[.;]$/, '');
+    return corte.length > max ? corte.slice(0, max - 1).trim() + '…' : corte;
+  };
+  const verificados = arr(j.checagem).filter(c =>
+    String(c.status || '').toUpperCase().startsWith('VERIF'));
+
+  const slides = [];
+
+  slides.push({
+    n: 1,
+    titulo: (j.tema || 'O tema de hoje').split(/[:—-]/)[0].trim().slice(0, 60),
+    bullets: arr(ri.resumo).slice(0, 3).map(t => primeiraFrase(t, 95)),
+    dadoDestaque: verificados[0]
+      ? { valor: (String(verificados[0].dado).match(/[\d.,]+\s*%?[^\s,;]*/) || [''])[0],
+          rotulo: String(verificados[0].dado).slice(0, 70), fonte: verificados[0].onde || '' }
+      : { valor: '', rotulo: '', fonte: '' },
+    graficoId: '',
+    notaDoApresentador: (j.roteiroShort && j.roteiroShort.gancho3s) || '',
+    visual: 'abertura com o número em destaque'
+  });
+
+  if (ri.impactoNoBolso) {
+    slides.push({
+      n: slides.length + 1, titulo: 'Quem ganha e quem perde',
+      bullets: String(ri.impactoNoBolso).split(/(?<=[.!?;])\s+/).slice(0, 3).map(t => primeiraFrase(t, 95)).filter(Boolean),
+      dadoDestaque: verificados[1]
+        ? { valor: (String(verificados[1].dado).match(/[\d.,]+\s*%?[^\s,;]*/) || [''])[0],
+            rotulo: String(verificados[1].dado).slice(0, 70), fonte: verificados[1].onde || '' }
+        : { valor: '', rotulo: '', fonte: '' },
+      graficoId: '', notaDoApresentador: '', visual: 'dois lados da mesma conta'
+    });
+  }
+
+  if (j.mestre && j.mestre.principioUsado) {
+    slides.push({
+      n: slides.length + 1, titulo: j.mestre.principioUsado.slice(0, 55),
+      bullets: [primeiraFrase(j.mestre.comoAncora, 95)].filter(Boolean),
+      dadoDestaque: { valor: '', rotulo: '', fonte: '' }, graficoId: '',
+      notaDoApresentador: `Ancore em ${j.mestre.nome || 'um princípio clássico'}.`,
+      visual: `retrato ou citação de ${j.mestre.nome || ''}`.trim()
+    });
+  }
+
+  if (ri.nossoDiferencial) {
+    slides.push({
+      n: slides.length + 1, titulo: 'O que ninguém está dizendo',
+      bullets: [primeiraFrase(ri.nossoDiferencial, 95)],
+      dadoDestaque: { valor: '', rotulo: '', fonte: '' }, graficoId: '',
+      notaDoApresentador: '', visual: 'você em plano médio, olhando para a câmera'
+    });
+  }
+
+  slides.push({
+    n: slides.length + 1,
+    titulo: (j.cta && j.cta.produto) || 'O próximo passo',
+    bullets: ['Diagnóstico do caso concreto', 'Simulação com números do cliente'],
+    dadoDestaque: { valor: '', rotulo: '', fonte: '' }, graficoId: '',
+    notaDoApresentador: (j.cta && j.cta.textoNoLongo) || '',
+    visual: 'contato na tela'
+  });
+
+  /* Um grafico so pode juntar numeros da MESMA unidade. Pondo 137,3% ao ano ao
+     lado de 0,07% ao mes na mesma escala, a barra do mes vira um risco e o
+     grafico mente sobre a comparacao. Entao os verificados sao agrupados por
+     unidade e so o maior grupo vira grafico - se nenhum tiver dois, nao ha
+     grafico nenhum, que e melhor que um errado. */
+  const porUnidade = {};
+  verificados.forEach(c => {
+    const texto = String(c.dado);
+    const m = texto.match(/(-?\d{1,3}(?:[.,]\d+)?)\s*%/);
+    if (!m) return;
+    // O periodo pode vir como "a.a.", "ao ano", "em 12 meses", "no mes", "mensal"...
+    // Sem ler isso, 0,07% no mes acaba na mesma escala de 137,3% ao ano.
+    const depois = texto.slice(m.index + m[0].length).toLowerCase().replace(/[.\s]/g, '');
+    const unidade = /^aa|^aoano|^anual|^em12meses|^nos?12meses|^acumulado/.test(depois) ? '% a.a.'
+      : (/^am|^aom[eê]s|^nom[eê]s|^mensal|^dom[eê]s/.test(depois) ? '% a.m.' : '%');
+    const rotulo = texto.slice(0, m.index).replace(/[-–—:]\s*$/, '').trim().slice(0, 28)
+                || texto.replace(/[\d.,]+\s*%.*/, '').trim().slice(0, 28) || 'dado';
+    (porUnidade[unidade] = porUnidade[unidade] || []).push({
+      rotulo, valor: parseFloat(m[1].replace(',', '.')), fonte: c.onde || ''
+    });
+  });
+
+  const melhor = Object.entries(porUnidade).sort((x, y) => y[1].length - x[1].length)[0];
+  const graficos = (melhor && melhor[1].length >= 2) ? [{
+    id: 'reserva1', tipo: 'barra',
+    titulo: `Números verificados desta pauta (${melhor[0]})`,
+    unidade: melhor[0],
+    series: melhor[1].slice(0, 6).map(d => ({ rotulo: d.rotulo, valor: d.valor })),
+    fonte: melhor[1].map(d => d.fonte).filter(Boolean).slice(0, 3).join(' · '),
+    leitura: 'Todos com fonte na aba de checagem deste pacote.'
+  }] : [];
+  if (graficos.length) slides[0].graficoId = 'reserva1';
+
+  const roteiroDoPrompt = slides.map((sl, i) =>
+    `Slide ${i + 1} — ${sl.titulo}\n` +
+    arr(sl.bullets).map(b => `  • ${b}`).join('\n') +
+    (sl.dadoDestaque && sl.dadoDestaque.valor
+      ? `\n  Número: ${sl.dadoDestaque.valor} (${sl.dadoDestaque.rotulo}) — fonte: ${sl.dadoDestaque.fonte}`
+      : '')
+  ).join('\n\n');
+
+  const regra = '\n\nUse APENAS os dados acima. Não invente, não estime e não acrescente ' +
+                'nenhum número que não esteja neste texto. Mantenha as fontes visíveis no rodapé de cada slide.';
+
+  return {
+    _reserva: true,
+    titulo: j.tema || 'Apresentação',
+    subtitulo: ri.nossoDiferencial ? String(ri.nossoDiferencial).slice(0, 120) : '',
+    duracaoEstimadaMin: Math.max(5, slides.length * 2),
+    usoRecomendado: 'reunião 1a1 com cliente',
+    slides, graficos,
+    promptCanva: `Crie uma apresentação profissional de ${slides.length} slides, tema financeiro, `
+      + `visual escuro e sóbrio com destaque em dourado. Título: "${j.tema || ''}".\n\n${roteiroDoPrompt}${regra}`,
+    promptGemini: `Você é designer de apresentações executivas. Monte ${slides.length} slides `
+      + `sobre "${j.tema || ''}" para uma reunião com cliente de alta renda. `
+      + `Conteúdo exato de cada slide:\n\n${roteiroDoPrompt}${regra}`,
+    promptGPT: `Monte uma apresentação executiva de ${slides.length} slides sobre "${j.tema || ''}". `
+      + `Público: investidor de alta renda. Tom analítico e direto.\n\n${roteiroDoPrompt}${regra}`,
+    promptCarrossel: `Crie ${slides.length} cards quadrados para carrossel de Instagram sobre `
+      + `"${j.tema || ''}". Um card por bloco, texto curto e legível no celular:\n\n${roteiroDoPrompt}${regra}`
+  };
+}
+
 /* ---------- render de um bloco sanfonado --------------------------------- */
 function bloco(num, titulo, corpo, aberto = true) {
   return `<section class="bloco ${aberto ? '' : 'fechado'}">
@@ -943,6 +1100,21 @@ function renderPacote(j) {
   }
 
   /* --- 9. Apresentacao, slides e graficos --- */
+  // Se o modelo nao devolveu a apresentacao, monta uma a partir do proprio
+  // pacote em vez de esconder o bloco. O usuario pediu isso em todo pacote.
+  if (!j.apresentacao || !arr(j.apresentacao.slides).length) {
+    try {
+      const veio = j.apresentacao || {};
+      const nova = apresentacaoDeReserva(j);
+      // O modelo pode ter mandado grafico ou prompt sem mandar slide. Descartar
+      // isso ao montar a reserva seria jogar fora trabalho que ele ja fez certo.
+      if (arr(veio.graficos).length) nova.graficos = arr(veio.graficos).concat(nova.graficos);
+      ['titulo', 'subtitulo', 'usoRecomendado', 'duracaoEstimadaMin',
+       'promptCanva', 'promptGemini', 'promptGPT', 'promptCarrossel']
+        .forEach(k => { if (veio[k]) nova[k] = veio[k]; });
+      j.apresentacao = nova;
+    } catch (e) { /* pacote muito incompleto: segue sem o bloco */ }
+  }
   const ap = j.apresentacao;
   if (ap && (arr(ap.slides).length || arr(ap.graficos).length || ap.promptCanva || ap.promptGemini || ap.promptGPT)) {
     const slides = arr(ap.slides);
@@ -981,6 +1153,11 @@ function renderPacote(j) {
     };
 
     h += bloco(9, `Apresentação — ${slides.length || '?'} slides`, `
+      ${ap._reserva ? `<div class="aviso info" style="margin:0 0 15px"><span class="aviso-i">i</span><div>
+        <b>Apresentação montada aqui, a partir do próprio pacote.</b> O modelo não devolveu o
+        bloco desta vez, então os slides foram remontados com os dados que já estavam
+        verificados acima — nenhum número novo entrou. Gerando de novo, costuma vir do modelo
+        com mais acabamento.</div></div>` : ''}
       ${ap.titulo ? `<div class="campo"><div class="rotulo">Título</div><div style="font-size:19px;font-weight:750;letter-spacing:-.4px;color:var(--ouro)">${esc(ap.titulo)}</div>${ap.subtitulo ? `<div style="font-size:13.5px;color:var(--txt-2);margin-top:4px">${esc(ap.subtitulo)}</div>` : ''}</div>` : ''}
       ${(ap.usoRecomendado || ap.duracaoEstimadaMin) ? `<div class="dica" style="margin:-8px 0 15px">${esc(ap.usoRecomendado || '')}${ap.duracaoEstimadaMin ? ` · ${esc(ap.duracaoEstimadaMin)} min de apresentação` : ''}</div>` : ''}
       ${cartoes ? `<div class="campo"><div class="rotulo">Roteiro visual — slide a slide
@@ -1519,116 +1696,195 @@ function atualizarStatus() {
 /* =========================================================================
    INICIALIZACAO
    ========================================================================= */
+/* Elementos que o app.js precisa encontrar no HTML. Se algum sumir, a pasta
+   esta com arquivos de versoes diferentes - e o usuario tem que saber disso,
+   nao descobrir pela tela vazia. */
+const ELEMENTOS_ESPERADOS = [
+  '#btnVarrer', '#btnAtualizarMacro', '#btnConfig', '#btnSalvarConfig',
+  '#btnCopiarTudo', '#btnBaixar', '#btnSlides', '#btnSalvar', '#btnTeleprompter',
+  '#btnExportarTudo', '#btnColher', '#btnLimparDados',
+  '#gradeMestres', '#gradeProdutos', '#gradeConcorrencia',
+  '#statusApi', '#statusColetor', '#areaPacote', '#areaPautas'
+];
+
+// Exposto para o teste conferir a lista sem duplicar nada.
+if (typeof window !== 'undefined') window.ELEMENTOS_ESPERADOS = ELEMENTOS_ESPERADOS;
+
+const FALHAS_BOOT = [];
+
+/* Liga um handler SO se o elemento existir.
+
+   Antes isto era `$('#btn').onclick = fn` direto, dezenas de vezes seguidas. Um
+   unico elemento ausente levantava TypeError e matava todo o resto de iniciar():
+   as telas de Mestres, Esteira e Concorrencia ficavam vazias, os selos travavam
+   no texto inicial do HTML, o coletor nunca era consultado - e nada na tela
+   dizia o motivo. Uma tela em branco nao pode ser o jeito de descobrir isso. */
+function ligar(seletor, evento, fn) {
+  const el = $(seletor);
+  if (el) { el[evento] = fn; return el; }
+  FALHAS_BOOT.push(`elemento ausente: ${seletor}`);
+  return null;
+}
+
+/* Cada etapa do arranque roda isolada: uma falhando, as outras seguem. */
+function etapa(nome, fn) {
+  try { fn(); }
+  catch (e) { FALHAS_BOOT.push(`${nome}: ${e.message}`); }
+}
+
+function avisarPastaMisturada() {
+  const faltando = ELEMENTOS_ESPERADOS.filter(sel => !$(sel));
+  if (!faltando.length && !FALHAS_BOOT.length) return;
+
+  const d = document.createElement('div');
+  d.className = 'aviso alerta';
+  d.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:9998;box-shadow:0 12px 34px rgba(0,0,0,.5)';
+  d.innerHTML = `<span class="aviso-i">▲</span><div>
+    <b>Esta pasta está com arquivos de versões diferentes.</b><br>
+    O <code>index.html</code> e o <code>js/app.js</code> não são do mesmo pacote, então parte da
+    ferramenta não iniciou — telas podem aparecer vazias e os selos do topo ficam parados.
+    <div style="margin-top:8px"><b>Resolve assim:</b> recarregue segurando Shift
+    (Cmd+Shift+R no Mac, Ctrl+Shift+R no Windows). Se continuar, apague a pasta inteira
+    e extraia o <code>.zip</code> de novo — trocar só alguns arquivos é o que causa isso.</div>
+    ${faltando.length ? `<div style="margin-top:8px;font-size:12px;opacity:.8">Faltando no HTML: ${faltando.map(esc).join(', ')}</div>` : ''}
+    ${FALHAS_BOOT.length ? `<div style="margin-top:6px;font-size:12px;opacity:.8">${FALHAS_BOOT.map(esc).join(' · ')}</div>` : ''}
+    <button class="btn btn-sm btn-fantasma" style="margin-top:10px" onclick="this.closest('.aviso').remove()">Fechar</button>
+  </div>`;
+  document.body.appendChild(d);
+}
+
 function iniciar() {
   APP.cfg = window.CFG.lerCfg();
-  window.TP.iniciar();
 
-  $$('.aba').forEach(a => a.onclick = () => {
-    irPara(a.dataset.tela);
-    if (a.dataset.tela === 'historico') renderHistorico();
-    if (a.dataset.tela === 'termometro') renderTermometro('#areaTermometroFull');
+  etapa('teleprompter', () => window.TP.iniciar());
+
+  etapa('abas', () => {
+    $$('.aba').forEach(a => a.onclick = () => {
+      irPara(a.dataset.tela);
+      if (a.dataset.tela === 'historico') renderHistorico();
+      if (a.dataset.tela === 'termometro') renderTermometro('#areaTermometroFull');
+    });
   });
 
-  $('#btnVarrer').onclick = rodarVarredura;
-  const b2 = $('#btnVarrer2');
-  if (b2) b2.onclick = rodarVarredura;
-  $('#btnAtualizarMacro').onclick = carregarMacro;
+  etapa('botoes', () => {
+    ligar('#btnVarrer', 'onclick', rodarVarredura);
+    const b2 = $('#btnVarrer2');
+    if (b2) b2.onclick = rodarVarredura;          // opcional: so existe na tela vazia
+    ligar('#btnAtualizarMacro', 'onclick', carregarMacro);
 
-  $('#btnConfig').onclick = abrirConfig;
-  $('#btnFecharConfig').onclick = () => $('#modalConfig').classList.remove('on');
-  $('#btnSalvarConfig').onclick = salvarConfig;
-  $('#modalConfig').onclick = (e) => { if (e.target.id === 'modalConfig') $('#modalConfig').classList.remove('on'); };
+    ligar('#btnConfig', 'onclick', abrirConfig);
+    ligar('#btnFecharConfig', 'onclick', () => $('#modalConfig').classList.remove('on'));
+    ligar('#btnSalvarConfig', 'onclick', salvarConfig);
+    ligar('#modalConfig', 'onclick', (e) => {
+      if (e.target.id === 'modalConfig') $('#modalConfig').classList.remove('on');
+    });
+    ligar('#cfgTemp', 'oninput', (e) => { const v = $('#cfgTempVal'); if (v) v.textContent = e.target.value; });
 
-  $('#cfgTemp').oninput = (e) => $('#cfgTempVal').textContent = e.target.value;
+    ligar('#btnCopiarTudo', 'onclick', () => copiar(pacoteParaMarkdown(APP.pacote), 'Pacote inteiro'));
+    ligar('#btnBaixar', 'onclick', () => baixar(nomeArquivo(APP.pacote), pacoteParaMarkdown(APP.pacote)));
+    ligar('#btnSlides', 'onclick', () => baixarSlides(APP.pacote));
+    ligar('#btnSalvar', 'onclick', () => {
+      window.CFG.salvarNoHistorico(APP.pacote);
+      toast('Pacote salvo no histórico.', 'ok');
+    });
+    ligar('#btnTeleprompter', 'onclick', () => window.TP.abrir());
+    ligar('#btnColher', 'onclick', () => colherManchetes('#areaTermometroFull'));
 
-  // Limpa espacos e quebras de linha assim que o campo perde o foco.
-  ['#cfgChaveAnthropic', '#cfgChaveGemini', '#cfgChaveOpenRouter'].forEach(sel => {
-    const el = $(sel);
-    if (el) el.onblur = () => { el.value = window.IA.limparChave(el.value); };
+    ligar('#btnExportarTudo', 'onclick', () => {
+      const h = window.CFG.lerHistorico();
+      if (!h.length) return toast('Nada para exportar.', 'err');
+      baixar(`radar-institucional-${new Date().toISOString().slice(0, 10)}.json`,
+             JSON.stringify(h, null, 2), 'application/json');
+    });
+
+    ligar('#btnLimparDados', 'onclick', () => {
+      if (!confirm('Isso apaga sua chave, suas configurações e todo o histórico salvo neste navegador. Confirma?')) return;
+      localStorage.clear();
+      location.reload();
+    });
   });
 
-  // Mostrar/ocultar a chave: sem isso nao da para conferir uma colagem torta,
-  // que e justamente a causa mais comum de falha de autenticacao.
-  document.querySelectorAll('[data-olho]').forEach(btn => {
-    btn.onclick = () => {
-      const campo = $('#' + btn.dataset.olho);
-      const visivel = campo.type === 'text';
-      campo.type = visivel ? 'password' : 'text';
-      btn.textContent = visivel ? '👁' : '🙈';
-      btn.title = visivel ? 'Mostrar a chave' : 'Ocultar a chave';
-      btn.setAttribute('aria-label', btn.title);
-    };
+  etapa('campos de chave', () => {
+    // Limpa espacos e quebras de linha assim que o campo perde o foco.
+    ['#cfgChaveAnthropic', '#cfgChaveGemini', '#cfgChaveOpenRouter'].forEach(sel => {
+      const el = $(sel);
+      if (el) el.onblur = () => { el.value = window.IA.limparChave(el.value); };
+    });
+
+    // Mostrar/ocultar a chave: sem isso nao da para conferir uma colagem torta,
+    // que e justamente a causa mais comum de falha de autenticacao.
+    document.querySelectorAll('[data-olho]').forEach(btn => {
+      btn.onclick = () => {
+        const campo = $('#' + btn.dataset.olho);
+        if (!campo) return;
+        const visivel = campo.type === 'text';
+        campo.type = visivel ? 'password' : 'text';
+        btn.textContent = visivel ? '👁' : '🙈';
+        btn.title = visivel ? 'Mostrar a chave' : 'Ocultar a chave';
+        btn.setAttribute('aria-label', btn.title);
+      };
+    });
+
+    document.querySelectorAll('[data-testar]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.testar;
+        const Cap = id.charAt(0).toUpperCase() + id.slice(1);
+        const alvo = $('#status' + Cap);
+        const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
+        const sel = $('#cfgModelo' + Cap);
+        if (!alvo || !campo) return;
+        alvo.textContent = 'testando…';
+        alvo.className = 'prov-status';
+        const provisorio = Object.assign({}, APP.cfg, {
+          [window.IA.PROVEDORES[id].campoChave]: campo.value.trim(),
+          ['modelo' + Cap]: sel ? sel.value : undefined
+        });
+        const r = await window.IA.testarChave(provisorio, id);
+        alvo.textContent = r.mensagem;
+        alvo.className = 'prov-status ' + (r.ok ? 'ok' : 'erro');
+      };
+    });
   });
 
-  document.querySelectorAll('[data-testar]').forEach(btn => {
-    btn.onclick = async () => {
-      const id = btn.dataset.testar;
-      const Cap = id.charAt(0).toUpperCase() + id.slice(1);
-      const alvo = $('#status' + Cap);
-      const campo = $('#cfgChave' + (id === 'openrouter' ? 'OpenRouter' : Cap));
-      const sel = $('#cfgModelo' + Cap);
-      alvo.textContent = 'testando…';
-      alvo.className = 'prov-status';
-      const provisorio = Object.assign({}, APP.cfg, {
-        [window.IA.PROVEDORES[id].campoChave]: campo.value.trim(),
-        ['modelo' + Cap]: sel ? sel.value : undefined
-      });
-      const r = await window.IA.testarChave(provisorio, id);
-      alvo.textContent = r.mensagem;
-      alvo.className = 'prov-status ' + (r.ok ? 'ok' : 'erro');
-    };
+  etapa('coletor', () => {
+    window.DADOS.servidorDisponivel().then(ok => {
+      APP.temServidor = ok;
+      etapa('termometro', () => renderTermometro('#areaTermometroFull'));
+      const p = $('#statusColetor');
+      if (p) p.innerHTML = ok
+        ? '<span class="ponto on"></span><span>Coletor ativo</span>'
+        : '<span class="ponto off"></span><span>Sem coletor</span>';
+    }).catch(() => {
+      const p = $('#statusColetor');
+      if (p) p.innerHTML = '<span class="ponto off"></span><span>Sem coletor</span>';
+    });
   });
 
-  $('#btnLimparDados').onclick = () => {
-    if (!confirm('Isso apaga sua chave, suas configurações e todo o histórico salvo neste navegador. Confirma?')) return;
-    localStorage.clear();
-    location.reload();
-  };
+  // Cada tela isolada: uma quebrando, as outras continuam preenchidas.
+  etapa('mestres', renderMestres);
+  etapa('concorrencia', renderConcorrencia);
+  etapa('produtos', renderProdutos);
+  etapa('fontes', renderFontes);
+  etapa('historico', renderHistorico);
+  etapa('status', atualizarStatus);
+  etapa('macro', carregarMacro);
 
-  $('#btnCopiarTudo').onclick = () => copiar(pacoteParaMarkdown(APP.pacote), 'Pacote inteiro');
-  $('#btnBaixar').onclick = () => baixar(nomeArquivo(APP.pacote), pacoteParaMarkdown(APP.pacote));
-  $('#btnSlides').onclick = () => baixarSlides(APP.pacote);
-  $('#btnSalvar').onclick = () => {
-    window.CFG.salvarNoHistorico(APP.pacote);
-    toast('Pacote salvo no histórico.', 'ok');
-  };
-  $('#btnTeleprompter').onclick = () => window.TP.abrir();
-
-  $('#btnExportarTudo').onclick = () => {
-    const h = window.CFG.lerHistorico();
-    if (!h.length) return toast('Nada para exportar.', 'err');
-    baixar(`radar-institucional-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(h, null, 2), 'application/json');
-  };
-
-  $('#btnColher').onclick = () => colherManchetes('#areaTermometroFull');
-
-  window.DADOS.servidorDisponivel().then(ok => {
-    APP.temServidor = ok;
-    renderTermometro('#areaTermometroFull');
-    const p = $('#statusColetor');
-    if (p) p.innerHTML = ok
-      ? '<span class="ponto on"></span><span>Coletor ativo</span>'
-      : '<span class="ponto off"></span><span>Sem coletor</span>';
+  etapa('aviso de chave', () => {
+    if (!window.IA.provedoresProntos(APP.cfg).length) {
+      setTimeout(() => {
+        toast('Configure ao menos uma chave de IA — Claude, Gemini ou OpenRouter — em Configurações.',
+              'info', 8000);
+      }, 1100);
+    }
   });
 
-  renderMestres();
-  renderConcorrencia();
-  renderProdutos();
-  renderFontes();
-  renderHistorico();
-  atualizarStatus();
-  carregarMacro();
+  etapa('service worker', () => {
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('sw.js').catch(() => { /* offline opcional */ });
+    }
+  });
 
-  if (!window.IA.provedoresProntos(APP.cfg).length) {
-    setTimeout(() => {
-      toast('Configure ao menos uma chave de IA — Claude, Gemini ou OpenRouter — em Configurações.',
-            'info', 8000);
-    }, 1100);
-  }
-
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* offline opcional */ });
-  }
+  avisarPastaMisturada();
 }
 
 /* Handlers inline no HTML gerado precisam destes nomes no escopo global. */
