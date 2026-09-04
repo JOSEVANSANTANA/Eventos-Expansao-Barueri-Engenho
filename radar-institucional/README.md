@@ -34,6 +34,26 @@ navegador (CORS).
 **Instalar como app:** com o servidor rodando, clique no ícone de instalação na
 barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
 
+### Como saber qual versão está rodando
+
+Cada pacote carrega um carimbo de versão — hoje `2026.09.04.1` — em três lugares:
+no `index.html`, no `js/app.js` e no `?v=` de cada arquivo que a página carrega.
+
+- O servidor **imprime a versão no arranque**, na janela preta.
+- Passe o mouse sobre o selo de chaves, no topo à direita: o balão mostra a versão.
+- Se o `index.html` e o `js/app.js` forem de pacotes diferentes, um aviso na tela diz
+  isso, com as duas versões, em vez de a ferramenta se comportar de um jeito que não
+  bate com o código.
+
+**Por que isso existe.** Sem cabeçalho de cache, o Chrome guarda o `js/app.js` no disco
+e pode servi-lo por horas **sem perguntar ao servidor** — uma correção já publicada
+simplesmente não aparece. Agora o servidor manda `Cache-Control: no-cache` (que não
+proíbe guardar: obriga a revalidar, o que em localhost custa um 304), e cada arquivo é
+pedido com `?v=` da versão, o que torna a URL nova a cada pacote. Um `.zip` novo nunca
+mais é servido com código velho.
+
+---
+
 ### Se a página abrir sem formatação
 
 Aconteceu uma vez e não deve mais: a tela aparece como texto cru, fonte serifada,

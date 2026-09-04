@@ -6,6 +6,7 @@
 <title>Radar Institucional — Central de Conteúdo Financeiro</title>
 <meta name="description" content="Varredura diária do mercado, roteiro pronto para teleprompter, CTA de banking e SEO — com dado real e fonte rastreável.">
 <meta name="theme-color" content="#080B11">
+<meta name="radar-versao" content="2026.09.04.1">
 <!-- standalone: sem manifest -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3487,6 +3488,12 @@ function realcarMarcacoes(txt) {
   return esc(txt).replace(/\[([A-ZÀ-ÚÇ\s]+)\]/g, '<span class="marca">[$1]</span>');
 }
 
+/* Versao deste pacote de arquivos. O index.html carrega a MESMA string no meta
+   e no ?v= de cada script - se as duas divergirem, o navegador esta servindo
+   arquivo velho de cache e a ferramenta avisa em vez de se comportar estranho.
+   O build-standalone.py falha se as duas sairem do lugar. */
+const VERSAO_APP = '2026.09.04.1';
+
 const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
 /* =========================================================================
@@ -5177,6 +5184,8 @@ function atualizarStatus() {
     ? `Chaves configuradas: ${prontos.map(id => window.IA.PROVEDORES[id].nome).join(', ')}`
     : 'Nenhuma chave configurada';
   $('#logoMarca').textContent = APP.cfg.marca || 'Central de Conteúdo';
+  const selo = $('#statusApi');
+  if (selo && selo.parentElement) selo.parentElement.title = `Radar Institucional ${VERSAO_APP}`;
 }
 
 /* =========================================================================
@@ -5220,15 +5229,28 @@ function etapa(nome, fn) {
 
 function avisarPastaMisturada() {
   const faltando = ELEMENTOS_ESPERADOS.filter(sel => !$(sel));
+  const meta = document.querySelector('meta[name="radar-versao"]');
+  const versaoHTML = meta ? meta.getAttribute('content') : null;
+  const versaoDivergente = versaoHTML && versaoHTML !== VERSAO_APP;
+
+  if (versaoDivergente) {
+    FALHAS_BOOT.push(`index.html e da versao ${versaoHTML} e o app.js e da ${VERSAO_APP}`);
+  }
   if (!faltando.length && !FALHAS_BOOT.length) return;
 
   const d = document.createElement('div');
   d.className = 'aviso alerta';
   d.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:9998;box-shadow:0 12px 34px rgba(0,0,0,.5)';
   d.innerHTML = `<span class="aviso-i">▲</span><div>
-    <b>Esta pasta está com arquivos de versões diferentes.</b><br>
-    O <code>index.html</code> e o <code>js/app.js</code> não são do mesmo pacote, então parte da
-    ferramenta não iniciou — telas podem aparecer vazias e os selos do topo ficam parados.
+    <b>${versaoDivergente
+      ? 'O navegador está usando um arquivo antigo.'
+      : 'Esta pasta está com arquivos de versões diferentes.'}</b><br>
+    ${versaoDivergente
+      ? `O <code>index.html</code> desta pasta é da versão <b>${esc(versaoHTML)}</b>, mas o
+         <code>js/app.js</code> que rodou é da <b>${esc(VERSAO_APP)}</b>. Você está vendo o
+         comportamento da versão antiga — correções recentes não aparecem.`
+      : `O <code>index.html</code> e o <code>js/app.js</code> não são do mesmo pacote, então parte da
+         ferramenta não iniciou — telas podem aparecer vazias e os selos do topo ficam parados.`}
     <div style="margin-top:8px"><b>Resolve assim:</b> recarregue segurando Shift
     (Cmd+Shift+R no Mac, Ctrl+Shift+R no Windows). Se continuar, apague a pasta inteira
     e extraia o <code>.zip</code> de novo — trocar só alguns arquivos é o que causa isso.</div>

@@ -821,6 +821,17 @@ class Handler(SimpleHTTPRequestHandler):
         kwargs['directory'] = RAIZ
         super().__init__(*args, **kwargs)
 
+    def end_headers(self):
+        # Sem Cache-Control, o Chrome aplica cache heuristico e pode servir o
+        # js/app.js do disco por horas SEM perguntar ao servidor - foi assim que
+        # uma correcao ja publicada continuou nao aparecendo na tela do usuario.
+        # "no-cache" nao proibe guardar: obriga a revalidar a cada carga, o que
+        # em localhost custa um 304 e resolve o problema de vez.
+        caminho = urlparse(self.path).path
+        if caminho.endswith(('.html', '.js', '.css', '.json', '/')) or caminho == '':
+            self.send_header('Cache-Control', 'no-cache, must-revalidate')
+        super().end_headers()
+
     def log_message(self, formato, *args):
         # args[0] e a linha da requisicao no log normal, mas um INTEIRO (o codigo)
         # quando vem de log_error. Sem o str(), um simples 404 levantava TypeError
@@ -890,13 +901,16 @@ def autoteste(porta):
     alvos = [('/index.html', 'text/html'), ('/css/app.css', 'text/css'),
              ('/js/app.js', 'javascript'), ('/manifest.json', 'json')]
     problemas = []
+    versoes = {}
     for caminho, esperado in alvos:
         try:
             con = http.client.HTTPConnection('127.0.0.1', porta, timeout=5)
             con.request('GET', caminho)
             resp = con.getresponse()
             tipo = resp.getheader('Content-Type') or '(sem tipo)'
-            tamanho = len(resp.read())
+            bruto = resp.read()
+            corpo = bruto.decode('utf-8', 'ignore')
+            tamanho = len(bruto)
             con.close()
             if resp.status != 200:
                 problemas.append(f'{caminho}  ->  HTTP {resp.status}: nao esta na pasta')
@@ -904,8 +918,19 @@ def autoteste(porta):
                 problemas.append(f'{caminho}  ->  chegou vazio')
             elif esperado not in tipo:
                 problemas.append(f'{caminho}  ->  servido como "{tipo}", devia ser {esperado}')
+            else:
+                achado = re.search(r'radar-versao" content="([^"]+)"', corpo) \
+                    or re.search(r"VERSAO_APP = '([^']+)'", corpo)
+                if achado:
+                    versoes[caminho] = achado.group(1)
         except Exception as e:
             problemas.append(f'{caminho}  ->  {type(e).__name__}: {e}')
+
+    # index.html e app.js precisam ser do mesmo pacote. Divergindo, a pasta esta
+    # misturada - e a tela vai se comportar de um jeito que nao bate com o codigo.
+    if len(set(versoes.values())) > 1:
+        problemas.append('versoes diferentes na pasta: '
+                         + ', '.join(f'{k} = {v}' for k, v in versoes.items()))
     return problemas
 
 
@@ -951,7 +976,10 @@ def main():
         print('   Radar-Institucional-STANDALONE.html abre com duplo clique.')
         print()
     else:
-        print('   Casco conferido: HTML, CSS e JS com o tipo certo.')
+        versao = re.search(r'VERSAO_APP = \'([^\']+)\'',
+                           open(os.path.join(RAIZ, 'js', 'app.js'), encoding='utf-8').read())
+        print(f"   Casco conferido: HTML, CSS e JS com o tipo certo."
+              f"{'  Versao ' + versao.group(1) if versao else ''}")
         print()
 
     # O navegador so abre depois do autoteste - ou seja, depois que a porta ja

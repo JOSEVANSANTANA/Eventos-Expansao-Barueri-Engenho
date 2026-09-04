@@ -7,7 +7,7 @@
    app nunca ficava disponivel offline. Agora cada arquivo e tratado por conta
    propria, e a troca de nome do cache descarta o que a v1 tinha guardado -
    inclusive resposta salva com cabecalho errado.                            */
-const CACHE = 'radar-institucional-v2';
+const CACHE = 'radar-institucional-v3';
 const CASCO = [
   './', './index.html', './css/app.css', './manifest.json',
   './js/knowledge.js', './js/config.js', './js/data.js', './js/prompts.js',
