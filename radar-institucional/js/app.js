@@ -62,6 +62,53 @@ function realcarMarcacoes(txt) {
 const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
 /* =========================================================================
+   CORTE DE TEXTO
+   -------------------------------------------------------------------------
+   Contar caractere e cortar no limite parte palavra ao meio - foi assim que
+   slide e grafico sairam com "prepara medidas c…" e "cheque especial d". Aqui
+   o corte procura, nesta ordem: um fim de oracao (virgula, ponto e virgula,
+   travessao), depois um fim de palavra. Nunca no meio de uma.
+   ========================================================================= */
+/* Palavra que nao pode terminar um texto cortado: artigo, preposicao e
+   conjuncao penduradas ("prepara medidas contra o…", "Selic meta de") pedem
+   um complemento que foi justamente o que ficou de fora. */
+const CONECTIVOS_FINAIS =
+  /[\s,;:\-–—]+(de|do|da|dos|das|em|no|na|nos|nas|o|a|os|as|ao|aos|um|uma|uns|umas|para|por|pelo|pela|com|sem|sobre|entre|que|e|ou|mas|se|seu|sua|seus|suas|meu|minha|este|esta|esse|essa|aquele|aquela)$/i;
+
+function semConectivoFinal(t) {
+  let anterior, texto = String(t).replace(/[\s,;:.\-–—]+$/, '');
+  do { anterior = texto; texto = texto.replace(CONECTIVOS_FINAIS, ''); }
+  while (texto !== anterior);
+  return texto;
+}
+
+function encurtar(texto, maxCaracteres) {
+  const t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim();
+  if (t.length <= maxCaracteres) return t;
+
+  const pedaco = t.slice(0, maxCaracteres);
+  // Uma oracao inteira comunica melhor que uma frase pela metade, desde que
+  // sobre texto suficiente para dizer alguma coisa.
+  const oracao = Math.max(pedaco.lastIndexOf(', '), pedaco.lastIndexOf('; '),
+                          pedaco.lastIndexOf(' — '), pedaco.lastIndexOf(' – '));
+  const palavra = pedaco.lastIndexOf(' ');
+  const onde = oracao > maxCaracteres * 0.5 ? oracao
+             : (palavra > maxCaracteres * 0.4 ? palavra : maxCaracteres);
+  const base = semConectivoFinal(pedaco.slice(0, onde));
+  return (base || pedaco.slice(0, onde).trim()) + '…';
+}
+
+/* Rotulo de eixo: encurta e tambem tira conectivo pendurado, porque
+   "Selic meta de" sem o numero ao lado nao quer dizer nada. */
+function rotuloLimpo(texto, maxCaracteres) {
+  const t = semConectivoFinal(String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim());
+  const curto = encurtar(t, maxCaracteres);
+  // encurtar() so poe reticencias quando cortou; num rotulo de eixo elas
+  // roubam espaco util, entao saem depois de a limpeza ja ter acontecido.
+  return curto.endsWith('…') ? semConectivoFinal(curto.slice(0, -1)) : curto;
+}
+
+/* =========================================================================
    ESCOLHA DE PROVEDOR
    -------------------------------------------------------------------------
    Cada trabalho pode usar uma IA diferente. Com mais de uma chave preenchida
@@ -687,8 +734,12 @@ function formatarValor(n, unidade, casas) {
    dentro do card de slide, onde o SVG encolhe e a fonte precisa crescer. */
 function svgBarras(dados, unidade, f) {
   const casas = casasDaSerie(dados);
-  const corta = (t) => t.length > 30 ? t.slice(0, 29) + '…' : t;
-  const rotulos = dados.map(d => corta(d.rotulo));
+  // A coluna de rotulo e limitada a 42% da largura do viewBox. Quantos
+  // caracteres cabem ali depende do corpo da fonte - fixar em 30 fazia o
+  // rotulo transbordar e ser cortado pela borda do SVG dentro do card.
+  const larguraRotulo = 620 * 0.42;
+  const cabeNoRotulo = Math.max(8, Math.floor(larguraRotulo / (f * 0.546)));
+  const rotulos = dados.map(d => rotuloLimpo(d.rotulo, cabeNoRotulo));
   const valores = dados.map(d => formatarValor(d.valor, unidade, casas));
 
   const larg = 620, linha = f * 2.46, topo = f * 0.5;
@@ -835,13 +886,15 @@ function renderGrafico(g, fonte) {
 function apresentacaoDeReserva(j) {
   const ri = j.radarInstitucional || {};
 
-  /* Corta na primeira frase de VERDADE: dividir em qualquer ponto transforma
+  /* Primeira frase de VERDADE: dividir em qualquer ponto transforma
      "A poupanca rendeu 0.6697% no mes" em "A poupanca rendeu 0". So conta como
-     fim de frase o ponto seguido de espaco, ou o fim do texto. */
+     fim de frase o ponto seguido de espaco, ou o fim do texto. O que sobrar
+     longo demais para o slide e encurtado em fim de oracao, nao no meio da
+     palavra. */
   const primeiraFrase = (t, max) => {
-    const txt = String(t || '').trim();
-    const corte = txt.split(/(?<=[.!?;])\s+/)[0].replace(/[.;]$/, '');
-    return corte.length > max ? corte.slice(0, max - 1).trim() + '…' : corte;
+    const txt = String(t == null ? '' : t).trim();
+    const frase = txt.split(/(?<=[.!?;])\s+/)[0].replace(/[.;]$/, '');
+    return encurtar(frase, max);
   };
   const verificados = arr(j.checagem).filter(c =>
     String(c.status || '').toUpperCase().startsWith('VERIF'));
@@ -850,11 +903,14 @@ function apresentacaoDeReserva(j) {
 
   slides.push({
     n: 1,
-    titulo: (j.tema || 'O tema de hoje').split(/[:—-]/)[0].trim().slice(0, 60),
-    bullets: arr(ri.resumo).slice(0, 3).map(t => primeiraFrase(t, 95)),
+    // Nao parte mais o tema em ':' ou '-': o titulo virava so o pedaco depois
+    // do sinal, e "Divida recorde: BC acende alerta" chegava ao slide como
+    // "acende alerta". Encurta pelo fim, preservando o comeco.
+    titulo: encurtar(j.tema || 'O tema de hoje', 58),
+    bullets: arr(ri.resumo).slice(0, 3).map(t => primeiraFrase(t, 110)),
     dadoDestaque: verificados[0]
       ? { valor: (String(verificados[0].dado).match(/[\d.,]+\s*%?[^\s,;]*/) || [''])[0],
-          rotulo: String(verificados[0].dado).slice(0, 70), fonte: verificados[0].onde || '' }
+          rotulo: encurtar(verificados[0].dado, 68), fonte: verificados[0].onde || '' }
       : { valor: '', rotulo: '', fonte: '' },
     graficoId: '',
     notaDoApresentador: (j.roteiroShort && j.roteiroShort.gancho3s) || '',
@@ -864,10 +920,10 @@ function apresentacaoDeReserva(j) {
   if (ri.impactoNoBolso) {
     slides.push({
       n: slides.length + 1, titulo: 'Quem ganha e quem perde',
-      bullets: String(ri.impactoNoBolso).split(/(?<=[.!?;])\s+/).slice(0, 3).map(t => primeiraFrase(t, 95)).filter(Boolean),
+      bullets: String(ri.impactoNoBolso).split(/(?<=[.!?;])\s+/).slice(0, 3).map(t => primeiraFrase(t, 110)).filter(Boolean),
       dadoDestaque: verificados[1]
         ? { valor: (String(verificados[1].dado).match(/[\d.,]+\s*%?[^\s,;]*/) || [''])[0],
-            rotulo: String(verificados[1].dado).slice(0, 70), fonte: verificados[1].onde || '' }
+            rotulo: encurtar(verificados[1].dado, 68), fonte: verificados[1].onde || '' }
         : { valor: '', rotulo: '', fonte: '' },
       graficoId: '', notaDoApresentador: '', visual: 'dois lados da mesma conta'
     });
@@ -875,8 +931,8 @@ function apresentacaoDeReserva(j) {
 
   if (j.mestre && j.mestre.principioUsado) {
     slides.push({
-      n: slides.length + 1, titulo: j.mestre.principioUsado.slice(0, 55),
-      bullets: [primeiraFrase(j.mestre.comoAncora, 95)].filter(Boolean),
+      n: slides.length + 1, titulo: encurtar(j.mestre.principioUsado, 55),
+      bullets: [primeiraFrase(j.mestre.comoAncora, 110)].filter(Boolean),
       dadoDestaque: { valor: '', rotulo: '', fonte: '' }, graficoId: '',
       notaDoApresentador: `Ancore em ${j.mestre.nome || 'um princípio clássico'}.`,
       visual: `retrato ou citação de ${j.mestre.nome || ''}`.trim()
@@ -886,7 +942,7 @@ function apresentacaoDeReserva(j) {
   if (ri.nossoDiferencial) {
     slides.push({
       n: slides.length + 1, titulo: 'O que ninguém está dizendo',
-      bullets: [primeiraFrase(ri.nossoDiferencial, 95)],
+      bullets: [primeiraFrase(ri.nossoDiferencial, 110)],
       dadoDestaque: { valor: '', rotulo: '', fonte: '' }, graficoId: '',
       notaDoApresentador: '', visual: 'você em plano médio, olhando para a câmera'
     });
@@ -916,8 +972,10 @@ function apresentacaoDeReserva(j) {
     const depois = texto.slice(m.index + m[0].length).toLowerCase().replace(/[.\s]/g, '');
     const unidade = /^aa|^aoano|^anual|^em12meses|^nos?12meses|^acumulado/.test(depois) ? '% a.a.'
       : (/^am|^aom[eê]s|^nom[eê]s|^mensal|^dom[eê]s/.test(depois) ? '% a.m.' : '%');
-    const rotulo = texto.slice(0, m.index).replace(/[-–—:]\s*$/, '').trim().slice(0, 28)
-                || texto.replace(/[\d.,]+\s*%.*/, '').trim().slice(0, 28) || 'dado';
+    // O texto antes do numero termina em conectivo ("Selic meta de"), que
+    // sozinho nao diz nada. rotuloLimpo tira isso antes de encurtar.
+    const rotulo = rotuloLimpo(texto.slice(0, m.index), 34)
+                || rotuloLimpo(texto.replace(/[\d.,]+\s*%.*/, ''), 34) || 'dado';
     (porUnidade[unidade] = porUnidade[unidade] || []).push({
       rotulo, valor: parseFloat(m[1].replace(',', '.')), fonte: c.onde || ''
     });
@@ -948,7 +1006,7 @@ function apresentacaoDeReserva(j) {
   return {
     _reserva: true,
     titulo: j.tema || 'Apresentação',
-    subtitulo: ri.nossoDiferencial ? String(ri.nossoDiferencial).slice(0, 120) : '',
+    subtitulo: ri.nossoDiferencial ? primeiraFrase(ri.nossoDiferencial, 130) : '',
     duracaoEstimadaMin: Math.max(5, slides.length * 2),
     usoRecomendado: 'reunião 1a1 com cliente',
     slides, graficos,
