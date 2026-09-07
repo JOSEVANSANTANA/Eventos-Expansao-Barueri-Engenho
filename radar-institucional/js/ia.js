@@ -16,10 +16,14 @@
    ========================================================================= */
 
 class ErroIA extends Error {
-  constructor(mensagem, status, provedor) {
+  constructor(mensagem, status, provedor, dados) {
+    // dados: o que o provedor mandou junto do erro (espera pedida, tipo de
+    // cota, modelo aposentado). A cascata decide com base nisso.
+
     super(mensagem);
     this.name = 'ErroIA';
     this.status = status;
+    this.dados = dados || {};
     this.provedor = provedor;
   }
 }
@@ -93,16 +97,58 @@ async function lerSSE(resposta, extrair, aoReceberToken) {
   return texto;
 }
 
+/* O corpo do erro traz mais que uma frase: o Google manda, dentro de
+   error.details, um RetryInfo com quanto esperar E qual cota estourou. Antes
+   isso era descartado - todo 429 virava "aguarde alguns instantes", e a espera
+   era um chute de 2, 4 e 9 segundos que nunca satisfaz uma cota por minuto e
+   muito menos a diaria. */
 async function corpoErro(r) {
-  try {
-    const j = await r.json();
-    return (j.error && (j.error.message || j.error.type)) || JSON.stringify(j).slice(0, 200);
-  } catch (e) {
-    return `HTTP ${r.status}`;
-  }
+  const vazio = { texto: `HTTP ${r.status}`, espera: 0, diaria: false, modeloMorto: false };
+  let j;
+  try { j = await r.json(); } catch (e) { return vazio; }
+
+  const texto = (j.error && (j.error.message || j.error.type))
+    || JSON.stringify(j).slice(0, 200);
+  const detalhes = (j.error && j.error.details) || [];
+
+  // RetryInfo: "retryDelay": "38s"
+  let espera = 0;
+  detalhes.forEach(d => {
+    const m = String(d.retryDelay || '').match(/([\d.]+)s/);
+    if (m) espera = Math.ceil(parseFloat(m[1]));
+  });
+
+  // QuotaFailure: distingue cota POR DIA de cota por minuto. Numa diaria,
+  // insistir hoje nao adianta - a unica saida e outro modelo ou outra chave.
+  const tudo = JSON.stringify(detalhes) + ' ' + texto;
+  const diaria = /PerDay|per day|daily limit|requests per day/i.test(tudo);
+
+  // Modelo aposentado: o proprio Google diz o substituto na mensagem.
+  const modeloMorto = /no longer available|not found|deprecated|has been (retired|removed)/i.test(texto);
+
+  return { texto, espera, diaria, modeloMorto };
 }
 
-function mensagemDeStatus(status, detalhe, provedor, painel) {
+function mensagemDeStatus(status, erro, provedor, painel) {
+  const detalhe = typeof erro === 'string' ? erro : erro.texto;
+  const dados = typeof erro === 'string' ? {} : erro;
+
+  if (status === 429) {
+    if (dados.diaria) {
+      return `Cota DIÁRIA da ${provedor} esgotada neste modelo. Repetir hoje não resolve: `
+           + `ela zera na virada do dia (meia-noite no Pacífico, ~4h ou 5h no Brasil). `
+           + `Para produzir agora, use outro provedor — uma chave gratuita da OpenRouter `
+           + `resolve em dois minutos em openrouter.ai/keys.`;
+    }
+    return dados.espera
+      ? `Limite por minuto da ${provedor} atingido. O próprio Google pediu ${dados.espera}s de espera.`
+      : `Limite de uso da ${provedor} atingido. Aguarde alguns instantes.`;
+  }
+
+  if (dados.modeloMorto) {
+    return `${provedor}: este modelo saiu do ar. ${detalhe}`;
+  }
+
   if (status === 401 || status === 403) {
     const dica = provedor === 'Gemini'
       ? ' Dica: a chave precisa ser da Gemini API, criada em aistudio.google.com/apikey com um projeto'
@@ -112,7 +158,6 @@ function mensagemDeStatus(status, detalhe, provedor, painel) {
     return `Chave da ${provedor} recusada. (${detalhe})${dica}`;
   }
   if (status === 402) return `Sem créditos na ${provedor}. Adicione saldo em ${painel}.`;
-  if (status === 429) return `Limite de uso da ${provedor} atingido. Aguarde alguns instantes.`;
   if (status >= 500) return `Instabilidade na ${provedor} (${status}). Tente de novo.`;
   return `${provedor}: ${detalhe}`;
 }
@@ -163,8 +208,9 @@ const ANTHROPIC = {
     }, 'Anthropic');
 
     if (!r.ok) {
-      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Anthropic', this.painel),
-                       r.status, 'Anthropic');
+      const detalhes = await corpoErro(r);
+      throw new ErroIA(mensagemDeStatus(r.status, detalhes, 'Anthropic', this.painel),
+                       r.status, 'Anthropic', detalhes);
     }
 
     const texto = await lerSSE(r,
@@ -185,11 +231,14 @@ const GEMINI = {
   campoChave: 'chaveGemini',
   painel: 'aistudio.google.com',
   ondePegar: 'https://aistudio.google.com/apikey',
+  // O gemini-2.5-flash saiu: a propria API responde "no longer available to new
+  // users. Please update your code to use models/gemini-3.6-flash". Deixar um
+  // modelo morto na lista gasta uma rodada inteira da cascata para nada.
   modelos: [
     { id: 'gemini-3.7-flash', rotulo: 'Gemini 3.7 Flash — rápido e capaz' },
+    { id: 'gemini-3.6-flash', rotulo: 'Gemini 3.6 Flash — reserva estável' },
     { id: 'gemini-3.1-pro-preview', rotulo: 'Gemini 3.1 Pro — raciocínio' },
-    { id: 'gemini-3.5-flash', rotulo: 'Gemini 3.5 Flash' },
-    { id: 'gemini-2.5-flash', rotulo: 'Gemini 2.5 Flash — geração anterior' }
+    { id: 'gemini-3.5-flash', rotulo: 'Gemini 3.5 Flash' }
   ],
   padrao: 'gemini-3.7-flash',
 
@@ -226,8 +275,9 @@ const GEMINI = {
     }, 'Gemini');
 
     if (!r.ok) {
-      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'Gemini', this.painel),
-                       r.status, 'Gemini');
+      const detalhes = await corpoErro(r);
+      throw new ErroIA(mensagemDeStatus(r.status, detalhes, 'Gemini', this.painel),
+                       r.status, 'Gemini', detalhes);
     }
 
     const texto = await lerSSE(r, (j) => {
@@ -286,8 +336,9 @@ const OPENROUTER = {
     }, 'OpenRouter');
 
     if (!r.ok) {
-      throw new ErroIA(mensagemDeStatus(r.status, await corpoErro(r), 'OpenRouter', this.painel),
-                       r.status, 'OpenRouter');
+      const detalhes = await corpoErro(r);
+      throw new ErroIA(mensagemDeStatus(r.status, detalhes, 'OpenRouter', this.painel),
+                       r.status, 'OpenRouter', detalhes);
     }
 
     const citacoes = [];
@@ -450,23 +501,37 @@ async function chamarIA(cfg, opcoes = {}) {
           if (e.name === 'AbortError') throw e;
 
           tentativas.push({ provedor: prov.nome, modelo, status: e.status || 0,
-                            erro: e.message, repeticao: r });
+                            erro: e.message, repeticao: r,
+                            diaria: !!(e.dados && e.dados.diaria) });
 
           if (STATUS_SEM_VOLTA.includes(e.status)) {
             pularProvedor = true;          // chave ou saldo: nem modelo nem espera resolvem
             break;
           }
 
+          // Cota DIARIA estourada: insistir hoje e desperdicio puro. Sai deste
+          // modelo na hora e vai para o proximo, que tem cota propria.
+          if (e.dados && e.dados.diaria) break;
+
+          // Modelo aposentado: nao existe mais, esperar nao ressuscita.
+          if (e.dados && e.dados.modeloMorto) break;
+
           // Ainda ha espera sobrando e o erro e do tipo que passa sozinho?
           if (r < esperas.length && ehTemporario(e)) {
+            // Quando o provedor DIZ quanto esperar, obedecemos: um 429 por
+            // minuto pede ate 60s, e o chute de 2s so queima tentativa.
+            const pedida = (e.dados && e.dados.espera) ? e.dados.espera * 1000 : 0;
+            const espera = Math.min(Math.max(pedida, esperas[r]), 65000);
+
             if (opcoes.aoEsperar) {
               opcoes.aoEsperar({
                 provedor: prov.nome, modelo, status: e.status || 0,
-                segundos: Math.round(esperas[r] / 1000),
-                tentativa: r + 1, de: esperas.length
+                segundos: Math.round(espera / 1000),
+                tentativa: r + 1, de: esperas.length,
+                pedidaPeloProvedor: pedida > 0
               });
             }
-            await dormir(esperas[r]);
+            await dormir(espera);
             continue;                       // mesmo modelo, mais uma vez
           }
 
@@ -497,17 +562,38 @@ function resumo(tentativas) {
     porModelo.set(chave, { vezes: atual.vezes + 1, erro: t.erro });
   });
 
-  const linhas = Array.from(porModelo.entries()).map(([chave, d]) =>
-    `• ${chave}: ${d.erro}${d.vezes > 1 ? ` (${d.vezes} tentativas)` : ''}`);
+  // Quando a causa e a mesma em todos, o cabecalho ja explicou: repetir o
+  // texto inteiro por modelo vira parede de letra e esconde o que importa.
+  const mesmaCausa = new Set(tentativas.map(t => t.erro)).size === 1;
+  const linhas = Array.from(porModelo.entries()).map(([chave, d]) => {
+    const motivo = mesmaCausa ? 'mesma causa' : d.erro;
+    return `• ${chave}: ${motivo}${d.vezes > 1 ? ` (${d.vezes} tentativas)` : ''}`;
+  });
 
-  const soSobrecarga = tentativas.every(t => STATUS_TEMPORARIO.includes(t.status));
-  const cabeca = soSobrecarga
-    ? `Os provedores estão sobrecarregados agora. Tentei ${tentativas.length} vezes em `
-      + `${porModelo.size} modelo(s), esperando entre uma e outra, e nenhuma passou. `
-      + `Isso costuma durar poucos minutos:`
-    : `Tentei ${porModelo.size} combinação(ões) de provedor e modelo:`;
+  const soCota = tentativas.some(t => t.diaria);
+  const soSobrecarga = !soCota && tentativas.every(t => STATUS_TEMPORARIO.includes(t.status));
 
-  return `${cabeca}\n${linhas.join('\n')}`;
+  // Cota estourada nao e "tente de novo": e "use outra porta". A mensagem tem
+  // que dizer a saida, senao o usuario fica clicando em Tentar de novo o dia
+  // inteiro sem produzir nada - foi exatamente o que aconteceu.
+  const cabeca = soCota
+    ? `A cota diária da sua chave Gemini acabou — em todos os modelos `
+      + `(${porModelo.size} testados). Clicar em "Tentar de novo" não resolve hoje: `
+      + `ela zera na virada do dia, meia-noite no Pacífico (~4h ou 5h no Brasil).`
+    : soSobrecarga
+      ? `Os provedores estão sobrecarregados agora. Tentei ${tentativas.length} vezes em `
+        + `${porModelo.size} modelo(s), esperando entre uma e outra, e nenhuma passou. `
+        + `Isso costuma durar poucos minutos:`
+      : `Tentei ${porModelo.size} combinação(ões) de provedor e modelo:`;
+
+  const saida = soCota
+    ? `\n\nPara produzir AGORA, sem esperar a virada do dia:\n`
+      + `1. Abra openrouter.ai/keys e crie uma chave (é gratuito e leva dois minutos).\n`
+      + `2. Cole em Configurações › OpenRouter e deixe o modelo em "Automático".\n`
+      + `A ferramenta passa a usar os modelos gratuitos de lá quando o Gemini fechar.`
+    : '';
+
+  return soCota ? `${cabeca}${saida}` : `${cabeca}\n${linhas.join('\n')}${saida}`;
 }
 
 /* Teste de chave, por provedor. */

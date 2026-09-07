@@ -36,7 +36,7 @@ barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
 
 ### Como saber qual versão está rodando
 
-Cada pacote carrega um carimbo de versão — hoje `2026.09.07.1` — em três lugares:
+Cada pacote carrega um carimbo de versão — hoje `2026.09.07.2` — em três lugares:
 no `index.html`, no `js/app.js` e no `?v=` de cada arquivo que a página carrega.
 
 - O servidor **imprime a versão no arranque**, na janela preta.
@@ -276,6 +276,26 @@ A tela mostra o que está acontecendo, com o modelo nomeado:
 Gemini (Google) · gemini-3.7-flash sobrecarregado (503).
 Tentando de novo em 4s — tentativa 2 de 3…
 ```
+
+### Cota estourada não é a mesma coisa que sobrecarga
+
+O erro `429` do Gemini tem duas caras, e tratá-las igual foi o que fez um dia
+inteiro passar sem produção:
+
+| | O que é | O que a ferramenta faz |
+|---|---|---|
+| **Por minuto** | você bateu o teto de pedidos do minuto | espera **o que o Google mandar esperar** (vem no corpo do erro, costuma ser 20–60s) e refaz. Costuma sair o pacote |
+| **Por dia** | a cota diária da chave gratuita acabou | **não insiste**: passa direto aos outros modelos e, se todos fecharem, diz que só zera na virada do dia e mostra como produzir agora |
+
+Antes as duas viravam "Aguarde alguns instantes" e a espera era um chute de 2, 4
+e 9 segundos — nunca satisfaz um limite por minuto, e é desperdício puro numa
+cota diária. Agora o corpo do erro é lido de verdade: o `RetryInfo` diz quantos
+segundos esperar e o `QuotaFailure` diz qual cota estourou.
+
+**Se a cota diária acabar**, a saída em dois minutos é uma chave gratuita da
+OpenRouter em `openrouter.ai/keys`, colada em Configurações › OpenRouter com o
+modelo em "Automático". A ferramenta passa a usar os modelos gratuitos de lá
+quando o Gemini fechar.
 
 **Chave inválida (401/403) não repete e não troca de modelo.** Nenhuma das duas
 coisas conserta chave errada, e insistir só faria você esperar por nada. Falta de
