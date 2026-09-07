@@ -349,11 +349,60 @@ function modeloEscolhido(cfg, id) {
 
 /* -------------------------------------------------------------------------
    CHAMADA COM RESERVA
-   Usa o provedor escolhido. Se ele falhar por motivo que trocar de provedor
-   resolve (sem credito, limite, instabilidade), tenta os outros configurados.
-   Erro de chave invalida nao cai para o proximo do mesmo provedor - trocar de
-   modelo nao conserta chave errada.
+
+   Tres niveis de reserva, do mais barato para o mais caro:
+
+     1. MESMO modelo, de novo, esperando um pouco    <- resolve 503 quase sempre
+     2. OUTRO modelo do MESMO provedor
+     3. OUTRO provedor configurado
+
+   O nivel 1 existe porque 503 e 429 sao sobrecarga passageira do lado deles:
+   o pedido identico costuma passar segundos depois. Antes, uma unica batida de
+   503 no Gemini terminava a geracao e sobrava so o botao "Tentar de novo" para
+   o usuario clicar na mao - e com uma chave so configurada nao havia nem
+   cascata para onde cair.
+
+   O nivel 2 existe porque a sobrecarga costuma ser DAQUELE modelo, nao da conta.
+   gemini-3.7-flash lotado nao quer dizer gemini-2.5-flash lotado.
+
+   Chave invalida (401/403) nao repete e nao troca de modelo: nenhuma das duas
+   coisas conserta chave errada. Falta de credito (402) nao repete no mesmo
+   provedor, mas cai para o proximo, que pode ter saldo.
    ------------------------------------------------------------------------- */
+
+/* Status que valem repetir: sobrecarga, limite e erro interno deles. */
+const STATUS_TEMPORARIO = [408, 409, 425, 429, 500, 502, 503, 504];
+
+/* Status em que trocar de MODELO ainda pode resolver dentro do mesmo provedor. */
+const STATUS_TROCA_MODELO = [400, 404, 413, 429, 500, 502, 503, 504];
+
+/* Status que nao adianta insistir de jeito nenhum no mesmo provedor. */
+const STATUS_SEM_VOLTA = [401, 403, 402];
+
+/* O PRIMEIRO modelo ganha as tres esperas: e o escolhido pelo usuario e o que
+   vale insistir. Os modelos alternativos ganham uma so - ali a pergunta e
+   "este outro esta de pe?", nao "vai desafogar?". Sem essa distincao, quatro
+   modelos x quatro tentativas passavam de 1 minuto olhando para uma tela
+   parada antes de desistir. */
+const ESPERAS_MS = [1500, 4000, 9000];   // ~15s no modelo principal
+const ESPERAS_ALTERNATIVO_MS = [1500];   // ~1,5s em cada modelo de reserva
+
+const dormir = (ms) => new Promise(r => setTimeout(r, ms));
+
+function ehTemporario(e) {
+  // Falha de rede chega com status 0: tambem vale repetir, pode ter sido um
+  // soluco de conexao e nao um problema real do provedor.
+  return STATUS_TEMPORARIO.includes(e.status) || (!e.status && e.name !== 'AbortError');
+}
+
+/* Modelos do provedor, com o escolhido na frente e sem repetir. */
+function modelosDe(cfg, id) {
+  const prov = PROVEDORES[id];
+  const escolhido = modeloEscolhido(cfg, id);
+  const todos = (prov.modelos || []).map(m => m.id);
+  return [escolhido, ...todos].filter((v, i, a) => v && a.indexOf(v) === i);
+}
+
 async function chamarIA(cfg, opcoes = {}) {
   const preferido = opcoes.provedor || cfg.provedor;
   const prontos = provedoresProntos(cfg);
@@ -369,40 +418,96 @@ async function chamarIA(cfg, opcoes = {}) {
   for (let i = 0; i < fila.length; i++) {
     const id = fila[i];
     const prov = PROVEDORES[id];
-    const modelo = modeloEscolhido(cfg, id);
+    const modelos = modelosDe(cfg, id);
+    let pularProvedor = false;
 
-    if (opcoes.aoTentar) {
-      opcoes.aoTentar({ provedor: prov.nome, modelo, indice: i, total: fila.length });
-    }
+    for (let m = 0; m < modelos.length && !pularProvedor; m++) {
+      const modelo = modelos[m];
+      const esperas = m === 0 ? ESPERAS_MS : ESPERAS_ALTERNATIVO_MS;
 
-    try {
-      const mensagens = opcoes.mensagensPara
-        ? opcoes.mensagensPara(false)   // busca web paga fica so no OpenRouter
-        : opcoes.mensagens;
+      for (let r = 0; r <= esperas.length; r++) {
+        if (opcoes.aoTentar) {
+          opcoes.aoTentar({
+            provedor: prov.nome, modelo, indice: i, total: fila.length,
+            repeticao: r, modeloAlternativo: m > 0
+          });
+        }
 
-      const r = await prov.chamar(cfg, mensagens, { ...opcoes, modelo });
+        try {
+          const mensagens = opcoes.mensagensPara
+            ? opcoes.mensagensPara(false)   // busca web paga fica so no OpenRouter
+            : opcoes.mensagens;
 
-      if (!r.texto || !r.texto.trim()) {
-        throw new ErroIA(`${prov.nome} devolveu resposta vazia.`, 0, prov.nome);
-      }
-      return { ...r, provedorUsado: prov.nome, provedorId: id, buscaUsada: false, tentativas };
+          const resposta = await prov.chamar(cfg, mensagens, { ...opcoes, modelo });
 
-    } catch (e) {
-      if (e.name === 'AbortError') throw e;
-      tentativas.push({ provedor: prov.nome, modelo, status: e.status || 0, erro: e.message });
-      if (i === fila.length - 1) {
-        throw new ErroIA(resumo(tentativas), 0, prov.nome);
+          if (!resposta.texto || !resposta.texto.trim()) {
+            throw new ErroIA(`${prov.nome} devolveu resposta vazia.`, 0, prov.nome);
+          }
+          return { ...resposta, provedorUsado: prov.nome, provedorId: id,
+                   modeloUsado: modelo, buscaUsada: false, tentativas };
+
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+
+          tentativas.push({ provedor: prov.nome, modelo, status: e.status || 0,
+                            erro: e.message, repeticao: r });
+
+          if (STATUS_SEM_VOLTA.includes(e.status)) {
+            pularProvedor = true;          // chave ou saldo: nem modelo nem espera resolvem
+            break;
+          }
+
+          // Ainda ha espera sobrando e o erro e do tipo que passa sozinho?
+          if (r < esperas.length && ehTemporario(e)) {
+            if (opcoes.aoEsperar) {
+              opcoes.aoEsperar({
+                provedor: prov.nome, modelo, status: e.status || 0,
+                segundos: Math.round(esperas[r] / 1000),
+                tentativa: r + 1, de: esperas.length
+              });
+            }
+            await dormir(esperas[r]);
+            continue;                       // mesmo modelo, mais uma vez
+          }
+
+          // Esgotou a espera: outro modelo do mesmo provedor ainda pode servir.
+          if (!STATUS_TROCA_MODELO.includes(e.status) && e.status) {
+            pularProvedor = true;
+          }
+          break;
+        }
       }
     }
   }
-  throw new ErroIA(resumo(tentativas), 0, '-');
+
+  throw new ErroIA(resumo(tentativas), 0, fila.length ? PROVEDORES[fila[0]].nome : '-');
 }
 
 function resumo(tentativas) {
   if (!tentativas.length) return 'Nenhum provedor pôde ser acionado.';
   if (tentativas.length === 1) return tentativas[0].erro;
-  return `Tentei ${tentativas.length} provedores e nenhum respondeu:\n`
-    + tentativas.map(t => `• ${t.provedor} (${t.modelo}): ${t.erro}`).join('\n');
+
+  // Com repeticao, a mesma falha aparece varias vezes. Listar as 12 linhas
+  // esconde a informacao util; o que importa e o ultimo erro de cada modelo e
+  // quantas vezes ele bateu.
+  const porModelo = new Map();
+  tentativas.forEach(t => {
+    const chave = `${t.provedor} (${t.modelo})`;
+    const atual = porModelo.get(chave) || { vezes: 0, erro: '' };
+    porModelo.set(chave, { vezes: atual.vezes + 1, erro: t.erro });
+  });
+
+  const linhas = Array.from(porModelo.entries()).map(([chave, d]) =>
+    `• ${chave}: ${d.erro}${d.vezes > 1 ? ` (${d.vezes} tentativas)` : ''}`);
+
+  const soSobrecarga = tentativas.every(t => STATUS_TEMPORARIO.includes(t.status));
+  const cabeca = soSobrecarga
+    ? `Os provedores estão sobrecarregados agora. Tentei ${tentativas.length} vezes em `
+      + `${porModelo.size} modelo(s), esperando entre uma e outra, e nenhuma passou. `
+      + `Isso costuma durar poucos minutos:`
+    : `Tentei ${porModelo.size} combinação(ões) de provedor e modelo:`;
+
+  return `${cabeca}\n${linhas.join('\n')}`;
 }
 
 /* Teste de chave, por provedor. */

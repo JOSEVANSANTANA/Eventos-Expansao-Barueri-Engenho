@@ -63,7 +63,7 @@ function realcarMarcacoes(txt) {
    e no ?v= de cada script - se as duas divergirem, o navegador esta servindo
    arquivo velho de cache e a ferramenta avisa em vez de se comportar estranho.
    O build-standalone.py falha se as duas sairem do lugar. */
-const VERSAO_APP = '2026.09.04.1';
+const VERSAO_APP = '2026.09.07.1';
 
 const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
@@ -298,10 +298,18 @@ async function rodarVarredura() {
           semBusca: !comBusca, noticiasTexto, jaUsados
         })
       }]),
-      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
+      aoEsperar: ({ provedor: nome, modelo, status, segundos, tentativa, de }) => {
+        const r0 = $('#carregandoRadar');
+        if (r0) r0.textContent = `${nome} · ${modelo} sobrecarregado (${status}). `
+          + `Tentando de novo em ${segundos}s — tentativa ${tentativa} de ${de}…`;
+      },
+      aoTentar: ({ provedor: nome, modelo, indice, total, repeticao, modeloAlternativo }) => {
         stream.textContent = '';
         const r0 = $('#carregandoRadar');
-        if (r0) r0.textContent = indice === 0
+        if (!r0) return;
+        if (repeticao > 0) r0.textContent = `Repetindo em ${nome} (${modelo})…`;
+        else if (modeloAlternativo) r0.textContent = `Trocando de modelo: ${nome} (${modelo})…`;
+        else r0.textContent = indice === 0
           ? `Analisando com ${nome} (${modelo})…`
           : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },
@@ -648,10 +656,18 @@ async function gerarPacote(pauta, provedorEscolhido) {
           noticiasTexto: APP.colheita ? window.DADOS.noticiasParaTexto(APP.colheita, 6) : ''
         })
       }]),
-      aoTentar: ({ provedor: nome, modelo, indice, total }) => {
+      aoEsperar: ({ provedor: nome, modelo, status, segundos, tentativa, de }) => {
+        const r0 = $('#carregandoPacote');
+        if (r0) r0.textContent = `${nome} · ${modelo} sobrecarregado (${status}). `
+          + `Tentando de novo em ${segundos}s — tentativa ${tentativa} de ${de}…`;
+      },
+      aoTentar: ({ provedor: nome, modelo, indice, total, repeticao, modeloAlternativo }) => {
         stream.textContent = '';
         const r0 = $('#carregandoPacote');
-        if (r0) r0.textContent = indice === 0
+        if (!r0) return;
+        if (repeticao > 0) r0.textContent = `Repetindo em ${nome} (${modelo})…`;
+        else if (modeloAlternativo) r0.textContent = `Trocando de modelo: ${nome} (${modelo})…`;
+        else r0.textContent = indice === 0
           ? `Escrevendo com ${nome} (${modelo})…`
           : `Provedor ${indice + 1} de ${total}: ${nome} (${modelo})…`;
       },

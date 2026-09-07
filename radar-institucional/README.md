@@ -36,7 +36,7 @@ barra de endereços do Chrome. A ferramenta passa a abrir em janela própria.
 
 ### Como saber qual versão está rodando
 
-Cada pacote carrega um carimbo de versão — hoje `2026.09.04.1` — em três lugares:
+Cada pacote carrega um carimbo de versão — hoje `2026.09.07.1` — em três lugares:
 no `index.html`, no `js/app.js` e no `?v=` de cada arquivo que a página carrega.
 
 - O servidor **imprime a versão no arranque**, na janela preta.
@@ -252,6 +252,41 @@ Três travas, todas no prompt:
    seis pautas terminando no mesmo produto é falha de varredura.
 
 Salvar os pacotes no Histórico não é opcional: é o que alimenta a trava.
+
+## Quando o provedor está sobrecarregado
+
+Erro `503` ou `429` significa que o modelo está lotado do lado deles — não é
+problema da sua chave nem da ferramenta. Isso costuma passar em segundos, e por
+isso a ferramenta **não desiste na primeira batida**. São três níveis de reserva,
+do mais barato para o mais caro:
+
+| Nível | O que faz | Quando |
+|---|---|---|
+| 1 | Repete o **mesmo modelo**, esperando 2s, 4s e 9s | resolve a maioria dos 503 |
+| 2 | Tenta **outro modelo do mesmo provedor**, uma vez cada | a sobrecarga costuma ser daquele modelo, não da conta |
+| 3 | Cai para **outro provedor** configurado | quando há mais de uma chave |
+
+O modelo que você escolheu ganha as três esperas — é nele que vale insistir. Os
+modelos de reserva ganham uma tentativa cada: ali a pergunta é "este outro está
+de pé?", não "vai desafogar?".
+
+A tela mostra o que está acontecendo, com o modelo nomeado:
+
+```
+Gemini (Google) · gemini-3.7-flash sobrecarregado (503).
+Tentando de novo em 4s — tentativa 2 de 3…
+```
+
+**Chave inválida (401/403) não repete e não troca de modelo.** Nenhuma das duas
+coisas conserta chave errada, e insistir só faria você esperar por nada. Falta de
+crédito (402) não repete no mesmo provedor, mas cai para o próximo — esse pode
+ter saldo.
+
+No pior caso — provedor inteiro fora do ar, uma chave só configurada — são cerca
+de **20 segundos** de tentativas automáticas antes de a ferramenta desistir e
+dizer o que houve.
+
+---
 
 ## Escolha de modelo
 
